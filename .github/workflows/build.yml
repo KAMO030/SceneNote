@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  android:
+    name: Android debug build + shared tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build
+        run: ./gradlew :shared:testAndroidHostTest :androidApp:assembleDebug --no-daemon
+      - name: APK size gate (≤ 250 MB first install, 05 篇)
+        run: |
+          size=$(stat -c%s androidApp/build/outputs/apk/debug/androidApp-debug.apk)
+          echo "apk bytes: $size"
+          test "$size" -le 262144000
+      - uses: actions/upload-artifact@v4
+        with:
+          name: androidApp-debug
+          path: androidApp/build/outputs/apk/debug/*.apk
+
+  ios:
+    name: iOS simulator build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.1.app/Contents/Developer || sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | tail -1)/Contents/Developer"
+      - name: Build
+        run: cd iosApp && xcodebuild -scheme iosApp -configuration Debug -sdk iphonesimulator -arch arm64 CODE_SIGNING_ALLOWED='NO' build

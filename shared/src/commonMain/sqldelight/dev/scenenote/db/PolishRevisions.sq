@@ -1,0 +1,21 @@
+-- 润色修订链：rev 递增；回滚语义 = 上一 rev → cleaned → rawText（02 篇 §2.4）。
+CREATE TABLE polish_revision (
+    segment_id TEXT NOT NULL REFERENCES segment(id) ON DELETE CASCADE,
+    rev INTEGER NOT NULL,
+    style_ver TEXT NOT NULL,
+    backend TEXT NOT NULL,              -- cloud:<provider> | system | local-gguf | rules
+    text TEXT NOT NULL,
+    user_edited INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    accepted_at INTEGER,
+    PRIMARY KEY (segment_id, rev)
+);
+
+insertRevision:
+INSERT OR REPLACE INTO polish_revision(segment_id, rev, style_ver, backend, text, user_edited, accepted_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectRevisions:
+SELECT * FROM polish_revision WHERE segment_id = ? ORDER BY rev;
+
+latestRev:
+SELECT MAX(rev) FROM polish_revision WHERE segment_id = ?;

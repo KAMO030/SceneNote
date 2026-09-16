@@ -1,0 +1,37 @@
+-- 会话：录音线 Transcript 与实时线 Conversation 共用一张表，kind 区分。
+CREATE TABLE session (
+    id TEXT NOT NULL PRIMARY KEY,
+    kind TEXT NOT NULL,                 -- RECORD | LIVE | SCREEN
+    scene_id TEXT NOT NULL,
+    mode_id TEXT,                       -- M0..M12 / S1..S8，录音场景为 NULL
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    default_lang TEXT NOT NULL,
+    my_lang TEXT,
+    other_lang TEXT,
+    engine_provider TEXT NOT NULL,
+    engine_model TEXT NOT NULL,
+    engine_version TEXT NOT NULL,
+    my_audio_path TEXT,                 -- 只存我方音频；对方音频不落盘
+    summary TEXT,
+    title TEXT
+);
+
+CREATE INDEX session_started_at ON session(started_at);
+
+insertSession:
+INSERT OR REPLACE INTO session(id, kind, scene_id, mode_id, started_at, ended_at, default_lang, my_lang, other_lang,
+    engine_provider, engine_model, engine_version, my_audio_path, summary, title)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+endSession:
+UPDATE session SET ended_at = ?, summary = ?, title = ? WHERE id = ?;
+
+selectRecent:
+SELECT * FROM session ORDER BY started_at DESC LIMIT ?;
+
+selectById:
+SELECT * FROM session WHERE id = ?;
+
+countAll:
+SELECT COUNT(*) FROM session;

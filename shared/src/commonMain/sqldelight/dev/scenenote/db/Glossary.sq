@@ -1,0 +1,36 @@
+-- 术语表 + 纠错映射（数据层回流的真实落点）。
+CREATE TABLE glossary_entry (
+    term TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    reading TEXT,
+    translation_json TEXT NOT NULL DEFAULT '{}',   -- {"en":"...","ja":"..."}
+    hits INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (term, bucket)
+);
+
+CREATE TABLE correction (
+    wrong TEXT NOT NULL,
+    right TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (wrong, bucket)
+);
+
+-- minSdk 26 的系统 SQLite 是 3.18，没有 UPSERT；用 INSERT OR REPLACE + 子查询保住 hits。
+upsertGlossary:
+INSERT OR REPLACE INTO glossary_entry(term, bucket, reading, translation_json, hits, updated_at)
+VALUES (:term, :bucket, :reading, :translation_json, COALESCE((SELECT hits FROM glossary_entry WHERE term = :term AND bucket = :bucket), 0), :updated_at);
+
+bumpGlossaryHit:
+UPDATE glossary_entry SET hits = hits + 1 WHERE term = ? AND bucket = ?;
+
+selectGlossary:
+SELECT * FROM glossary_entry WHERE bucket = ? ORDER BY hits DESC, updated_at DESC;
+
+upsertCorrection:
+INSERT OR REPLACE INTO correction(wrong, right, bucket, count)
+VALUES (:wrong, :right, :bucket, COALESCE((SELECT count FROM correction WHERE wrong = :wrong AND bucket = :bucket), 0) + 1);
+
+selectCorrections:
+SELECT * FROM correction WHERE bucket = ? ORDER BY count DESC;

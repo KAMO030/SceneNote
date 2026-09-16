@@ -1,0 +1,27 @@
+-- 实时会话话语（附录 A Utterance）；PARTIAL 段不入库，只存 FINAL 后的话语快照。
+CREATE TABLE utterance (
+    id TEXT NOT NULL PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    speaker TEXT NOT NULL,              -- ME | OTHER | REMOTE | UNKNOWN
+    lang TEXT NOT NULL,
+    raw TEXT NOT NULL,
+    fast_translation_json TEXT,
+    polished TEXT,
+    final_translation_json TEXT NOT NULL DEFAULT '{}',
+    tts_status TEXT NOT NULL DEFAULT 'QUEUED',
+    source TEXT NOT NULL DEFAULT 'LOCAL_MIC',
+    capture_ts_ms INTEGER NOT NULL,
+    glossary_hits_json TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE INDEX utterance_session ON utterance(session_id, capture_ts_ms);
+
+insertUtterance:
+INSERT OR REPLACE INTO utterance(id, session_id, speaker, lang, raw, fast_translation_json, polished, final_translation_json, tts_status, source, capture_ts_ms, glossary_hits_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateSlowPath:
+UPDATE utterance SET polished = ?, final_translation_json = ?, glossary_hits_json = ? WHERE id = ?;
+
+selectBySession:
+SELECT * FROM utterance WHERE session_id = ? ORDER BY capture_ts_ms;

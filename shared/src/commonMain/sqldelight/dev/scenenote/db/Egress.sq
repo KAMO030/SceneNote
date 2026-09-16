@@ -1,0 +1,28 @@
+-- 去向账本：每一笔互联网 / 局域网出站都记一行（附录 A LedgerEntry）。
+CREATE TABLE egress_ledger (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL,
+    provider_id TEXT NOT NULL,
+    host TEXT NOT NULL,
+    kind TEXT NOT NULL,                 -- audio | text | model_asset
+    transport TEXT NOT NULL,            -- http | ws | sse | lan_ws | lan_http | ble
+    bytes INTEGER NOT NULL,
+    segment_id TEXT,
+    est_cost REAL,
+    destination_class TEXT NOT NULL DEFAULT 'internet'   -- internet | lan
+);
+
+CREATE INDEX egress_ts ON egress_ledger(ts);
+
+insertEntry:
+INSERT INTO egress_ledger(ts, provider_id, host, kind, transport, bytes, segment_id, est_cost, destination_class)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectSince:
+SELECT * FROM egress_ledger WHERE ts >= ? ORDER BY ts DESC;
+
+sumCostSince:
+SELECT COALESCE(SUM(est_cost), 0.0) FROM egress_ledger WHERE ts >= ? AND destination_class = 'internet';
+
+sumBytesSince:
+SELECT COALESCE(SUM(bytes), 0) FROM egress_ledger WHERE ts >= ? AND destination_class = ?;

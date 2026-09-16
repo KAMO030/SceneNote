@@ -1,0 +1,25 @@
+# Gradle / build
+.gradle/
+build/
+**/build/
+local.properties
+.kotlin/
+kotlin-js-store/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Xcode
+iosApp/iosApp.xcodeproj/xcuserdata/
+iosApp/iosApp.xcodeproj/project.xcworkspace/xcuserdata/
+iosApp/build/
+iosApp/DerivedData/
+*.xcuserstate
+
+# Models & secrets（模型包不入库；Key 只存 SecureStore）
+models/
+*.onnx
+*.sherpa-pack
+.env

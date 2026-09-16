@@ -1,0 +1,32 @@
+-- 识别层不可变段（附录 A Segment）。润色 / 翻译放 polish_revision。
+CREATE TABLE segment (
+    id TEXT NOT NULL PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    start_ms INTEGER NOT NULL,
+    end_ms INTEGER NOT NULL,
+    lang TEXT NOT NULL,
+    raw_text TEXT NOT NULL,
+    text TEXT NOT NULL,
+    confidence REAL,
+    speaker TEXT,
+    is_final INTEGER AS kotlin.Boolean NOT NULL DEFAULT 1,
+    source TEXT NOT NULL,               -- LOCAL | CLOUD | REMOTE
+    revision INTEGER NOT NULL DEFAULT 0,
+    engine_provider TEXT NOT NULL,
+    engine_model TEXT NOT NULL,
+    engine_version TEXT NOT NULL,
+    pending_cloud INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0
+);
+
+CREATE INDEX segment_session ON segment(session_id, start_ms);
+
+insertSegment:
+INSERT OR REPLACE INTO segment(id, session_id, start_ms, end_ms, lang, raw_text, text, confidence, speaker, is_final, source, revision,
+    engine_provider, engine_model, engine_version, pending_cloud)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectBySession:
+SELECT * FROM segment WHERE session_id = ? ORDER BY start_ms;
+
+deleteBySession:
+DELETE FROM segment WHERE session_id = ?;
