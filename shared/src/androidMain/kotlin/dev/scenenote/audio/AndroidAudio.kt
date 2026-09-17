@@ -91,6 +91,26 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
         rec.startRecording()
         check(rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "AudioRecord 未进入录音状态（可能被其他 App 占用）" }
         routeManager.reportInputDevice(rec.routedDevice)
+        // 诊断回环：files/diag-play.wav 存在时，采集开始 1.5 s 后用扬声器播放它（16 kHz 单声道 WAV），对照麦克风拾到的电平
+        java.io.File(context.filesDir, "diag-play.wav").takeIf { it.exists() }?.let { wav ->
+            thread(name = "scenenote-diag-play") {
+                runCatching {
+                    val bytes = wav.readBytes()
+                    val pcm = ShortArray((bytes.size - 44) / 2) { i -> ((bytes[44 + 2 * i].toInt() and 0xff) or (bytes[45 + 2 * i].toInt() shl 8)).toShort() }
+                    val t = AudioTrack.Builder()
+                        .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                        .setAudioFormat(AudioFormat.Builder().setSampleRate(16_000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
+                        .setBufferSizeInBytes(pcm.size * 2).setTransferMode(AudioTrack.MODE_STATIC).build()
+                    t.write(pcm, 0, pcm.size)
+                    SystemClock.sleep(1500)
+                    t.play()
+                    dev.scenenote.core.Diag.log("mic", "diag-play started samples=${pcm.size} routed=${t.routedDevice?.let { "${it.type}:${it.address}" }}")
+                    SystemClock.sleep(pcm.size * 1000L / 16_000 + 300)
+                    t.stop(); t.release()
+                    dev.scenenote.core.Diag.log("mic", "diag-play done")
+                }.onFailure { dev.scenenote.core.Diag.log("mic", "diag-play failed: $it") }
+            }
+        }
         dev.scenenote.core.Diag.log("mic", "start source=$source sr=${config.sampleRate} buf=$bufBytes routed=${rec.routedDevice?.let { "${it.id}:type${it.type}:${it.address}" }} preferred=${rec.preferredDevice?.let { "${it.id}:${it.address}" }}")
         worker = thread(name = "scenenote-capture", priority = Thread.MAX_PRIORITY) {
             val frame = ShortArray(config.frameSamples)

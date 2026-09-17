@@ -65,6 +65,8 @@ object Routes {
     fun screen(sessionId: String = "", shared: String = "", name: String = "") = "screen?session=$sessionId&shared=$shared&name=$name"
     /** Android S1 系统字幕（抓其他 App 的声音）。 */
     const val SYSTEM_CAPTION = "syscaption"
+    const val LEDGER = "ledger"
+    const val GLOSSARY = "glossary"
     fun meeting(autostart: Boolean = true) = "meeting?autostart=$autostart"
     const val ONBOARDING = "onboarding?page={page}"
     fun onboarding(page: Int = 0) = "onboarding?page=$page"
@@ -94,6 +96,8 @@ fun App() {
                 "note" -> l.path.firstOrNull()?.let { nav.navigate(Routes.note(it)) }
                 "screen" -> nav.navigate(Routes.screen(shared = l.query["shared"] ?: "", name = l.query["name"] ?: ""))
                 "syscaption" -> nav.navigate(Routes.SYSTEM_CAPTION)
+                "ledger" -> nav.navigate(Routes.LEDGER)
+                "glossary" -> nav.navigate(Routes.GLOSSARY)
                 "onboarding" -> nav.navigate(Routes.onboarding(l.query["page"]?.toIntOrNull() ?: 0))
             }
             DeepLinks.consume()
@@ -137,6 +141,8 @@ fun App() {
                 ScreenFlowScreen(onBack = { nav.popBackStack() }, reopenSessionId = entry.savedStateHandle.get<String>("session").orEmpty(), onSystemCaption = { nav.navigate(Routes.SYSTEM_CAPTION) })
             }
             composable(Routes.SYSTEM_CAPTION) { dev.scenenote.ui.screen.SystemCaptionScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.LEDGER) { dev.scenenote.ui.ledger.LedgerScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.GLOSSARY) { dev.scenenote.ui.glossary.GlossaryScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.MEETING, arguments = listOf(navArgument("autostart") { type = NavType.StringType; defaultValue = "true" })) { entry ->
                 val auto = entry.savedStateHandle.get<String>("autostart") != "false"
                 MeetingScreen(onBack = { nav.popBackStack() }, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.MEETING) { inclusive = true } } }, autostart = auto)
@@ -209,6 +215,8 @@ private fun TabContent(nav: NavHostController, tab: Int, onSelectTab: (Int) -> U
                 onOpenSelfTest = { nav.navigate(Routes.selfTest()) },
                 onOpenGallery = { nav.navigate(Routes.GALLERY) },
                 onOpenOnboarding = { nav.navigate(Routes.onboarding()) },
+                onOpenLedger = { nav.navigate(Routes.LEDGER) },
+                onOpenGlossary = { nav.navigate(Routes.GLOSSARY) },
                 openKeyOnEnter = openKey,
             )
         }
@@ -218,11 +226,13 @@ private fun TabContent(nav: NavHostController, tab: Int, onSelectTab: (Int) -> U
 /** 按场景的 liveModeId 分发到对应会话页：M0 / M1 → LiveM0Screen（M1 的耳听·面屏在 I4 单独成页），M4 → LiveM4Screen，其余占位。 */
 @Composable
 private fun LiveSessionRouter(nav: NavHostController, sceneId: String, autostart: Boolean, other: String, my: String, feed: String, modeOverride: String = "") {
-    val scene = Scenes.byId(sceneId)
+    val store = org.koin.compose.koinInject<dev.scenenote.core.scene.SceneStore>()
+    val scene = store.resolve(sceneId)   // 内置或「复制一张再改」的副本（副本按底版分发）
+    val baseId = store.byId(sceneId)?.baseId ?: sceneId
     val mode = (modeOverride.takeIf { it.isNotBlank() } ?: scene?.liveModeId)?.let { runCatching { ModeSpecs.byId(it) }.getOrNull() }
     val back: () -> Unit = { nav.popBackStack() }
-    if (scene?.id == Scenes.screenFile.id) { ScreenFlowScreen(onBack = back, onSystemCaption = { nav.navigate(Routes.SYSTEM_CAPTION) }); return }
-    if (scene?.id == Scenes.meeting.id) { MeetingScreen(onBack = back, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.LIVE) { inclusive = true } } }, autostart = autostart); return }
+    if (baseId == Scenes.screenFile.id) { ScreenFlowScreen(onBack = back, onSystemCaption = { nav.navigate(Routes.SYSTEM_CAPTION) }); return }
+    if (baseId == Scenes.meeting.id) { MeetingScreen(onBack = back, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.LIVE) { inclusive = true } } }, autostart = autostart); return }
     when (mode?.id) {
         "M4" -> LiveM4Screen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed)
         "M0", "M1", "M3" -> LiveConversationScreen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed, initialMode = modeOverride,

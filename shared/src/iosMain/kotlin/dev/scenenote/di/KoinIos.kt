@@ -43,7 +43,7 @@ fun iosPlatformModule(): Module = module {
     single<dev.scenenote.screen.AudioExtractor> { dev.scenenote.screen.IosAudioExtractor() }
     single<dev.scenenote.screen.VideoPlayerFactory> { dev.scenenote.screen.IosVideoPlayerFactory() }
     single<dev.scenenote.screen.SystemAudioCapture> { dev.scenenote.screen.NoopSystemAudioCapture() }
-    single<dev.scenenote.core.platform.Notifier> { dev.scenenote.core.platform.NoopNotifier() }   // I7：本地通知由平台实现替换
+    single<dev.scenenote.core.platform.Notifier> { dev.scenenote.core.platform.IosNotifier() }
     single<SystemTtsProvider> { IosSystemTtsProvider() }
 }
 

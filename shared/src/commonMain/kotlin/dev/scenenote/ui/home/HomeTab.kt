@@ -23,7 +23,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +55,10 @@ import dev.scenenote.core.model.Scenes
 import dev.scenenote.core.platform.isAndroid
 import dev.scenenote.core.settings.AppSettings
 import dev.scenenote.core.settings.KeyWallet
+import dev.scenenote.core.scene.CustomScene
+import dev.scenenote.core.scene.SceneStore
+import dev.scenenote.ui.LocalShellOverlay
+import dev.scenenote.ui.scene.SceneEditSheet
 import org.koin.compose.koinInject
 
 /**
@@ -66,6 +76,16 @@ fun HomeTab(onOpenScene: (String) -> Unit, onOpenOnboarding: () -> Unit, onOpenL
     val otherLang = remember(settings) { settings.otherLang }
     // 大标题紧贴状态栏（状态栏 + 6），右上胶囊与其并排
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // 我的场景（复制一张再改）：sheet 交给壳的覆盖层，盖在玻璃 Tab 栏之上
+    val store = koinInject<SceneStore>()
+    val custom by store.custom.collectAsState()
+    val editState = remember { mutableStateOf<Pair<Boolean, CustomScene?>>(false to null) }
+    val overlayHost = LocalShellOverlay.current
+    val overlayContent: @Composable BoxScope.() -> Unit = { SceneEditOverlay(store, editState) }
+    DisposableEffect(overlayHost) {
+        overlayHost?.value = overlayContent
+        onDispose { overlayHost?.value = null }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -76,13 +96,42 @@ fun HomeTab(onOpenScene: (String) -> Unit, onOpenOnboarding: () -> Unit, onOpenL
             FlagshipCard(scene = Scenes.liveTalk, myLang = myLang, otherLang = otherLang, onOpenScene = onOpenScene, onOpenLiveTab = onOpenLiveTab)
             ScreenSubtitleCard(scene = Scenes.screenFile, onClick = { onOpenScene(Scenes.screenFile.id) })
             MeetingCard(scene = Scenes.meeting, onClick = { onOpenScene(Scenes.meeting.id) })
+            custom.forEach { cs -> CustomSceneCard(cs, onOpen = { onOpenScene(cs.id) }, onEdit = { editState.value = true to cs }) }
+            Box(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page), contentAlignment = Alignment.Center) {
+                SceneButton("复制一张再改", onClick = { editState.value = true to null }, style = ButtonStyle.Plain)
+            }
         }
+        if (overlayHost == null) SceneEditOverlay(store, editState)
         // 右上玻璃胶囊「新手引导」。本 Tab 的内容已被壳录进玻璃取样层，这里不能再取样自己，故关掉 backdrop 走高填充回退
         CompositionLocalProvider(LocalGlassBackdrop provides null) {
             SceneGlassCapsuleButton(
                 "新手引导", onClick = onOpenOnboarding, icon = SceneIcons.Headphones,
                 modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = SceneSpacing.m),
             )
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.SceneEditOverlay(store: SceneStore, state: androidx.compose.runtime.MutableState<Pair<Boolean, CustomScene?>>) {
+    val (open, editing) = state.value
+    SceneEditSheet(visible = open, store = store, editing = editing, onDismiss = { state.value = false to editing })
+}
+
+/** 我的场景卡（复制一张再改的副本）：整卡可点开始；右上「改」进编辑。 */
+@Composable
+private fun CustomSceneCard(cs: CustomScene, onOpen: () -> Unit, onEdit: () -> Unit) {
+    val c = SceneTheme.colors
+    val base = Scenes.byId(cs.baseId)
+    SceneCard(onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
+            SceneText(cs.name, style = SceneTheme.type.title3, modifier = Modifier.weight(1f))
+            SceneText("改", Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onEdit).padding(4.dp), style = SceneTheme.type.subheadline, color = c.tint)
+        }
+        SceneText("基于「${base?.name ?: cs.baseId}」", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+        ChipRow {
+            SceneCapsule("我 · ${Lang.displayName(cs.myLang)}")
+            SceneCapsule("对方 · ${Lang.displayName(cs.otherLang)}")
         }
     }
 }

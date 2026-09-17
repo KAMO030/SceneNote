@@ -31,7 +31,7 @@ abstract class SceneTileService(private val deepLink: String, private val tileLa
 
     private fun launch() {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
-            .setClass(this, MainActivity::class.java)
+            .setClass(this, DeepLinkActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (Build.VERSION.SDK_INT >= 34) {
             val pi = PendingIntent.getActivity(this, deepLink.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

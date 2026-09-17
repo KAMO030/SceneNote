@@ -15,7 +15,7 @@ object DeepLinks {
     private val _pending = MutableStateFlow<DeepLink?>(null)
     val pending: StateFlow<DeepLink?> = _pending.asStateFlow()
 
-    fun handle(url: String) { parse(url)?.let { _pending.value = it } }
+    fun handle(url: String) { dev.scenenote.core.Diag.log("link", "handle $url"); parse(url)?.let { _pending.value = it } }
     fun consume() { _pending.value = null }
 
     fun parse(url: String): DeepLink? {

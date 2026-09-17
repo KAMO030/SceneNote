@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">场记</string>
+    <string name="widget_desc">一按开始仅听或会议</string>
 </resources>

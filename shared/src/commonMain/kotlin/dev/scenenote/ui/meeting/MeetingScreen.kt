@@ -67,15 +67,21 @@ import dev.scenenote.polish.SlowPath
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
+import dev.scenenote.meeting.Reminders
 
-/** 会议录音 VM：一按即录；停止后回调 sessionId 进纪要页。 */
-class MeetingViewModel(private val recorder: MeetingRecorder, private val settings: AppSettings) : ViewModel() {
+/** 会议录音 VM：一按即录；停止后回调 sessionId 进纪要页，并排两条本地提醒（10 分钟「纪要好了」/ 3 天「还没分享」）。 */
+class MeetingViewModel(private val recorder: MeetingRecorder, private val settings: AppSettings, private val notifier: dev.scenenote.core.platform.Notifier) : ViewModel() {
     val state: StateFlow<MeetingState> = recorder.state
     fun start(sceneId: String = Scenes.meeting.id) { viewModelScope.launch { runCatching { recorder.start(sceneId, settings.myLang) } } }
     fun pause() { viewModelScope.launch { recorder.pause() } }
     fun resume() { viewModelScope.launch { recorder.resume() } }
     fun mark() { viewModelScope.launch { recorder.mark() } }
-    fun stop(onDone: (String) -> Unit) { viewModelScope.launch { val id = recorder.stop(); if (id.isNotBlank()) onDone(id) } }
+    fun stop(onDone: (String) -> Unit) {
+        viewModelScope.launch {
+            val id = recorder.stop()
+            if (id.isNotBlank()) { onDone(id); runCatching { Reminders.afterMeeting(notifier, id) } }
+        }
+    }
     override fun onCleared() { if (state.value.state != RecState.IDLE) recorder.release() }
 }
 

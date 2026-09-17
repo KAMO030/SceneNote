@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import dev.scenenote.core.designsystem.LocalGlassBackdrop
 import dev.scenenote.core.designsystem.SceneDivider
 import dev.scenenote.core.designsystem.SceneGroup
+import dev.scenenote.ui.common.InlineOptions
 import dev.scenenote.core.designsystem.SceneIcon
 import dev.scenenote.core.designsystem.SceneIcons
 import dev.scenenote.core.designsystem.SceneRow
@@ -106,7 +107,7 @@ private fun mtTierOf(model: String): MtTier = MT_TIERS.firstOrNull { it.model ==
  * 文案遵守 docs/15：一组 ≤ 1 说明、≤ 1 页脚；只渲染当前平台的入口行。
  */
 @Composable
-fun SettingsTab(onOpenModels: () -> Unit, onOpenSelfTest: () -> Unit, onOpenGallery: () -> Unit, onOpenOnboarding: () -> Unit, openKeyOnEnter: Boolean = false) {
+fun SettingsTab(onOpenModels: () -> Unit, onOpenSelfTest: () -> Unit, onOpenGallery: () -> Unit, onOpenOnboarding: () -> Unit, onOpenLedger: () -> Unit = {}, onOpenGlossary: () -> Unit = {}, openKeyOnEnter: Boolean = false) {
     val vm: SettingsViewModel = koinViewModel()
     LaunchedEffect(Unit) { vm.refresh() }   // 实时 Tab 可能直接改过语言对
     val ui by vm.ui.collectAsState()
@@ -165,6 +166,8 @@ fun SettingsTab(onOpenModels: () -> Unit, onOpenSelfTest: () -> Unit, onOpenGall
                         leading = { SceneRowIcon(SceneIcons.Lock, RowIconColor.Gray) }, onClick = { toggle("privacy") },
                     )
                     InlineOptions(expanded == "privacy", PRIVACY_OPTIONS, ui.privacy, label = { privacyLabel(it) }) { vm.setPrivacy(it); expanded = null }
+                    SceneDivider(inset = 57.dp)
+                    SceneRow("数据去向", chevron = true, leading = { RowGlyph("去", RowIconColor.Gray) }, onClick = onOpenLedger)
                 }
                 SceneSectionFooter("录音只在你选「文字和录音」时上传")
             }
@@ -231,6 +234,8 @@ fun SettingsTab(onOpenModels: () -> Unit, onOpenSelfTest: () -> Unit, onOpenGall
                         leading = { SceneRowIcon(SceneIcons.Headphones, RowIconColor.Blue) }, onClick = { toggle("other") },
                     )
                     InlineOptions(expanded == "other", LANG_OPTIONS, ui.otherLang, label = { Lang.displayName(it) }) { vm.setOtherLang(it); expanded = null }
+                    SceneDivider(inset = 57.dp)
+                    SceneRow("术语表", chevron = true, leading = { RowGlyph("术", RowIconColor.Indigo) }, onClick = onOpenGlossary)
                 }
                 SceneSectionFooter("日语、韩语需要翻译 Key")
             }
@@ -278,32 +283,6 @@ private fun BoxScope.KeyWalletOverlay(vm: SettingsViewModel, open: MutableState<
     }
 }
 
-/** 行内单选组（「四选一打勾」样式）：点父行展开，选中项右侧打勾，不弹窗；Reduce Motion 时瞬开。 */
-@Composable
-private fun <T> InlineOptions(
-    expanded: Boolean,
-    options: List<T>,
-    selected: T,
-    label: (T) -> String,
-    onSelect: (T) -> Unit,
-) {
-    val c = SceneTheme.colors
-    val ms = SceneTheme.motion.normalMs
-    AnimatedVisibility(expanded, enter = expandVertically(tween(ms)) + fadeIn(tween(ms)), exit = shrinkVertically(tween(ms)) + fadeOut(tween(ms))) {
-        Column {
-            options.forEach { o ->
-                val on = o == selected
-                SceneDivider(inset = 57.dp)
-                SceneRow(
-                    label(o),
-                    leading = { Spacer(Modifier.width(29.dp)) },
-                    trailing = { if (on) SceneIcon(SceneIcons.Check, contentDescription = "已选", size = 18.dp, tint = c.tint) },
-                    onClick = { onSelect(o) },
-                )
-            }
-        }
-    }
-}
 
 /** SceneRowIcon 的文字版：SceneIcons 没有的符号用一个字代替（29 pt、7 pt 圆角、白字）。 */
 @Composable

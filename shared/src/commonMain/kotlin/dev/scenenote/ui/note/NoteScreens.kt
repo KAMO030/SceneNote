@@ -74,12 +74,13 @@ data class NoteUiState(
 )
 
 /** 纪要 / 对话卡片 VM：载入会话 → 跑慢路径（有缓存直接用）→ 导出 / 分享 / 新词候选确认。 */
-class NoteViewModel(private val repo: SessionRepository, private val slow: SlowPath, private val exports: Exports, private val sharer: Sharer, private val glossary: dev.scenenote.core.db.GlossaryRepository) : ViewModel() {
+class NoteViewModel(private val repo: SessionRepository, private val slow: SlowPath, private val exports: Exports, private val sharer: Sharer, private val glossary: dev.scenenote.core.db.GlossaryRepository, private val notifier: dev.scenenote.core.platform.Notifier) : ViewModel() {
     private val _ui = MutableStateFlow(NoteUiState())
     val ui: StateFlow<NoteUiState> = _ui.asStateFlow()
     private val json = Json { ignoreUnknownKeys = true }
 
     fun load(sessionId: String, style: Style = Style.BUSINESS, force: Boolean = false) {
+        runCatching { dev.scenenote.meeting.Reminders.opened(notifier, sessionId) }   // 看过就不再催「还没分享」
         viewModelScope.launch {
             val s = repo.byId(sessionId) ?: run { _ui.value = NoteUiState(error = "找不到这条记录"); return@launch }
             _ui.value = NoteUiState(session = s, working = true)   // 换会话 / 重跑时清掉旧产物

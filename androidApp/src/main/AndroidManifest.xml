@@ -35,13 +35,29 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <!--
+          深链 / 分享的跳板（无 UI，不进最近任务，独立 task）：VIEW scenenote:// 与 ACTION_SEND 都先到这里，
+          转成进程内的 DeepLinks.pending 再拉起 MainActivity（普通 MAIN intent）。
+          若让 MainActivity 直接接 VIEW，task 根 intent 就是那条深链：进程被杀后从桌面 / 安装器再打开会被系统原样重放
+          （vivo Android 16 实测：`scene/listen?autostart=1` 反复自动开始录音）。
+        -->
+        <activity
+            android:name="dev.scenenote.android.DeepLinkActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="scenenote" />
             </intent-filter>
-            <!-- 分享面板进屏内字幕（S4）：其他 App「分享」一个视频 / 音频到本 App，onCreate / onNewIntent 复制后发 scenenote://screen?shared= 深链 -->
+            <!-- 分享面板进屏内字幕（S4）：其他 App「分享」一个视频 / 音频到本 App，复制后发 scenenote://screen?shared= 深链 -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -55,6 +71,17 @@
             android:name="dev.scenenote.android.CaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection|microphone" />
+
+        <!-- 主屏小组件（I7 最小入口）：「仅听」「会议」两枚按钮 → 深链 -->
+        <receiver android:name="dev.scenenote.android.SceneWidgetReceiver" android:exported="true" android:label="场记">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/scene_widget_info" />
+        </receiver>
+
+        <!-- 本地通知（I7）：AlarmManager 到点广播 → 发通知；点开走 VIEW 深链 -->
+        <receiver android:name="dev.scenenote.core.platform.NotifyReceiver" android:exported="false" />
 
         <!-- 快捷设置磁贴（规格 §3.1 Android 触发入口）：点击 → scenenote:// 深链进会话页；只做入口，不做开关 -->
         <service
