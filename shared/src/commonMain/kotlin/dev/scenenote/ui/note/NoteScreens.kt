@@ -74,7 +74,7 @@ data class NoteUiState(
 )
 
 /** 纪要 / 对话卡片 VM：载入会话 → 跑慢路径（有缓存直接用）→ 导出 / 分享 / 新词候选确认。 */
-class NoteViewModel(private val repo: SessionRepository, private val slow: SlowPath, private val exports: Exports, private val sharer: Sharer) : ViewModel() {
+class NoteViewModel(private val repo: SessionRepository, private val slow: SlowPath, private val exports: Exports, private val sharer: Sharer, private val glossary: dev.scenenote.core.db.GlossaryRepository) : ViewModel() {
     private val _ui = MutableStateFlow(NoteUiState())
     val ui: StateFlow<NoteUiState> = _ui.asStateFlow()
     private val json = Json { ignoreUnknownKeys = true }
@@ -106,7 +106,19 @@ class NoteViewModel(private val repo: SessionRepository, private val slow: SlowP
     fun shareText() { val s = _ui.value.session ?: return; sharer.shareText(_ui.value.markdown, s.title ?: "场记") }
     fun exportVoxnote() { val s = _ui.value.session ?: return; viewModelScope.launch { val p = exports.voxnote(s); sharer.shareFile(p, "application/json", s.title ?: "场记"); _ui.value = _ui.value.copy(exportedPath = p) } }
     fun sharePng(bytes: ByteArray) { val s = _ui.value.session ?: return; viewModelScope.launch { val p = exports.bytes("${s.title ?: "card"}.png", bytes); sharer.shareFile(p, "image/png", s.title ?: "场记") } }
-    fun setCandidate(term: String, status: String) { val s = _ui.value.session ?: return; viewModelScope.launch { repo.setCandidateStatus(s.id, term, status); _ui.value = _ui.value.copy(candidates = repo.candidates(s.id)) } }
+    /** 新词候选：确认 → 进术语表（词袋按场景；译名挂在我的语言下），忽略 → 只改状态。 */
+    fun setCandidate(term: String, status: String) {
+        val s = _ui.value.session ?: return
+        viewModelScope.launch {
+            repo.setCandidateStatus(s.id, term, status)
+            if (status == "accepted") {
+                val c = _ui.value.candidates.firstOrNull { it.term == term }
+                val bucket = dev.scenenote.core.model.Scenes.byId(s.sceneId)?.hotwordBucket ?: "general"
+                glossary.upsert(term, bucket, mapOf((s.myLang ?: "zh-CN") to (c?.translation ?: "")))
+            }
+            _ui.value = _ui.value.copy(candidates = repo.candidates(s.id))
+        }
+    }
 }
 
 /** 纪要（MeetingResult.dc.html）：整理稿 ⇄ 原文；有 Key 是模板成稿，零 Key 是时间轴要点。子组件在 MeetingResultParts.kt。 */

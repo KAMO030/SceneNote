@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import io.ktor.http.decodeURLQueryComponent
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,8 +61,10 @@ object Routes {
     const val NOTE = "note/{sessionId}"
     fun note(sessionId: String) = "note/$sessionId"
     const val MEETING = "meeting?autostart={autostart}"
-    const val SCREEN = "screen?session={session}"
-    fun screen(sessionId: String = "") = "screen?session=$sessionId"
+    const val SCREEN = "screen?session={session}&shared={shared}&name={name}"
+    fun screen(sessionId: String = "", shared: String = "", name: String = "") = "screen?session=$sessionId&shared=$shared&name=$name"
+    /** Android S1 系统字幕（抓其他 App 的声音）。 */
+    const val SYSTEM_CAPTION = "syscaption"
     fun meeting(autostart: Boolean = true) = "meeting?autostart=$autostart"
     const val ONBOARDING = "onboarding?page={page}"
     fun onboarding(page: Int = 0) = "onboarding?page=$page"
@@ -89,6 +92,8 @@ fun App() {
                 "models" -> nav.navigate(Routes.models(l.query["install"] ?: ""))
                 "gallery" -> nav.navigate(Routes.GALLERY)
                 "note" -> l.path.firstOrNull()?.let { nav.navigate(Routes.note(it)) }
+                "screen" -> nav.navigate(Routes.screen(shared = l.query["shared"] ?: "", name = l.query["name"] ?: ""))
+                "syscaption" -> nav.navigate(Routes.SYSTEM_CAPTION)
                 "onboarding" -> nav.navigate(Routes.onboarding(l.query["page"]?.toIntOrNull() ?: 0))
             }
             DeepLinks.consume()
@@ -119,9 +124,19 @@ fun App() {
                 val id = entry.savedStateHandle.get<String>("sessionId").orEmpty()
                 NoteRouter(nav, id)
             }
-            composable(Routes.SCREEN, arguments = listOf(navArgument("session") { type = NavType.StringType; defaultValue = "" })) { entry ->
-                ScreenFlowScreen(onBack = { nav.popBackStack() }, reopenSessionId = entry.savedStateHandle.get<String>("session").orEmpty())
+            composable(Routes.SCREEN, arguments = listOf(navArgument("session") { type = NavType.StringType; defaultValue = "" }, navArgument("shared") { type = NavType.StringType; defaultValue = "" }, navArgument("name") { type = NavType.StringType; defaultValue = "" })) { entry ->
+                val shared = entry.savedStateHandle.get<String>("shared").orEmpty()
+                val sharedName = entry.savedStateHandle.get<String>("name").orEmpty()
+                if (shared.isNotBlank()) {   // 分享面板送来的视频：同一 NavBackStackEntry 的 VM，先喂路径再进流程（重建不重跑）
+                    val svm: dev.scenenote.ui.screen.ScreenViewModel = org.koin.compose.viewmodel.koinViewModel()
+                    LaunchedEffect(shared) {
+                        val path = shared.decodeURLQueryComponent()
+                        if (svm.ui.value.job.media?.path != path) svm.openShared(path, sharedName.takeIf { it.isNotBlank() }?.decodeURLQueryComponent() ?: path.substringAfterLast('/'))
+                    }
+                }
+                ScreenFlowScreen(onBack = { nav.popBackStack() }, reopenSessionId = entry.savedStateHandle.get<String>("session").orEmpty(), onSystemCaption = { nav.navigate(Routes.SYSTEM_CAPTION) })
             }
+            composable(Routes.SYSTEM_CAPTION) { dev.scenenote.ui.screen.SystemCaptionScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.MEETING, arguments = listOf(navArgument("autostart") { type = NavType.StringType; defaultValue = "true" })) { entry ->
                 val auto = entry.savedStateHandle.get<String>("autostart") != "false"
                 MeetingScreen(onBack = { nav.popBackStack() }, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.MEETING) { inclusive = true } } }, autostart = auto)
@@ -206,7 +221,7 @@ private fun LiveSessionRouter(nav: NavHostController, sceneId: String, autostart
     val scene = Scenes.byId(sceneId)
     val mode = (modeOverride.takeIf { it.isNotBlank() } ?: scene?.liveModeId)?.let { runCatching { ModeSpecs.byId(it) }.getOrNull() }
     val back: () -> Unit = { nav.popBackStack() }
-    if (scene?.id == Scenes.screenFile.id) { ScreenFlowScreen(onBack = back); return }
+    if (scene?.id == Scenes.screenFile.id) { ScreenFlowScreen(onBack = back, onSystemCaption = { nav.navigate(Routes.SYSTEM_CAPTION) }); return }
     if (scene?.id == Scenes.meeting.id) { MeetingScreen(onBack = back, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.LIVE) { inclusive = true } } }, autostart = autostart); return }
     when (mode?.id) {
         "M4" -> LiveM4Screen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed)

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import okio.Path.Companion.toPath
 
 data class ScreenUiState(
     val job: SubtitleState = SubtitleState(),
@@ -87,17 +88,24 @@ class ScreenViewModel(
         job.start(item, src, tgt, translate = src != tgt)
     }
 
-    /** 按播放位置选字幕；播放位置超过已转写进度 → 暂停并显示等待。 */
+    /** 只恢复自己暂停的播放；用户手动暂停不自动开播。 */
+    private var autoPaused = false
+    /** 按播放位置选字幕；播放位置追上转写进度 → 暂停并显示等待；转写领先 ≥ 5 s（或已完成）才恢复（滞回，避免抖动）。 */
     private fun syncCue() {
         val p = player ?: return
         val pos = p.positionMs.value
         val s = _ui.value.job
         val cue = s.cues.lastOrNull { it.startMs <= pos + 150 && pos < it.endMs + 400 }
-        val behind = s.phase == JobPhase.TRANSCRIBING && pos > s.transcribedMs - 500
-        if (behind && p.playing.value) p.pause()
-        if (!behind && _ui.value.waiting && !p.playing.value) p.play()
-        _ui.value = _ui.value.copy(currentCue = cue, waiting = behind)
+        val transcribing = s.phase == JobPhase.EXTRACTING || s.phase == JobPhase.TRANSCRIBING
+        val behind = transcribing && pos > s.transcribedMs - 500
+        val caughtUp = !transcribing || s.transcribedMs - pos >= 5_000
+        if (behind && p.playing.value) { p.pause(); autoPaused = true }
+        if (autoPaused && caughtUp && !p.playing.value) { p.play(); autoPaused = false }
+        _ui.value = _ui.value.copy(currentCue = cue, waiting = behind || (autoPaused && !caughtUp))
     }
+    /** 用户手动暂停 / 播放：清掉自动暂停标记。 */
+    fun userPause() { autoPaused = false; player?.pause() }
+    fun userPlay() { autoPaused = false; player?.play() }
 
     fun toggleTranslation() { _ui.value = _ui.value.copy(showTranslation = !_ui.value.showTranslation) }
     fun exportSrt(vtt: Boolean = false) {
@@ -117,7 +125,10 @@ class ScreenViewModel(
             val segs = repo.segments(sessionId)
             val tr = repo.note(sessionId, "subtitle")?.let { runCatching { Json.decodeFromString<Map<String, String>>(it.json) }.getOrNull() }.orEmpty()
             val cues = segs.mapIndexed { i, seg -> Cue(i + 1, seg.startMs, seg.endMs, seg.text, tr[(i + 1).toString()]) }
-            _ui.value = _ui.value.copy(job = SubtitleState(phase = JobPhase.DONE, sessionId = sessionId, cues = cues, transcribedMs = Long.MAX_VALUE, media = s.audioPath?.let { MediaItem(it, s.title ?: "", -1, MediaSource.FILE) }))
+            // 视频文件还在（cache 未清）就重建播放器；否则只看字幕
+            val path = s.audioPath?.takeIf { okio.FileSystem.SYSTEM.exists(it.toPath()) }
+            player?.release(); player = path?.let { pth -> players.create(pth).also { p -> p.positionMs.onEach { syncCue() }.launchIn(viewModelScope) } }
+            _ui.value = _ui.value.copy(job = SubtitleState(phase = JobPhase.DONE, sessionId = sessionId, cues = cues, transcribedMs = Long.MAX_VALUE, media = path?.let { MediaItem(it, s.title ?: "", -1, MediaSource.FILE) }, translate = tr.isNotEmpty()))
         }
     }
     fun cancel() { job.cancel(); player?.release(); player = null }

@@ -34,3 +34,12 @@ VALUES (:wrong, :right, :bucket, COALESCE((SELECT count FROM correction WHERE wr
 
 selectCorrections:
 SELECT * FROM correction WHERE bucket = ? ORDER BY count DESC;
+
+deleteGlossary:
+DELETE FROM glossary_entry WHERE term = ? AND bucket = ?;
+
+selectAllGlossary:
+SELECT * FROM glossary_entry ORDER BY bucket, hits DESC, updated_at DESC;
+
+deleteCorrection:
+DELETE FROM correction WHERE wrong = ? AND bucket = ?;

@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- 系统字幕（屏内 S1）：抓其他 App 的声音要投屏授权 + 前台服务类型 mediaProjection -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <!-- targetSdk ≥ 30 下 TextToSpeech.engines 需要声明可见性，否则国产 ROM 的系统 TTS 引擎可能探测不到 -->
     <queries>
@@ -26,7 +28,8 @@
         <activity
             android:name="dev.scenenote.android.MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            android:supportsPictureInPicture="true"
             android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -38,7 +41,20 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="scenenote" />
             </intent-filter>
+            <!-- 分享面板进屏内字幕（S4）：其他 App「分享」一个视频 / 音频到本 App，onCreate / onNewIntent 复制后发 scenenote://screen?shared= 深链 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
         </activity>
+
+        <!-- 系统字幕前台服务（屏内 S1）：mediaProjection|microphone；只做 startForeground → getMediaProjection → 交给共享层 -->
+        <service
+            android:name="dev.scenenote.android.CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|microphone" />
 
         <!-- 快捷设置磁贴（规格 §3.1 Android 触发入口）：点击 → scenenote:// 深链进会话页；只做入口，不做开关 -->
         <service

@@ -38,11 +38,12 @@ fun iosPlatformModule(): Module = module {
     // I5：系统分享面板 + 卡片 PNG 编码
     single<Sharer> { IosSharer() }
     single<PngEncoder> { IosPngEncoder() }
-    // I6 屏内：媒体选择 / 抽音频 / 播放器 / 系统音频抓取（占位，平台实现替换）
-    single<dev.scenenote.screen.MediaPicker> { dev.scenenote.screen.NoopMediaPicker() }
-    single<dev.scenenote.screen.AudioExtractor> { dev.scenenote.screen.NoopAudioExtractor() }
-    single<dev.scenenote.screen.VideoPlayerFactory> { dev.scenenote.screen.NoopVideoPlayerFactory() }
+    // I6 屏内：PHPicker / 文件选择、AVAssetReader 抽音频、AVPlayer 播放器；系统音频抓取 iOS 无 App 内路径（ReplayKit 实验层 v1.1），保持 Noop
+    single<dev.scenenote.screen.MediaPicker> { dev.scenenote.screen.IosMediaPicker() }
+    single<dev.scenenote.screen.AudioExtractor> { dev.scenenote.screen.IosAudioExtractor() }
+    single<dev.scenenote.screen.VideoPlayerFactory> { dev.scenenote.screen.IosVideoPlayerFactory() }
     single<dev.scenenote.screen.SystemAudioCapture> { dev.scenenote.screen.NoopSystemAudioCapture() }
+    single<dev.scenenote.core.platform.Notifier> { dev.scenenote.core.platform.NoopNotifier() }   // I7：本地通知由平台实现替换
     single<SystemTtsProvider> { IosSystemTtsProvider() }
 }
 

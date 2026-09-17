@@ -79,6 +79,11 @@ class FastPath(
     private var direction = DirectionStage(myLang, otherLang)
     private var extractor: NativeSpeakerExtractor? = null
     private val decisions = mutableMapOf<String, DirectionDecision>()
+    /** 术语表（按场景词袋，进入会话时装载）：目标语言 → {源词 → 译名}；纠错映射：错 → 对。 */
+    private var glossary: Map<String, Map<String, String>> = emptyMap()
+    private var corrections: List<Pair<String, String>> = emptyList()
+    fun setGlossary(byTarget: Map<String, Map<String, String>>, corrections: List<Pair<String, String>>) { this.glossary = byTarget; this.corrections = corrections }
+    private fun applyCorrections(text: String): String = corrections.fold(text) { acc, (w, r) -> if (w.isNotBlank()) acc.replace(w, r) else acc }
     private var thermal = ThermalLevel.NOMINAL
     private var duckJob: Job? = null
     private var restoreJob: Job? = null
@@ -156,19 +161,21 @@ class FastPath(
                 if (existing == null) {
                     if (isLeak(seg.text)) { dev.scenenote.core.Diag.log("fast", "DROPPED as leak: \"${seg.text}\" recent=$recentSpoken"); return }   // 刚播出的译文被麦克风拾回：丢弃，不上屏
                     playingDuring[seg.id] = speechStartedWhilePlaying
-                    val d = decide(seg.text)
+                    val corrected = applyCorrections(seg.text)
+                    val d = decide(corrected)
                     decisions[seg.id] = d
                     dev.scenenote.core.Diag.log("fast", "decide → ${d.speaker} conf=${d.confidence} tentative=${d.tentative} basis=${d.basis}")
                     if (!d.tentative && d.confidence >= 0.8f) direction.noteAccepted()
-                    val (src, tgt) = langsFor(d.speaker, seg.text)
-                    val line = LiveLine(seg.id, d.speaker, src, tgt, seg.text, seg.revision, seg.startMs, dirConfidence = d.confidence, dirTentative = d.tentative, dirBasis = d.basis)
+                    val (src, tgt) = langsFor(d.speaker, corrected)
+                    val line = LiveLine(seg.id, d.speaker, src, tgt, corrected, seg.revision, seg.startMs, dirConfidence = d.confidence, dirTentative = d.tentative, dirBasis = d.basis)
                     _lines.value = _lines.value + line
                     if (d.speaker == Speaker.ME && voiceOut && mode?.interaction != Interaction.SIMPLEX_OUT) onMeSpoke()
                     translate(line)
                 } else if (seg.revision > existing.revision) {
-                    val updated = existing.copy(text = seg.text, revision = seg.revision)
+                    val corrected = applyCorrections(seg.text)
+                    val updated = existing.copy(text = corrected, revision = seg.revision)
                     update(seg.id) { updated }
-                    if (seg.id !in ttsEnqueued && seg.text != existing.text) translate(updated)
+                    if (seg.id !in ttsEnqueued && corrected != existing.text) translate(updated)
                 }
             }
         }
@@ -274,7 +281,8 @@ class FastPath(
         mtJobs[line.id] = scope.launch {
             val ctx = _lines.value.filter { it.id != line.id && it.translation != null && it.srcLang == line.srcLang }.takeLast(2).map { it.text to it.translation!! }
             dev.scenenote.core.Diag.log("fast", "translate utt=${line.id.take(8)} ${line.srcLang}→${line.tgtLang} \"${line.text}\"")
-            val r = translator.translate(MtRequest(line.text, line.srcLang, line.tgtLang, ctx, segmentId = line.id, sessionId = sessionId))
+            val terms = glossary[line.tgtLang].orEmpty().filterKeys { line.text.contains(it) }   // 只注入本句命中的术语
+            val r = translator.translate(MtRequest(line.text, line.srcLang, line.tgtLang, ctx, glossary = terms, segmentId = line.id, sessionId = sessionId))
             val res = r.result
             dev.scenenote.core.Diag.log("fast", "translated utt=${line.id.take(8)} result=${res?.text?.let { "\"$it\"" }} engine=${res?.providerId}:${res?.model} degraded=${r.degraded} reason=${r.reason} ${res?.latencyMs}ms")
             _health.value = _health.value.copy(mt = translator.health, mtEngine = res?.let { "${it.providerId}:${it.model}" } ?: r.reason, lastError = if (res == null) r.reason else _health.value.lastError)

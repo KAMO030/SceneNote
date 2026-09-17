@@ -71,7 +71,11 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
         stop()
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val unprocessedOk = config.mode == AudioMode.MEASUREMENT && am.getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
-        val source = if (unprocessedOk) MediaRecorder.AudioSource.UNPROCESSED else MediaRecorder.AudioSource.VOICE_RECOGNITION
+        // 诊断开关（adb shell run-as dev.scenenote.app touch files/diag-mic / files/diag-nopref）：换 MIC 源 / 不指定首选设备
+        val diagMic = java.io.File(context.filesDir, "diag-mic").exists()
+        val diagNoPref = java.io.File(context.filesDir, "diag-nopref").exists()
+        val source = if (unprocessedOk) MediaRecorder.AudioSource.UNPROCESSED else if (diagMic) MediaRecorder.AudioSource.MIC else MediaRecorder.AudioSource.VOICE_RECOGNITION
+        dev.scenenote.core.Diag.log("mic", "inputs=" + am.getDevices(AudioManager.GET_DEVICES_INPUTS).joinToString { "${it.id}:type${it.type}:${it.address}:${it.productName}" } + " diagMic=$diagMic diagNoPref=$diagNoPref")
         val minBuf = AudioRecord.getMinBufferSize(config.sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val bufBytes = maxOf(minBuf, config.frameSamples * 2 * 8)
         val rec = AudioRecord.Builder()
@@ -81,13 +85,13 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
             .build()
         check(rec.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord 初始化失败" }
         // 铁律：输入固定内置麦（有线 / USB / LE 耳机麦不接管输入）
-        am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }?.let { rec.preferredDevice = it }
+        if (!diagNoPref) am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }?.let { rec.preferredDevice = it }
         record = rec
         running = true
         rec.startRecording()
         check(rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "AudioRecord 未进入录音状态（可能被其他 App 占用）" }
         routeManager.reportInputDevice(rec.routedDevice)
-        dev.scenenote.core.Diag.log("mic", "start source=$source sr=${config.sampleRate} buf=$bufBytes routed=${rec.routedDevice?.let { "${it.type}/${it.productName}" }} preferred=${rec.preferredDevice?.type}")
+        dev.scenenote.core.Diag.log("mic", "start source=$source sr=${config.sampleRate} buf=$bufBytes routed=${rec.routedDevice?.let { "${it.id}:type${it.type}:${it.address}" }} preferred=${rec.preferredDevice?.let { "${it.id}:${it.address}" }}")
         worker = thread(name = "scenenote-capture", priority = Thread.MAX_PRIORITY) {
             val frame = ShortArray(config.frameSamples)
             var dropped = 0L; var reads = 0L

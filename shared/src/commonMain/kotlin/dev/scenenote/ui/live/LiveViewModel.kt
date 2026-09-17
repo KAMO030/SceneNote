@@ -100,6 +100,8 @@ class LiveViewModel(
     private val mediaKeys: MediaKeys,
     private val screen: ScreenKeeper,
     private val repo: dev.scenenote.core.db.SessionRepository,
+    private val glossary: dev.scenenote.core.db.GlossaryRepository,
+    private val scenes: dev.scenenote.core.scene.SceneStore,
 ) : ViewModel() {
     private val routeManager = audio.routeManager()
     private val transcriber = LiveTranscriber(audio, engine, viewModelScope) { onAsr(it) }
@@ -169,6 +171,7 @@ class LiveViewModel(
     fun enter(sceneId: String, myLang: String = "", otherLang: String = "", feed: String = "", autostart: Boolean = false, voiceOut: Boolean? = null, initialMode: String = "") {
         if (entered) return
         entered = true
+        dev.scenenote.core.Diag.log("live", "vm.enter scene=$sceneId autostart=$autostart mode=$initialMode")
         sessionStartedAt = kotlin.time.Clock.System.now().toEpochMilliseconds()
         load(sceneId)
         // 入口指定了模式（实时 Tab「双屏」）：直接换成该模式，不触发姿态规则
@@ -176,8 +179,10 @@ class LiveViewModel(
             _ui.value = _ui.value.copy(mode = m); configureFastPath(); applyModeEffects(m.id, entering = false)
         }
         feedFile = feed.takeIf { it.isNotBlank() }
-        if (myLang.isNotBlank()) setMyLang(myLang)
-        if (otherLang.isNotBlank()) setOtherLang(otherLang)
+        // 深链 / 验收传入的语言只作用于本场会话，不改用户设置
+        if (myLang.isNotBlank()) _ui.value = _ui.value.copy(myLang = myLang)
+        if (otherLang.isNotBlank()) _ui.value = _ui.value.copy(otherLang = otherLang)
+        if (myLang.isNotBlank() || otherLang.isNotBlank()) configureFastPath()
         if (voiceOut != null) setVoiceOut(voiceOut)
         thermal.start()
         if (autostart) trigger() else prepare()
@@ -197,7 +202,7 @@ class LiveViewModel(
 
     fun load(sceneId: String) {
         fastPath.clear()
-        val scene = Scenes.byId(sceneId)
+        val scene = scenes.resolve(sceneId)   // 内置或自定义（复制一张再改）
         val mode = scene?.liveModeId?.let { ModeSpecs.byId(it) }
         val other = scene?.langChips?.firstOrNull { it.default }?.tag?.takeIf { mode?.interaction == Interaction.SIMPLEX_IN } ?: settings.otherLang
         _ui.value = _ui.value.copy(scene = scene, mode = mode, myLang = settings.myLang, otherLang = other, fixedDirection = if (settings.directionAuto) null else Speaker.OTHER)
@@ -306,8 +311,15 @@ class LiveViewModel(
     /** 开始：按场景语言与内存分级选装载计划；预热目标语言的端侧语音包；再交给状态机。 */
     fun trigger() {
         val src = sourceLang()
+        dev.scenenote.core.Diag.log("live", "vm.trigger scene=${_ui.value.scene?.id} mode=${_ui.value.mode?.id} state=${_ui.value.state}")
         applyScenePrivacy()
         viewModelScope.launch {
+            // 术语表按场景词袋注入（我 → 对方 与 对方 → 我 两个方向）+ 纠错映射
+            runCatching {
+                val bucket = _ui.value.scene?.hotwordBucket ?: "general"
+                val my = _ui.value.myLang; val other = _ui.value.otherLang
+                fastPath.setGlossary(mapOf(other to glossary.termsFor(bucket, other), my to glossary.termsFor(bucket, my)), glossary.corrections(bucket).map { it.wrong to it.right })
+            }
             val es = engine.load(plan(src))
             val tgt = if (_ui.value.mode?.interaction == Interaction.SIMPLEX_OUT) _ui.value.otherLang else _ui.value.myLang
             systemTts.awaitReady()

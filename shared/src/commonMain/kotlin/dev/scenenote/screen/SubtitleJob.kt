@@ -12,7 +12,6 @@ import dev.scenenote.core.egress.EgressGate
 import dev.scenenote.core.egress.EgressKind
 import dev.scenenote.core.egress.EgressRequest
 import dev.scenenote.core.egress.Egressed
-import dev.scenenote.core.model.Segment
 import dev.scenenote.core.platform.AppPaths
 import dev.scenenote.core.platform.MemoryTier
 import dev.scenenote.polish.Cue
@@ -22,18 +21,23 @@ import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.Url
 import io.ktor.utils.io.readAvailable
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okio.FileSystem
@@ -52,11 +56,13 @@ data class SubtitleState(
     val cues: List<Cue> = emptyList(),
     val partial: String = "",
     val error: String? = null,
+    /** 源语 ≠ 目标语才有译文（同语种只出原文字幕，页面不显示译文 / 原文切换）。 */
+    val translate: Boolean = false,
 )
 
 /**
- * S4 字幕任务（I6）：视频 → 抽音频（平台）→ 本机识别（VAD 切句，不按实时节奏、能多快跑多快）→ 云翻译（每 8 句一批）→ 落库为 SCREEN 会话。
- * 边转边看：cues 与 transcribedMs 随时更新，播放器追上来就暂停等（规格：Waiting 遮罩）。
+ * S4 字幕任务（I6）：视频 → 抽音频（平台）→ 本机识别（VAD 切句，不按实时节奏，最多领先播放位置 30 s 音频）→ 云翻译（每 8 句一批）→ 落库为 SCREEN 会话。
+ * 边转边看：cues 与 transcribedMs 单调更新，播放器追上来就暂停等（规格：Waiting 遮罩）。
  */
 class SubtitleJob(
     private val extractor: AudioExtractor,
@@ -72,7 +78,7 @@ class SubtitleJob(
     private var job: Job? = null
     private val json = Json { encodeDefaults = true }
 
-    fun cancel() { job?.cancel(); _state.value = _state.value.copy(phase = JobPhase.IDLE) }
+    fun cancel() { val j = job; job = null; scope.launch { j?.cancelAndJoin(); _state.update { it.copy(phase = JobPhase.IDLE) } } }
 
     /** 直链：下载到 cacheDir（经 Egress，kind = MEDIA_URL，只记账不上传）。 */
     suspend fun download(url: String, onProgress: (Float) -> Unit): MediaItem = withContext(Dispatchers.Default) {
@@ -96,72 +102,97 @@ class SubtitleJob(
 
     /** 开始一个字幕任务；返回 sessionId。 */
     fun start(media: MediaItem, srcLang: String, tgtLang: String, translate: Boolean): String {
-        job?.cancel()
+        val prev = job
         val sessionId = Uuid.random().toString()
-        segIds.clear(); revs.clear()
-        _state.value = SubtitleState(phase = JobPhase.EXTRACTING, sessionId = sessionId, media = media)
+        _state.value = SubtitleState(phase = JobPhase.EXTRACTING, sessionId = sessionId, media = media, translate = translate)
         job = scope.launch {
+            prev?.cancelAndJoin()
+            var session: SherpaStreamingSession? = null
+            var collector: Job? = null
+            val cues = mutableListOf<Cue>()
+            val segIds = mutableListOf<String>(); val revs = mutableListOf<Int>()
+            var created = false
             try {
                 val duration = if (media.durationMs > 0) media.durationMs else extractor.durationMs(media.path)
-                repo.create(sessionId, SessionKind.SCREEN, "screen_file", "S4", srcLang, tgtLang, srcLang, engine.info)
-                val wav = extractor.extractPcm16k(media.path) { p -> _state.value = _state.value.copy(progress = p) }
+                val wav = extractor.extractPcm16k(media.path) { p -> _state.update { it.copy(progress = p) } }
                 val pcm = WavIo.readPcm16k(wav)
-                _state.value = _state.value.copy(phase = JobPhase.TRANSCRIBING, progress = 0f)
+                val totalMs = if (duration > 0) duration else pcm.size * 1000L / 16_000
+                _state.update { it.copy(phase = JobPhase.TRANSCRIBING, progress = 0f) }
                 val ready = engine.load(LoadPlan.forLang(srcLang, tier = MemoryTier.current))
-                if (ready is LocalEngineState.Error) error(ready.reason)
-                val session = engine.openStream(srcLang, emptyList()) as SherpaStreamingSession
-                val cues = mutableListOf<Cue>()
-                val collector = launch {
-                    session.events.onEach { ev ->
+                if (ready is LocalEngineState.Error) error("语音包未下载")
+                repo.create(sessionId, SessionKind.SCREEN, "screen_file", "S4", srcLang, tgtLang, srcLang, engine.info); created = true
+                val s = engine.openStream(srcLang, emptyList()) as SherpaStreamingSession
+                session = s
+                var lastFinalEndMs = 0L
+                collector = launch {
+                    s.events.buffer(Channel.UNLIMITED).onEach { ev ->   // 全速转写时 Final 不能因落库耗时被挤掉
                         when (ev) {
-                            is AsrEvent.Partial -> _state.value = _state.value.copy(partial = ev.text)
+                            is AsrEvent.Partial -> _state.update { it.copy(partial = ev.text) }
                             is AsrEvent.Final -> {
                                 val seg = ev.segment
+                                lastFinalEndMs = maxOf(lastFinalEndMs, seg.endMs)
+                                _state.update { it.copy(transcribedMs = maxOf(it.transcribedMs, seg.endMs), progress = (seg.endMs.toFloat() / totalMs).coerceIn(0f, 1f), partial = "") }
                                 if (seg.text.isBlank()) return@onEach
                                 val idx = segIds.indexOf(seg.id)   // rev1 定稿只替换文本
                                 if (idx >= 0) { if (seg.revision >= revs[idx]) { cues[idx] = cues[idx].copy(text = seg.text); revs[idx] = seg.revision } }
                                 else { segIds += seg.id; revs += seg.revision; cues += Cue(cues.size + 1, seg.startMs, seg.endMs, seg.text) }
                                 repo.addSegment(sessionId, seg)
-                                _state.value = _state.value.copy(cues = cues.toList(), partial = "", transcribedMs = seg.endMs)
+                                _state.update { it.copy(cues = cues.toList()) }
                             }
                             else -> Unit
                         }
                     }.collect()
                 }
-                // 不按实时节奏：一次喂 20 ms 帧，让 worker 尽量跑满；每 2 s 音频让出一次调度以便 UI 刷新
+                // 不按实时节奏喂，但最多领先已定稿位置 30 s（限制内存与积压）
                 val frame = 320
                 var off = 0
                 while (off < pcm.size) {
+                    ensureActive()
+                    val fedMs = off * 1000L / 16_000
+                    if (fedMs - lastFinalEndMs > 30_000) { delay(50); continue }
                     val end = minOf(off + frame, pcm.size)
-                    session.push(ShortArray(frame).also { pcm.copyInto(it, 0, off, end) })
+                    s.push(ShortArray(frame).also { pcm.copyInto(it, 0, off, end) })
                     off += frame
-                    if (off % (frame * 100) == 0) { delay(1); _state.value = _state.value.copy(progress = off.toFloat() / pcm.size) }
+                    if (off % (frame * 50) == 0) delay(1)
                 }
-                session.endOfInput()
-                withTimeoutOrNull(60_000) { while (!session.isDrained()) delay(20) }
-                collector.cancel(); session.close()
-                _state.value = _state.value.copy(transcribedMs = duration.takeIf { it > 0 } ?: _state.value.transcribedMs, progress = 1f)
-                // 翻译：每 8 句一批（qwen-mt RPM 60）
+                s.endOfInput()
+                while (!s.isDrained()) { ensureActive(); delay(20) }
+                delay(60)   // 让最后一句 Final 被收集到
+                collector.cancelAndJoin(); collector = null
+                s.close(); session = null
+                _state.update { it.copy(transcribedMs = totalMs, progress = 1f) }
+                // 翻译：每 8 句一批（qwen-mt RPM 60）；行数对不上就逐句重译
                 if (translate && cues.isNotEmpty()) {
-                    _state.value = _state.value.copy(phase = JobPhase.TRANSLATING, progress = 0f)
+                    _state.update { it.copy(phase = JobPhase.TRANSLATING, progress = 0f) }
                     val translations = mutableMapOf<Int, String>()
-                    cues.chunked(8).forEachIndexed { bi, batch ->
-                        val text = batch.joinToString("\n") { it.text }
-                        val r = translator.translate(MtRequest(text, srcLang, tgtLang, sessionId = sessionId))
-                        val lines = r.result?.text?.split('\n')?.map { it.trim() }.orEmpty()
-                        batch.forEachIndexed { i, c -> lines.getOrNull(i)?.takeIf { it.isNotBlank() }?.let { translations[c.index] = it } }
-                        _state.value = _state.value.copy(cues = cues.map { c -> translations[c.index]?.let { t -> c.copy(translation = t) } ?: c }, progress = (bi + 1f) / (cues.size / 8f + 1f))
-                        if (r.result == null) return@forEachIndexed
+                    val chunks = cues.chunked(8)
+                    var failed: String? = null
+                    for ((bi, batch) in chunks.withIndex()) {
+                        ensureActive()
+                        val r = translator.translate(MtRequest(batch.joinToString("\n") { it.text }, srcLang, tgtLang, sessionId = sessionId))
+                        val res = r.result
+                        if (res == null) { failed = r.reason; break }
+                        val lines = res.text.split('\n').map { it.trim() }.filter { it.isNotBlank() }
+                        if (lines.size == batch.size) batch.forEachIndexed { i, c -> translations[c.index] = lines[i] }
+                        else for (c in batch) { val one = translator.translate(MtRequest(c.text, srcLang, tgtLang, sessionId = sessionId)).result?.text ?: continue; translations[c.index] = one }
+                        _state.update { it.copy(cues = cues.map { c -> translations[c.index]?.let { t -> c.copy(translation = t) } ?: c }, progress = (bi + 1f) / chunks.size) }
                     }
                     repo.saveNote(sessionId, "subtitle", "cloud:bailian", "", json.encodeToString(translations.mapKeys { it.key.toString() }), "")
+                    if (failed != null) _state.update { it.copy(error = "未翻译：$failed") }
                 }
-                repo.end(sessionId, title = "字幕 · ${media.name.substringBeforeLast('.').take(24)}", summary = null)
-                _state.value = _state.value.copy(phase = JobPhase.DONE, progress = 1f)
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { _state.value = _state.value.copy(phase = JobPhase.FAILED, error = e.message ?: e.toString()) }
+                repo.end(sessionId, title = "字幕 · ${media.name.substringBeforeLast('.').take(24)}", summary = null, audioPath = media.path)
+                _state.update { it.copy(phase = JobPhase.DONE, progress = 1f) }
+            } catch (e: CancellationException) {
+                if (created && cues.isEmpty()) runCatching { repo.delete(sessionId) }
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(phase = JobPhase.FAILED, error = e.message ?: e.toString()) }
+                if (created && cues.isEmpty()) runCatching { repo.delete(sessionId) }
+            } finally {
+                collector?.cancel()
+                session?.close()
+            }
         }
         return sessionId
     }
-    private val segIds = mutableListOf<String>()
-    private val revs = mutableListOf<Int>()
 }
