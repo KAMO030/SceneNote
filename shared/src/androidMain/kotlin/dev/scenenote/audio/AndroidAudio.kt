@@ -87,9 +87,11 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
         rec.startRecording()
         check(rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "AudioRecord 未进入录音状态（可能被其他 App 占用）" }
         routeManager.reportInputDevice(rec.routedDevice)
+        dev.scenenote.core.Diag.log("mic", "start source=$source sr=${config.sampleRate} buf=$bufBytes routed=${rec.routedDevice?.let { "${it.type}/${it.productName}" }} preferred=${rec.preferredDevice?.type}")
         worker = thread(name = "scenenote-capture", priority = Thread.MAX_PRIORITY) {
             val frame = ShortArray(config.frameSamples)
             var dropped = 0L; var reads = 0L
+            var peak = 0; var sumSq = 0.0; var nSamples = 0L
             while (running) {
                 var filled = 0
                 while (filled < frame.size && running) {
@@ -100,9 +102,16 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
                 }
                 if (filled == frame.size) {
                     if (!_frames.tryEmit(frame.copyOf())) dropped++
-                    if (++reads % 250 == 0L) routeManager.reportInputDevice(rec.routedDevice)  // 每 5 s 复核一次真实输入
+                    for (v in frame) { val a = if (v < 0) -v.toInt() else v.toInt(); if (a > peak) peak = a; sumSq += v.toDouble() * v; nSamples++ }
+                    if (++reads % 50 == 0L) {
+                        val rms = kotlin.math.sqrt(sumSq / nSamples.coerceAtLeast(1)); val db = 20 * kotlin.math.log10(rms / 32768.0 + 1e-9)
+                        dev.scenenote.core.Diag.log("mic", "frames=$reads dropped=$dropped peak=$peak rms=${"%.0f".format(rms)} (${"%.1f".format(db)} dBFS) routed=${rec.routedDevice?.type}")
+                        peak = 0; sumSq = 0.0; nSamples = 0
+                    }
+                    if (reads % 250 == 0L) routeManager.reportInputDevice(rec.routedDevice)  // 每 5 s 复核一次真实输入
                 }
             }
+            dev.scenenote.core.Diag.log("mic", "stop frames=$reads dropped=$dropped")
             routeManager.captureDropped = dropped
         }
     }

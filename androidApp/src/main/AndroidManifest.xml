@@ -63,5 +63,16 @@
             </intent-filter>
             <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
         </service>
+
+        <!-- 系统分享（I5 会议卡 / 资料库导出）：把 filesDir / cacheDir 下的 .md / .voxnote / .png 以 content:// 交给分享面板 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

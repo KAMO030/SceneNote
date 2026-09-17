@@ -30,6 +30,10 @@ import dev.scenenote.ui.gallery.DesignSystemGallery
 import dev.scenenote.ui.home.HomeTab
 import dev.scenenote.ui.library.LibraryTab
 import dev.scenenote.ui.live.LiveConversationScreen
+import dev.scenenote.ui.meeting.MeetingScreen
+import dev.scenenote.ui.screen.ScreenFlowScreen
+import dev.scenenote.ui.note.LiveEndScreen
+import dev.scenenote.ui.note.MeetingResultScreen
 import dev.scenenote.ui.live.LiveM4Screen
 import dev.scenenote.ui.live.LiveTab
 import dev.scenenote.ui.live.PlaceholderSessionScreen
@@ -52,6 +56,13 @@ object Routes {
     /** mode：M0 / M1 / M3 覆盖场景默认模式（实时 Tab「双屏」直接进双屏）。 */
     fun live(sceneId: String, autostart: Boolean = false, other: String = "", my: String = "", feed: String = "", mode: String = "") = "live/$sceneId?autostart=$autostart&other=$other&my=$my&feed=$feed&mode=$mode"
     const val GALLERY = "gallery"
+    /** 会话产物页：按 session.kind 分发到纪要 / 对话卡片 / 字幕。 */
+    const val NOTE = "note/{sessionId}"
+    fun note(sessionId: String) = "note/$sessionId"
+    const val MEETING = "meeting?autostart={autostart}"
+    const val SCREEN = "screen?session={session}"
+    fun screen(sessionId: String = "") = "screen?session=$sessionId"
+    fun meeting(autostart: Boolean = true) = "meeting?autostart=$autostart"
     const val ONBOARDING = "onboarding?page={page}"
     fun onboarding(page: Int = 0) = "onboarding?page=$page"
     const val MODELS = "models?install={install}"
@@ -77,6 +88,7 @@ fun App() {
                 "library" -> nav.navigate(Routes.main(Tabs.LIBRARY)) { popUpTo(Routes.MAIN) { inclusive = true } }
                 "models" -> nav.navigate(Routes.models(l.query["install"] ?: ""))
                 "gallery" -> nav.navigate(Routes.GALLERY)
+                "note" -> l.path.firstOrNull()?.let { nav.navigate(Routes.note(it)) }
                 "onboarding" -> nav.navigate(Routes.onboarding(l.query["page"]?.toIntOrNull() ?: 0))
             }
             DeepLinks.consume()
@@ -103,6 +115,17 @@ fun App() {
                 LiveSessionRouter(nav, sceneId, auto, other, my, feed, mode)
             }
             composable(Routes.GALLERY) { DesignSystemGallery(onBack = { nav.popBackStack() }) }
+            composable(Routes.NOTE, arguments = listOf(navArgument("sessionId") { type = NavType.StringType })) { entry ->
+                val id = entry.savedStateHandle.get<String>("sessionId").orEmpty()
+                NoteRouter(nav, id)
+            }
+            composable(Routes.SCREEN, arguments = listOf(navArgument("session") { type = NavType.StringType; defaultValue = "" })) { entry ->
+                ScreenFlowScreen(onBack = { nav.popBackStack() }, reopenSessionId = entry.savedStateHandle.get<String>("session").orEmpty())
+            }
+            composable(Routes.MEETING, arguments = listOf(navArgument("autostart") { type = NavType.StringType; defaultValue = "true" })) { entry ->
+                val auto = entry.savedStateHandle.get<String>("autostart") != "false"
+                MeetingScreen(onBack = { nav.popBackStack() }, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.MEETING) { inclusive = true } } }, autostart = auto)
+            }
             composable(Routes.ONBOARDING, arguments = listOf(navArgument("page") { type = NavType.StringType; defaultValue = "0" })) { entry ->
                 OnboardingScreen(
                     initialPage = entry.savedStateHandle.get<String>("page")?.toIntOrNull() ?: 0,
@@ -165,7 +188,7 @@ private fun TabContent(nav: NavHostController, tab: Int, onSelectTab: (Int) -> U
                 onOpenLiveTab = { onSelectTab(Tabs.LIVE) },
             )
             Tabs.LIVE -> LiveTab(onStart = { sceneId, mode -> nav.navigate(Routes.live(sceneId, mode = mode)) })
-            Tabs.LIBRARY -> LibraryTab()
+            Tabs.LIBRARY -> LibraryTab(onOpen = { nav.navigate(Routes.note(it)) })
             else -> SettingsTab(
                 onOpenModels = { nav.navigate(Routes.models()) },
                 onOpenSelfTest = { nav.navigate(Routes.selfTest()) },
@@ -183,10 +206,32 @@ private fun LiveSessionRouter(nav: NavHostController, sceneId: String, autostart
     val scene = Scenes.byId(sceneId)
     val mode = (modeOverride.takeIf { it.isNotBlank() } ?: scene?.liveModeId)?.let { runCatching { ModeSpecs.byId(it) }.getOrNull() }
     val back: () -> Unit = { nav.popBackStack() }
+    if (scene?.id == Scenes.screenFile.id) { ScreenFlowScreen(onBack = back); return }
+    if (scene?.id == Scenes.meeting.id) { MeetingScreen(onBack = back, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.LIVE) { inclusive = true } } }, autostart = autostart); return }
     when (mode?.id) {
         "M4" -> LiveM4Screen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed)
         "M0", "M1", "M3" -> LiveConversationScreen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed, initialMode = modeOverride,
+            onEnded = { savedId -> if (savedId != null) nav.navigate(Routes.note(savedId)) { popUpTo(Routes.LIVE) { inclusive = true } } else nav.popBackStack() },
             onOpenQuickPhrase = { nav.navigate(Routes.live(Scenes.quickPhrase.id)) { popUpTo(Routes.LIVE) { inclusive = true } } })   // M4 替换 M0，不叠在其上
         else -> PlaceholderSessionScreen(title = scene?.name ?: sceneId, note = "稍后开放", onBack = back)
+    }
+}
+
+/** 会话产物：录音 → 纪要；对话 → 对话卡片；字幕 → 纪要页（含 cue 列表，I6 后换字幕页）。 */
+@Composable
+private fun NoteRouter(nav: NavHostController, sessionId: String) {
+    val repo = org.koin.compose.koinInject<dev.scenenote.core.db.SessionRepository>()
+    var kind by remember { mutableStateOf<dev.scenenote.core.db.SessionKind?>(null) }
+    var missing by remember { mutableStateOf(false) }
+    LaunchedEffect(sessionId) {
+        repeat(5) { kind = repo.byId(sessionId)?.kind; if (kind != null) return@LaunchedEffect; kotlinx.coroutines.delay(100) }   // 落库刚提交时重试几次
+        missing = true
+    }
+    when {
+        kind == dev.scenenote.core.db.SessionKind.LIVE -> LiveEndScreen(sessionId = sessionId, onBack = { nav.popBackStack() })
+        kind == dev.scenenote.core.db.SessionKind.SCREEN -> ScreenFlowScreen(onBack = { nav.popBackStack() }, reopenSessionId = sessionId)
+        kind != null -> MeetingResultScreen(sessionId = sessionId, onBack = { nav.popBackStack() })
+        missing -> dev.scenenote.ui.live.PlaceholderSessionScreen(title = "记录", note = "找不到这条记录", onBack = { nav.popBackStack() })
+        else -> Unit
     }
 }

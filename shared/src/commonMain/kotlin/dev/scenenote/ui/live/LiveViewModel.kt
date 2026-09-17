@@ -99,6 +99,7 @@ class LiveViewModel(
     private val thermal: ThermalMonitor,
     private val mediaKeys: MediaKeys,
     private val screen: ScreenKeeper,
+    private val repo: dev.scenenote.core.db.SessionRepository,
 ) : ViewModel() {
     private val routeManager = audio.routeManager()
     private val transcriber = LiveTranscriber(audio, engine, viewModelScope) { onAsr(it) }
@@ -168,6 +169,7 @@ class LiveViewModel(
     fun enter(sceneId: String, myLang: String = "", otherLang: String = "", feed: String = "", autostart: Boolean = false, voiceOut: Boolean? = null, initialMode: String = "") {
         if (entered) return
         entered = true
+        sessionStartedAt = kotlin.time.Clock.System.now().toEpochMilliseconds()
         load(sceneId)
         // 入口指定了模式（实时 Tab「双屏」）：直接换成该模式，不触发姿态规则
         if (initialMode.isNotBlank() && initialMode != _ui.value.mode?.id) runCatching { ModeSpecs.byId(initialMode) }.getOrNull()?.let { m ->
@@ -306,7 +308,7 @@ class LiveViewModel(
         val src = sourceLang()
         applyScenePrivacy()
         viewModelScope.launch {
-            engine.load(plan(src))
+            val es = engine.load(plan(src))
             val tgt = if (_ui.value.mode?.interaction == Interaction.SIMPLEX_OUT) _ui.value.otherLang else _ui.value.myLang
             systemTts.awaitReady()
             // 系统没有该语言的语音时才预热端侧包（只驻留一个 TTS）
@@ -318,7 +320,7 @@ class LiveViewModel(
     }
 
     /** M4 按住说话：按下开始，松手收句（一句话 ≤ 3 步：进页 → 按住 → 松手）。 */
-    fun holdStart() { _ui.value = _ui.value.copy(holding = true); if (_ui.value.state !is LiveState.Live) trigger() }
+    fun holdStart() {; _ui.value = _ui.value.copy(holding = true); if (_ui.value.state !is LiveState.Live) trigger() }
     /** 松手：立即收句；随后停采集（麦克风不再常开），识别会话会先排空再关闭，Final 照常进快路径。引擎保持装载，下次按住立刻可用。 */
     fun holdEnd() {
         _ui.value = _ui.value.copy(holding = false)
@@ -331,8 +333,32 @@ class LiveViewModel(
     fun stopSpeaking() { fastPath.flush("user") }
 
     fun pause() { machine.end() }
+    /** 会话是否已落库（结束时把对话行写进资料库；只存文字，对方音频不落盘）。 */
+    private var persisted = false
+    private var persistedId: String? = null
+    val savedSessionId: String? get() = persistedId
+    private var sessionStartedAt = kotlin.time.Clock.System.now().toEpochMilliseconds()
+    /** 同步落库（在结束导航前 await），避免产物页读到半写入的会话。 */
+    private suspend fun persist(): String? {
+        if (persisted) return persistedId
+        val lines = _ui.value.lines.filter { it.text.isNotBlank() }
+        if (lines.isEmpty()) return null
+        persisted = true
+        val scene = _ui.value.scene; val mode = _ui.value.mode
+        val id = sessionId; persistedId = id
+        val title = (lines.firstOrNull { it.speaker == Speaker.OTHER }?.translation ?: lines.first().text).take(24)
+        runCatching {
+            repo.create(id, dev.scenenote.core.db.SessionKind.LIVE, scene?.id ?: "listen", mode?.id, _ui.value.otherLang, _ui.value.myLang, _ui.value.otherLang, engine.info, startedAt = sessionStartedAt)
+            repo.addUtterances(id, lines)
+            repo.end(id, title = "对话 · $title", summary = null)
+        }.onFailure { persisted = false; persistedId = null }
+        return persistedId
+    }
+    /** 结束并落库；返回落库的会话 id（没有内容则 null）。页面用它决定是否进对话卡片页。 */
+    suspend fun endAndPersist(): String? { end(); return persist() }
     fun end() {
         transcribing = false; transcriber.stop(); fastPath.flush("end"); machine.end(); consent.revokeSession(sessionId)
+        viewModelScope.launch { persist() }
         posture.stop(); postureJob?.cancel(); politeJob?.cancel(); screen.keepAwake(false); screen.maxBrightness(false); mediaKeys.deactivate()
     }
     fun clear() { fastPath.clear() }

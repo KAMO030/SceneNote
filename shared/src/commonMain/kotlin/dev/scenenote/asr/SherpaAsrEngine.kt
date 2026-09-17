@@ -195,11 +195,14 @@ class SherpaStreamingSession(
     @Volatile private var drained = false
     /** endOfInput 之后 worker 是否已处理完全部帧（基准用）。 */
     fun isDrained(): Boolean = drained
+    private var nFrames = 0L; private var nSpeechFrames = 0L
+    private fun diag(msg: String) = dev.scenenote.core.Diag.log("asr", "[$clockMs ms] $msg")
 
     init {
+        diag("session open lang=$lang sense=${sense != null}")
         worker = scope.launch {
             for (frame in frames) {
-                if (frame == null) { finalizeUtterance(force = true); break }
+                if (frame == null) { diag("endOfInput frames=$nFrames speechFrames=$nSpeechFrames"); finalizeUtterance(force = true); break }
                 process(frame)
             }
             drained = true
@@ -216,7 +219,10 @@ class SherpaStreamingSession(
         val frameMs = frame.size * 1000L / 16_000
         vad.accept(floats)
         val speech = vad.isSpeechDetected()
+        nFrames++; if (speech) nSpeechFrames++
+        if (nFrames % 100 == 0L) diag("frames=$nFrames speechFrames=$nSpeechFrames speaking=$speaking vadSpeech=$speech")
         if (speech && !speaking) {
+            diag("VAD speech START utt=${uttId.take(8)} preRoll=${preRoll.size}")
             speaking = true; uttId = Uuid.random().toString(); lastPartial = ""; firstPartialAt = null
             uttStartMs = clockMs - preRoll.size * frameMs
             for (f in preRoll) stream.accept(f)          // 补喂预滚帧
@@ -231,14 +237,15 @@ class SherpaStreamingSession(
             val text = rec.result(stream).text
             if (text.isNotBlank() && text != lastPartial) {
                 lastPartial = text
-                if (firstPartialAt == null) firstPartialAt = probe?.nowMs()
+                if (firstPartialAt == null) { firstPartialAt = probe?.nowMs(); diag("first partial: $text") }
                 _events.tryEmit(AsrEvent.Partial(text, uttStartMs))
             }
-            if (rec.isEndpoint(stream)) finalizeUtterance(force = false)   // rule3 兜底（最长句）
-            else if (!speech && hangoverMs <= 0) finalizeUtterance(force = false)
+            if (rec.isEndpoint(stream)) { diag("zipformer endpoint"); finalizeUtterance(force = false) }   // rule3 兜底（最长句）
+            else if (!speech && hangoverMs <= 0) { diag("VAD hangover expired"); finalizeUtterance(force = false) }
         }
         // 取走 VAD 已完成的段：声纹判向 + SenseVoice 定稿的音频
         for (seg in vad.popSegments()) {
+            diag("VAD segment popped samples=${seg.samples.size} (${seg.samples.size / 16} ms) pendingAudio=${pendingAudio?.take(8)} pendingSense=${pendingSense?.first?.take(8)}")
             pendingAudio?.let { id -> _events.tryEmit(AsrEvent.UtteranceAudio(id, seg.samples)) }
             if (sense == null || pendingSense == null) { pendingAudio = null; continue }
             val (id, start) = pendingSense!!; pendingSense = null; pendingAudio = null
@@ -246,10 +253,11 @@ class SherpaStreamingSession(
             scope.launch {
                 runCatching { sense.transcribe(floatsSeg) }.onSuccess { r ->
                     val l1 = SherpaAsrEngine.mapLang(r.lang, lang)
+                    diag("SenseVoice rev1 utt=${id.take(8)} lang=${r.lang}->$l1 text=\"${r.text}\"")
                     if (r.text.isNotBlank()) _events.tryEmit(AsrEvent.Final(Segment(id = id, startMs = start, endMs = start + floatsSeg.size * 1000L / 16_000,
                         lang = l1, rawText = r.text, text = TextCleaner.clean(r.text, l1), isFinal = true, source = Source.LOCAL, revision = 1,
                         engine = info.copy(model = ModelCatalog.senseVoice.id))))
-                }.onFailure { _events.tryEmit(AsrEvent.Error("定稿失败：${it.message}", recoverable = true)) }
+                }.onFailure { diag("SenseVoice FAILED: $it"); _events.tryEmit(AsrEvent.Error("定稿失败：${it.message}", recoverable = true)) }
             }
         }
         clockMs += frameMs
@@ -267,6 +275,7 @@ class SherpaStreamingSession(
         while (rec.isReady(stream)) rec.decode(stream)
         val text = rec.result(stream).text.trim()
         rec.reset(stream)
+        diag("finalize force=$force utt=${uttId.take(8)} text=\"$text\" cleaned=\"${TextCleaner.clean(text, lang)}\"")
         if (text.isNotEmpty()) {
             probe?.mark(uttId, Mark.ASR_FINAL)
             _events.tryEmit(AsrEvent.Final(Segment(id = uttId, startMs = uttStartMs, endMs = clockMs, lang = lang, rawText = text, text = TextCleaner.clean(text, lang),

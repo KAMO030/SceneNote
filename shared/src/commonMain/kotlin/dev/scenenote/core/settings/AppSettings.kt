@@ -34,6 +34,11 @@ class AppSettings(private val settings: Settings) {
         get() = settings.getString(KEY_TTS_PREF, "auto")
         set(v) = settings.putString(KEY_TTS_PREF, v)
 
+    /** 慢路径 LLM（百炼 OpenAI 兼容 chat；qwen-flash 便宜够用，可在设置里换）。 */
+    var llmModel: String
+        get() = settings.getString(KEY_LLM_MODEL, "qwen-flash")
+        set(v) = settings.putString(KEY_LLM_MODEL, v)
+
     /** 快路径云端翻译模型（百炼 qwen-mt 系列）。 */
     var mtModel: String
         get() = settings.getString(KEY_MT_MODEL, "qwen-mt-flash")
@@ -72,6 +77,7 @@ class AppSettings(private val settings: Settings) {
         const val KEY_ONBOARDING = "onboarding_done"
         const val KEY_TTS_PREF = "tts_pref"
         const val KEY_MT_MODEL = "mt_model"
+        const val KEY_LLM_MODEL = "llm_model"
         const val KEY_AUTO_POSTURE = "auto_posture"
         const val KEY_DIRECTION_AUTO = "direction_auto"
         const val KEY_POLITE_OPENER = "polite_opener"

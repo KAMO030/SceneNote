@@ -39,6 +39,7 @@ class LiveTranscriber(
     suspend fun start(lang: String, feedPath: String? = null) {
         stop()
         _error.value = null
+        dev.scenenote.core.Diag.log("live", "transcriber.start lang=$lang feed=$feedPath engine=${engine.state.value}")
         val s = engine.openStream(lang, emptyList()).also { session = it }
         val src = (if (feedPath != null) dev.scenenote.audio.FileAudioSource(feedPath) else audio.source()).also { source = it }
         jobs = listOf(
@@ -54,6 +55,7 @@ class LiveTranscriber(
 
     /** 停采集；识别会话先 endOfInput 再等它把队列里的帧处理完（≤ 600 ms）才关闭，避免丢最后一句（M4 松手）。 */
     fun stop() {
+        if (source != null) dev.scenenote.core.Diag.log("live", "transcriber.stop")
         source?.stop(); source = null
         val s = session; session = null
         val captureJob = jobs.firstOrNull()

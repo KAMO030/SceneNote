@@ -32,7 +32,7 @@ shared/native/sherpa/ios-simulator-arm64/
 shared/native/sherpa/include/
 
 # Models & secrets（模型包不入库；Key 只存 SecureStore）
-models/
+/models/
 *.onnx
 *.sherpa-pack
 .env

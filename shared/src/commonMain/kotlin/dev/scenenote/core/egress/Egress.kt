@@ -12,7 +12,7 @@ import kotlin.time.Clock
 
 // ---------- core:egress（信任层唯一出网口；06 篇 §7.6 / 07 篇 §7.12） ----------
 
-enum class EgressKind(val id: String) { AUDIO("audio"), TEXT("text"), MODEL_ASSET("model_asset") }
+enum class EgressKind(val id: String) { AUDIO("audio"), TEXT("text"), MODEL_ASSET("model_asset"), MEDIA_URL("media_url") }
 enum class Destination(val id: String) { INTERNET("internet"), LAN("lan") }
 
 data class EgressRequest(
@@ -76,6 +76,8 @@ class EgressGate(
                 privacy is PrivacyMode.Locked -> Verdict.Deny("隐私锁定：不向第三方发送任何数据")
                 // 模型资产下载：用户显式点击、不含任何用户数据，除锁定档外一律放行（05 篇 §7.4）
                 req.kind == EgressKind.MODEL_ASSET -> Verdict.Allow
+                // 用户粘贴的视频直链：只下载、不上传任何用户数据，除锁定档外放行（I6 屏内 S4）
+                req.kind == EgressKind.MEDIA_URL -> Verdict.Allow
                 privacy is PrivacyMode.LocalWithPerSegmentConsent && !consent.allows(req.segmentId, req.sessionId) ->
                     Verdict.Deny("需要逐段授权后才能上云")
                 req.kind == EgressKind.AUDIO && !privacy.allowsInternetAudio -> Verdict.Deny("当前隐私档不允许音频上云")

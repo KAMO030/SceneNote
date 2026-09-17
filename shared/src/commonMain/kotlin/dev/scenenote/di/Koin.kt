@@ -81,7 +81,19 @@ val commonModule: Module = module {
     single { TtsRouter(system = { get<SystemTtsProvider>().get() }, local = { get<SherpaTts>() }) }
     single { PlaybackQueue(get<AudioSink>(), get()) }
     single { FastPath(get(), get(), get(), get<AudioSink>(), get(), get()) }
-    viewModel { LiveViewModel(get(), get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { LiveViewModel(get(), get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    // I5：资料库 / 会议 / 慢路径 / 导出
+    single { dev.scenenote.core.db.SessionRepository(get()) }
+    single { dev.scenenote.polish.BailianLlm(get(), get(), get()) }
+    single { dev.scenenote.polish.SlowPath(get(), get()) }
+    single { dev.scenenote.polish.Exports(get(), get<AppPaths>()) }
+    single { dev.scenenote.meeting.MeetingRecorder(get<AudioFactory>(), get(), get(), get<AppPaths>(), get()) }
+    viewModel { dev.scenenote.ui.meeting.MeetingViewModel(get(), get()) }
+    viewModel { dev.scenenote.ui.note.NoteViewModel(get(), get(), get(), get()) }
+    viewModel { dev.scenenote.ui.library.LibraryViewModel(get()) }
+    // I6：屏内字幕
+    single { dev.scenenote.screen.SubtitleJob(get(), get(), get(), get(), get<AppPaths>(), get(), get()) }
+    viewModel { dev.scenenote.ui.screen.ScreenViewModel(get(), get(), get(), get(), get(), get(), get()) }
     viewModel { ModelsViewModel(get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }
     viewModel { AudioSelfTestViewModel(get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get()) }

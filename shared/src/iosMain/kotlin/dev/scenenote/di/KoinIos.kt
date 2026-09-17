@@ -7,12 +7,16 @@ import dev.scenenote.core.db.IosDriverFactory
 import dev.scenenote.core.platform.AppPaths
 import dev.scenenote.core.platform.IosAppPaths
 import dev.scenenote.core.platform.IosMediaKeys
+import dev.scenenote.core.platform.IosPngEncoder
 import dev.scenenote.core.platform.IosPostureSensor
 import dev.scenenote.core.platform.IosScreenKeeper
+import dev.scenenote.core.platform.IosSharer
 import dev.scenenote.core.platform.IosThermalMonitor
 import dev.scenenote.core.platform.MediaKeys
+import dev.scenenote.core.platform.PngEncoder
 import dev.scenenote.core.platform.PostureSensor
 import dev.scenenote.core.platform.ScreenKeeper
+import dev.scenenote.core.platform.Sharer
 import dev.scenenote.core.platform.ThermalMonitor
 import dev.scenenote.core.settings.KeychainSecureStore
 import dev.scenenote.core.settings.SecureStore
@@ -31,6 +35,14 @@ fun iosPlatformModule(): Module = module {
     single<ThermalMonitor> { IosThermalMonitor() }
     single<MediaKeys> { IosMediaKeys() }
     single<ScreenKeeper> { IosScreenKeeper() }
+    // I5：系统分享面板 + 卡片 PNG 编码
+    single<Sharer> { IosSharer() }
+    single<PngEncoder> { IosPngEncoder() }
+    // I6 屏内：媒体选择 / 抽音频 / 播放器 / 系统音频抓取（占位，平台实现替换）
+    single<dev.scenenote.screen.MediaPicker> { dev.scenenote.screen.NoopMediaPicker() }
+    single<dev.scenenote.screen.AudioExtractor> { dev.scenenote.screen.NoopAudioExtractor() }
+    single<dev.scenenote.screen.VideoPlayerFactory> { dev.scenenote.screen.NoopVideoPlayerFactory() }
+    single<dev.scenenote.screen.SystemAudioCapture> { dev.scenenote.screen.NoopSystemAudioCapture() }
     single<SystemTtsProvider> { IosSystemTtsProvider() }
 }
 

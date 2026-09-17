@@ -1,0 +1,80 @@
+-- I5：会话产物（纪要 / 对话卡片 / 字幕）、录音中的「标记要点」、新词候选（I7 确认后进术语表）。
+
+CREATE TABLE session_note (
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,                 -- minutes | card | subtitle
+    backend TEXT NOT NULL,              -- cloud:bailian:<model> | rules
+    style TEXT NOT NULL DEFAULT '',
+    json TEXT NOT NULL,                 -- 结构化产物（MeetingMinutes / ConversationCard）
+    markdown TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (session_id, kind)
+);
+
+CREATE TABLE bookmark (
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    at_ms INTEGER NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (session_id, at_ms)
+);
+
+CREATE TABLE glossary_candidate (
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    term TEXT NOT NULL,
+    translation TEXT NOT NULL DEFAULT '',
+    lang TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending | accepted | rejected
+    PRIMARY KEY (session_id, term)
+);
+
+upsertNote:
+INSERT OR REPLACE INTO session_note(session_id, kind, backend, style, json, markdown, created_at) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectNote:
+SELECT * FROM session_note WHERE session_id = ? AND kind = ?;
+
+selectNotesBySession:
+SELECT * FROM session_note WHERE session_id = ?;
+
+insertBookmark:
+INSERT OR REPLACE INTO bookmark(session_id, at_ms, label) VALUES (?, ?, ?);
+
+selectBookmarks:
+SELECT * FROM bookmark WHERE session_id = ? ORDER BY at_ms;
+
+upsertCandidate:
+INSERT OR REPLACE INTO glossary_candidate(session_id, term, translation, lang, status) VALUES (?, ?, ?, ?, ?);
+
+selectCandidates:
+SELECT * FROM glossary_candidate WHERE session_id = ? ORDER BY term;
+
+setCandidateStatus:
+UPDATE glossary_candidate SET status = ? WHERE session_id = ? AND term = ?;
+
+countPendingCandidates:
+SELECT COUNT(*) FROM glossary_candidate WHERE status = 'pending';
+
+-- 资料库列表 / 搜索（LIKE：minSdk 26 的 SQLite 3.18 不保证 FTS5）
+selectSessionsByKind:
+SELECT * FROM session WHERE kind = ? ORDER BY started_at DESC LIMIT ?;
+
+deleteSession:
+DELETE FROM session WHERE id = ?;
+
+deleteSegmentsOf:
+DELETE FROM segment WHERE session_id = ?;
+deleteUtterancesOf:
+DELETE FROM utterance WHERE session_id = ?;
+deleteNotesOf:
+DELETE FROM session_note WHERE session_id = ?;
+deleteBookmarksOf:
+DELETE FROM bookmark WHERE session_id = ?;
+deleteCandidatesOf:
+DELETE FROM glossary_candidate WHERE session_id = ?;
+
+searchSessionIds:
+SELECT DISTINCT session_id FROM (
+    SELECT session_id FROM segment WHERE text LIKE '%' || :q || '%' ESCAPE '\'
+    UNION SELECT session_id FROM utterance WHERE raw LIKE '%' || :q || '%' ESCAPE '\' OR fast_translation_json LIKE '%' || :q || '%' ESCAPE '\'
+    UNION SELECT id AS session_id FROM session WHERE title LIKE '%' || :q || '%' ESCAPE '\' OR summary LIKE '%' || :q || '%' ESCAPE '\'
+);

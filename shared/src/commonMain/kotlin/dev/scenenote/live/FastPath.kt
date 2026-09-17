@@ -152,11 +152,13 @@ class FastPath(
                 _partial.value = ""
                 val seg = ev.segment
                 val existing = _lines.value.firstOrNull { it.id == seg.id }
+                dev.scenenote.core.Diag.log("fast", "Final utt=${seg.id.take(8)} rev=${seg.revision} text=\"${seg.text}\" existing=${existing != null} mode=${mode?.id} my=$myLang other=$otherLang voiceOut=$voiceOut")
                 if (existing == null) {
-                    if (isLeak(seg.text)) return   // 刚播出的译文被麦克风拾回：丢弃，不上屏
+                    if (isLeak(seg.text)) { dev.scenenote.core.Diag.log("fast", "DROPPED as leak: \"${seg.text}\" recent=$recentSpoken"); return }   // 刚播出的译文被麦克风拾回：丢弃，不上屏
                     playingDuring[seg.id] = speechStartedWhilePlaying
                     val d = decide(seg.text)
                     decisions[seg.id] = d
+                    dev.scenenote.core.Diag.log("fast", "decide → ${d.speaker} conf=${d.confidence} tentative=${d.tentative} basis=${d.basis}")
                     if (!d.tentative && d.confidence >= 0.8f) direction.noteAccepted()
                     val (src, tgt) = langsFor(d.speaker, seg.text)
                     val line = LiveLine(seg.id, d.speaker, src, tgt, seg.text, seg.revision, seg.startMs, dirConfidence = d.confidence, dirTentative = d.tentative, dirBasis = d.basis)
@@ -271,16 +273,20 @@ class FastPath(
         mtJobs.remove(line.id)?.cancel()
         mtJobs[line.id] = scope.launch {
             val ctx = _lines.value.filter { it.id != line.id && it.translation != null && it.srcLang == line.srcLang }.takeLast(2).map { it.text to it.translation!! }
+            dev.scenenote.core.Diag.log("fast", "translate utt=${line.id.take(8)} ${line.srcLang}→${line.tgtLang} \"${line.text}\"")
             val r = translator.translate(MtRequest(line.text, line.srcLang, line.tgtLang, ctx, segmentId = line.id, sessionId = sessionId))
             val res = r.result
+            dev.scenenote.core.Diag.log("fast", "translated utt=${line.id.take(8)} result=${res?.text?.let { "\"$it\"" }} engine=${res?.providerId}:${res?.model} degraded=${r.degraded} reason=${r.reason} ${res?.latencyMs}ms")
             _health.value = _health.value.copy(mt = translator.health, mtEngine = res?.let { "${it.providerId}:${it.model}" } ?: r.reason, lastError = if (res == null) r.reason else _health.value.lastError)
             if (res != null) probe?.mark(line.id, Mark.MT_FIRST)
             update(line.id) { it.copy(translation = res?.text, mtEngine = res?.let { m -> "${m.providerId}:${m.model}" }, mtDegraded = r.degraded, mtReason = r.reason, mtLatencyMs = res?.latencyMs) }
             // 对话模式只朗读对方 → 我的译文（我说的话给对方看屏）；单工按模式
             val speakIt = res != null && voiceOut && (mode?.interaction != Interaction.CONVERSATION || line.speaker == Speaker.OTHER)
+            dev.scenenote.core.Diag.log("fast", "speakIt=$speakIt (voiceOut=$voiceOut interaction=${mode?.interaction} speaker=${line.speaker})")
             if (speakIt) {
                 val choice = ttsRouter.choose(line.tgtLang, effectiveTtsPref())
                 val engine = choice.engine
+                dev.scenenote.core.Diag.log("fast", "tts choose ${line.tgtLang} → ${engine?.id} reason=${choice.reason}")
                 if (engine != null) { ttsEnqueued += line.id; rememberSpoken(res!!.text); queue.enqueue(TtsRequest(res.text, line.tgtLang, line.id), engine) }
                 else { update(line.id) { it.copy(tts = PlaybackStatus.SHOWN_ON_SCREEN) }; probe?.complete(line.id, "no_tts") }
             } else { update(line.id) { it.copy(tts = PlaybackStatus.SHOWN_ON_SCREEN) }; probe?.complete(line.id, if (res == null) "no_mt" else "screen") }
