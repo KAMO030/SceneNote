@@ -11,15 +11,20 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
+    <!-- targetSdk ≥ 30 下 TextToSpeech.engines 需要声明可见性，否则国产 ROM 的系统 TTS 引擎可能探测不到 -->
+    <queries>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
+
     <application
-        android:name=".SceneNoteApp"
+        android:name="dev.scenenote.android.SceneNoteApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
-            android:name=".MainActivity"
+            android:name="dev.scenenote.android.MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:launchMode="singleTask">
@@ -27,6 +32,36 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="scenenote" />
+            </intent-filter>
         </activity>
+
+        <!-- 快捷设置磁贴（规格 §3.1 Android 触发入口）：点击 → scenenote:// 深链进会话页；只做入口，不做开关 -->
+        <service
+            android:name="dev.scenenote.android.ListenTileService"
+            android:exported="true"
+            android:label="仅听"
+            android:icon="@drawable/ic_tile_listen"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
+        </service>
+        <service
+            android:name="dev.scenenote.android.QuickPhraseTileService"
+            android:exported="true"
+            android:label="速译一句"
+            android:icon="@drawable/ic_tile_quick_phrase"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
+        </service>
     </application>
 </manifest>

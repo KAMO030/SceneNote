@@ -74,6 +74,8 @@ class EgressGate(
             Destination.LAN -> if (privacy.allowsLan) Verdict.Allow else Verdict.Deny("隐私锁定：不向局域网对端发送")
             Destination.INTERNET -> when {
                 privacy is PrivacyMode.Locked -> Verdict.Deny("隐私锁定：不向第三方发送任何数据")
+                // 模型资产下载：用户显式点击、不含任何用户数据，除锁定档外一律放行（05 篇 §7.4）
+                req.kind == EgressKind.MODEL_ASSET -> Verdict.Allow
                 privacy is PrivacyMode.LocalWithPerSegmentConsent && !consent.allows(req.segmentId, req.sessionId) ->
                     Verdict.Deny("需要逐段授权后才能上云")
                 req.kind == EgressKind.AUDIO && !privacy.allowsInternetAudio -> Verdict.Deny("当前隐私档不允许音频上云")

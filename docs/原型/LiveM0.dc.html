@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: #1C1C1E; background: #F2F2F7; }
+    a { color: #0E7C86; text-decoration: none; } a:hover { color: #0A5F67; }
+    button { font-family: inherit; cursor: pointer; }
+    .ph { width: 390px; height: 844px; box-sizing: border-box; overflow: hidden; position: relative; background: #F2F2F7; }
+    .scroll { position: absolute; inset: 0; overflow: auto; display: flex; flex-direction: column; gap: 20px; padding: 106px 0 130px; box-sizing: border-box; }
+    .lt { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; margin: 0; line-height: 1.2; }
+    /* ---- Liquid Glass：只用于功能层（Tab 栏 / 导航按钮 / dock / sheet），内容层绝不用 ---- */
+    .glass { position: relative; background: rgba(255,255,255,0.58); -webkit-backdrop-filter: blur(26px) saturate(1.8); backdrop-filter: blur(26px) saturate(1.8); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.95), inset 0 -0.5px 0 rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.07), 0 14px 36px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.05); }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(135deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.12) 32%, rgba(255,255,255,0) 55%, rgba(255,255,255,0.3) 100%); }
+    .glass > * { position: relative; }
+    .glass-flat { position: relative; background: rgba(242,242,247,0.84); -webkit-backdrop-filter: blur(34px) saturate(1.6); backdrop-filter: blur(34px) saturate(1.6); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.9), 0 -10px 44px rgba(0,0,0,0.2); }
+    .glass-clear { position: relative; background: rgba(20,20,22,0.28); -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.35), 0 0 0 0.5px rgba(255,255,255,0.12), 0 8px 24px rgba(0,0,0,0.35); color: #fff; }
+    .rt .glass, .rt .glass-flat { background: rgba(249,249,249,0.98); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .rt .glass::before { display: none; }
+    .rt .glass-clear { background: rgba(20,20,22,0.92); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    /* ---- 导航：透明顶栏 + 圆形玻璃按钮 ---- */
+    .navg { position: absolute; top: 54px; left: 16px; right: 16px; height: 44px; display: flex; align-items: center; justify-content: space-between; z-index: 6; pointer-events: none; }
+    .navg > * { pointer-events: auto; }
+    .gbtn, .gbtn:hover { width: 44px; height: 44px; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center; color: #1C1C1E; border: 0; padding: 0; flex: none; }
+    .gcap, .gcap:hover { height: 44px; border-radius: 22px; display: inline-flex; align-items: center; gap: 6px; padding: 0 16px; font-size: 15px; font-weight: 600; color: #1C1C1E; border: 0; white-space: nowrap; }
+    .gttl { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); height: 36px; border-radius: 18px; padding: 0 14px; display: inline-flex; align-items: center; font-size: 15px; font-weight: 600; color: #1C1C1E; white-space: nowrap; }
+    /* ---- 浮动胶囊 Tab 栏 ---- */
+    .tabbar { position: absolute; left: 20px; right: 20px; bottom: 28px; height: 66px; border-radius: 33px; display: flex; align-items: center; padding: 6px; gap: 2px; z-index: 6; box-sizing: border-box; }
+    .tab, .tab:hover { flex: 1; height: 54px; border-radius: 27px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10px; font-weight: 600; color: #3A3A3C; }
+    .tab.on, .tab.on:hover { background: rgba(255,255,255,0.8); box-shadow: 0 1px 3px rgba(0,0,0,0.1), inset 0 0.5px 0 rgba(255,255,255,1); color: #0E7C86; }
+    /* ---- 底部 dock（会话页主控件，拇指区）---- */
+    .dock { position: absolute; left: 20px; right: 20px; bottom: 28px; border-radius: 44px; padding: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; z-index: 6; box-sizing: border-box; }
+    .float { position: absolute; left: 20px; right: 20px; bottom: 108px; z-index: 6; }
+    /* ---- 内容层 ---- */
+    .sec { font-size: 13px; color: #5F5F66; padding: 0 36px 6px; }
+    .group { margin: 0 20px; background: #fff; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .row { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 10px 16px; font-size: 17px; color: #1C1C1E; background: #fff; box-sizing: border-box; }
+    a.row, a.row:hover { color: #1C1C1E; }
+    .sep { height: 0.5px; background: #D8D8DC; margin-left: 16px; }
+    .val { margin-left: auto; color: #5F5F66; font-size: 17px; display: flex; align-items: center; gap: 6px; }
+    .fn { font-size: 13px; color: #5F5F66; padding: 6px 36px 0; line-height: 1.45; }
+    .card { margin: 0 20px; background: #fff; border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); color: #1C1C1E; }
+    a.card, a.card:hover { color: #1C1C1E; }
+    .ic { width: 29px; height: 29px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: #fff; flex: none; }
+    .cap { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 9px; line-height: 16px; white-space: nowrap; }
+    .cap-t { background: #E3F3F4; color: #0A5F67; }
+    .cap-g { background: rgba(120,120,128,0.14); color: #3A3A3C; }
+    .cap-y { background: #FFF4D6; color: #8A4B00; }
+    .cap-r { background: #FBE5E3; color: #A32820; }
+    .seg { display: flex; background: rgba(120,120,128,0.14); border-radius: 999px; padding: 3px; gap: 2px; }
+    .seg button { flex: 1; border: 0; background: transparent; border-radius: 999px; font-size: 13px; font-weight: 500; padding: 6px 6px; color: #1C1C1E; min-height: 30px; }
+    .seg button.on { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.12), inset 0 0.5px 0 rgba(255,255,255,1); font-weight: 600; }
+    .btn { display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; font-size: 17px; font-weight: 600; border: 0; width: 100%; box-sizing: border-box; gap: 8px; }
+    .btn-p, .btn-p:hover { background: #0E7C86; color: #fff; box-shadow: 0 6px 18px rgba(14,124,134,0.3), inset 0 0.5px 0 rgba(255,255,255,0.4); }
+    .btn-g, .btn-g:hover { background: rgba(120,120,128,0.14); color: #1C1C1E; }
+    .btn-y, .btn-y:hover { background: #FFF4D6; color: #8A4B00; }
+    .btn-r, .btn-r:hover { background: #FBE5E3; color: #A32820; }
+    .rbtn { width: 56px; height: 56px; border-radius: 28px; border: 0; display: flex; align-items: center; justify-content: center; flex: none; }
+    .tg { width: 51px; height: 31px; border-radius: 16px; background: rgba(120,120,128,0.2); position: relative; flex: none; border: 0; padding: 0; }
+    .tg::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: left .15s; }
+    .tg.on { background: #0E7C86; } .tg.on::after { left: 22px; }
+    .ai { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #5F5F66; }
+    .sheet { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 28px 28px 0 0; display: flex; flex-direction: column; overflow: hidden; z-index: 8; }
+    .grab { width: 36px; height: 5px; border-radius: 3px; background: rgba(60,60,67,0.3); margin: 8px auto 2px; flex: none; }
+    .dim { position: absolute; inset: 0; background: rgba(0,0,0,0.18); z-index: 7; }
+    .pulse { width: 12px; height: 12px; border-radius: 50%; background: #0E7C86; box-shadow: 0 0 0 6px rgba(14,124,134,0.18); }
+    .rec { width: 10px; height: 10px; border-radius: 50%; background: #E0342C; }
+    .kbd { font-family: "SF Mono", Menlo, monospace; font-size: 12px; }
+    .chev { width: 8px; height: 8px; border-right: 2px solid #C4C4C6; border-bottom: 2px solid #C4C4C6; transform: rotate(-45deg); flex: none; margin-right: 2px; }
+  </style>
+</helmet>
+<div class="ph {{ rootCls }}" style="width: 390px; height: 844px; background: #fff;">
+  <div class="scroll" style="padding: 106px 20px 150px; gap: 18px; justify-content: flex-end; background: #fff;">
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5F5F66;">
+      <sc-if value="{{ running }}" hint-placeholder-val="{{ true }}"><span class="pulse"></span></sc-if>
+      <sc-if value="{{ paused }}" hint-placeholder-val="{{ true }}"><span style="width: 12px; height: 12px; border-radius: 50%; background: #8A8A8E;"></span></sc-if>
+      <span>{{ stateLabel }}</span>
+      <span style="margin-left: auto;">译文 → 耳机 · 耳语档</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px; opacity: 0.45;">
+      <div style="font-size: 13px; color: #5F5F66;">对方 → 我</div>
+      <div style="font-size: 22px; font-weight: 600; line-height: 1.3;">您好，请问有什么可以帮您？</div>
+      <div style="font-size: 15px; color: #5F5F66;">Hi, how can I help you?</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px; opacity: 0.7;">
+      <div style="font-size: 13px; color: #5F5F66;">我 → 对方 · M0 下对方听不到译文</div>
+      <div style="font-size: 17px; color: #5F5F66; line-height: 1.35;">最近的地铁站怎么走？</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #0A5F67;"><span>对方 → 我 · 英语 → 普通话</span><span class="cap cap-t" style="font-size: 11px;">云翻译 0.6 s</span></div>
+      <div style="font-size: 28px; font-weight: 700; line-height: 1.25; letter-spacing: -0.3px;">往前直走两个路口，过马路后左手边就是。</div>
+      <div style="font-size: 15px; color: #5F5F66; line-height: 1.35;">Go straight for two blocks, cross the street and it's on your left.</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div style="font-size: 13px; color: #5F5F66;">对方在说…</div>
+      <div style="font-size: 20px; color: #8A8A8E; line-height: 1.3;">You can also take the bus, number</div>
+    </div>
+    <a href="LiveM1.dc.html" style="display: flex; align-items: center; gap: 10px; background: #E3F3F4; border-radius: 16px; padding: 12px 14px; color: #0A5F67;">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"></path></svg>
+      <div style="display: flex; flex-direction: column; gap: 1px; flex: 1;"><span style="font-size: 15px; font-weight: 600;">竖起手机朝向对方 → M1 耳听 · 面屏</span><span style="font-size: 12px;">姿态自动检测，不重启音频；对方看半屏大字</span></div>
+      <span class="chev" style="border-color: #0A5F67;"></span>
+    </a>
+    <div style="display: flex; gap: 8px; font-size: 12px; color: #5F5F66; justify-content: center;"><span>震动：短-短 开始监听</span><span>·</span><span>短 译文就绪</span><span>·</span><span>长 方向切换</span></div>
+  </div>
+
+  <div class="navg">
+    <a class="gbtn glass" href="Live.dc.html" aria-label="返回实时"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg></a>
+    <span class="gttl glass">M0 仅听</span>
+    <span class="gcap glass" style="font-size: 13px; padding: 0 12px;"><span class="pulse" style="width: 8px; height: 8px; box-shadow: none;"></span>{{ healthLabel }}</span>
+  </div>
+
+  <div class="dock glass" style="height: 88px; padding: 8px 20px;">
+    <a href="LiveM4.dc.html" class="rbtn" aria-label="速译一句" style="background: rgba(120,120,128,0.16); color: #1C1C1E;"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></a>
+    <button type="button" onClick="{{ togglePause }}" aria-label="{{ pauseAria }}" style="width: 72px; height: 72px; border-radius: 36px; border: 0; background: #0E7C86; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 12px; font-weight: 600; box-shadow: 0 6px 18px rgba(14,124,134,0.35), inset 0 0.5px 0 rgba(255,255,255,0.4);">
+      <sc-if value="{{ paused }}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg></sc-if>
+      <sc-if value="{{ running }}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><rect x="7" y="5" width="3.5" height="14" rx="1"></rect><rect x="13.5" y="5" width="3.5" height="14" rx="1"></rect></svg></sc-if>
+      <span>{{ pauseLabel }}</span>
+    </button>
+    <a href="LiveEnd.dc.html" class="rbtn" aria-label="结束会话" style="background: #FBE5E3; color: #A32820;"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg></a>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"reduceTransparency":{"editor":"boolean","default":false,"section":"无障碍"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { paused: false };
+  renderVals() {
+    const p = this.state.paused;
+    return {
+      rootCls: this.props.reduceTransparency ? 'rt' : '',
+      paused: p, running: !p,
+      pauseLabel: p ? '继续' : '暂停', pauseAria: p ? '继续监听' : '暂停监听',
+      stateLabel: p ? '已暂停 · 耳机单击可继续' : '进行中 · 正在听对方',
+      healthLabel: p ? '混合档' : '混合档 · 正常',
+      togglePause: () => this.setState({ paused: !p })
+    };
+  }
+}
+</script>
+</body>
+</html>

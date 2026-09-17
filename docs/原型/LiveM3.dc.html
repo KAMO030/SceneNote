@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: #1C1C1E; background: #F2F2F7; }
+    a { color: #0E7C86; text-decoration: none; } a:hover { color: #0A5F67; }
+    button { font-family: inherit; cursor: pointer; }
+    .ph { width: 390px; height: 844px; box-sizing: border-box; overflow: hidden; position: relative; background: #F2F2F7; }
+    .scroll { position: absolute; inset: 0; overflow: auto; display: flex; flex-direction: column; gap: 20px; padding: 106px 0 130px; box-sizing: border-box; }
+    .lt { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; margin: 0; line-height: 1.2; }
+    /* ---- Liquid Glass：只用于功能层（Tab 栏 / 导航按钮 / dock / sheet），内容层绝不用 ---- */
+    .glass { position: relative; background: rgba(255,255,255,0.58); -webkit-backdrop-filter: blur(26px) saturate(1.8); backdrop-filter: blur(26px) saturate(1.8); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.95), inset 0 -0.5px 0 rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.07), 0 14px 36px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.05); }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(135deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.12) 32%, rgba(255,255,255,0) 55%, rgba(255,255,255,0.3) 100%); }
+    .glass > * { position: relative; }
+    .glass-flat { position: relative; background: rgba(242,242,247,0.84); -webkit-backdrop-filter: blur(34px) saturate(1.6); backdrop-filter: blur(34px) saturate(1.6); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.9), 0 -10px 44px rgba(0,0,0,0.2); }
+    .glass-clear { position: relative; background: rgba(20,20,22,0.28); -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.35), 0 0 0 0.5px rgba(255,255,255,0.12), 0 8px 24px rgba(0,0,0,0.35); color: #fff; }
+    .rt .glass, .rt .glass-flat { background: rgba(249,249,249,0.98); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .rt .glass::before { display: none; }
+    .rt .glass-clear { background: rgba(20,20,22,0.92); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    /* ---- 导航：透明顶栏 + 圆形玻璃按钮 ---- */
+    .navg { position: absolute; top: 54px; left: 16px; right: 16px; height: 44px; display: flex; align-items: center; justify-content: space-between; z-index: 6; pointer-events: none; }
+    .navg > * { pointer-events: auto; }
+    .gbtn, .gbtn:hover { width: 44px; height: 44px; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center; color: #1C1C1E; border: 0; padding: 0; flex: none; }
+    .gcap, .gcap:hover { height: 44px; border-radius: 22px; display: inline-flex; align-items: center; gap: 6px; padding: 0 16px; font-size: 15px; font-weight: 600; color: #1C1C1E; border: 0; white-space: nowrap; }
+    .gttl { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); height: 36px; border-radius: 18px; padding: 0 14px; display: inline-flex; align-items: center; font-size: 15px; font-weight: 600; color: #1C1C1E; white-space: nowrap; }
+    /* ---- 浮动胶囊 Tab 栏 ---- */
+    .tabbar { position: absolute; left: 20px; right: 20px; bottom: 28px; height: 66px; border-radius: 33px; display: flex; align-items: center; padding: 6px; gap: 2px; z-index: 6; box-sizing: border-box; }
+    .tab, .tab:hover { flex: 1; height: 54px; border-radius: 27px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10px; font-weight: 600; color: #3A3A3C; }
+    .tab.on, .tab.on:hover { background: rgba(255,255,255,0.8); box-shadow: 0 1px 3px rgba(0,0,0,0.1), inset 0 0.5px 0 rgba(255,255,255,1); color: #0E7C86; }
+    /* ---- 底部 dock（会话页主控件，拇指区）---- */
+    .dock { position: absolute; left: 20px; right: 20px; bottom: 28px; border-radius: 44px; padding: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; z-index: 6; box-sizing: border-box; }
+    .float { position: absolute; left: 20px; right: 20px; bottom: 108px; z-index: 6; }
+    /* ---- 内容层 ---- */
+    .sec { font-size: 13px; color: #5F5F66; padding: 0 36px 6px; }
+    .group { margin: 0 20px; background: #fff; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .row { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 10px 16px; font-size: 17px; color: #1C1C1E; background: #fff; box-sizing: border-box; }
+    a.row, a.row:hover { color: #1C1C1E; }
+    .sep { height: 0.5px; background: #D8D8DC; margin-left: 16px; }
+    .val { margin-left: auto; color: #5F5F66; font-size: 17px; display: flex; align-items: center; gap: 6px; }
+    .fn { font-size: 13px; color: #5F5F66; padding: 6px 36px 0; line-height: 1.45; }
+    .card { margin: 0 20px; background: #fff; border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); color: #1C1C1E; }
+    a.card, a.card:hover { color: #1C1C1E; }
+    .ic { width: 29px; height: 29px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: #fff; flex: none; }
+    .cap { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 9px; line-height: 16px; white-space: nowrap; }
+    .cap-t { background: #E3F3F4; color: #0A5F67; }
+    .cap-g { background: rgba(120,120,128,0.14); color: #3A3A3C; }
+    .cap-y { background: #FFF4D6; color: #8A4B00; }
+    .cap-r { background: #FBE5E3; color: #A32820; }
+    .seg { display: flex; background: rgba(120,120,128,0.14); border-radius: 999px; padding: 3px; gap: 2px; }
+    .seg button { flex: 1; border: 0; background: transparent; border-radius: 999px; font-size: 13px; font-weight: 500; padding: 6px 6px; color: #1C1C1E; min-height: 30px; }
+    .seg button.on { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.12), inset 0 0.5px 0 rgba(255,255,255,1); font-weight: 600; }
+    .btn { display: flex; align-items: center; justify-content: center; height: 50px; border-radius: 25px; font-size: 17px; font-weight: 600; border: 0; width: 100%; box-sizing: border-box; gap: 8px; }
+    .btn-p, .btn-p:hover { background: #0E7C86; color: #fff; box-shadow: 0 6px 18px rgba(14,124,134,0.3), inset 0 0.5px 0 rgba(255,255,255,0.4); }
+    .btn-g, .btn-g:hover { background: rgba(120,120,128,0.14); color: #1C1C1E; }
+    .btn-y, .btn-y:hover { background: #FFF4D6; color: #8A4B00; }
+    .btn-r, .btn-r:hover { background: #FBE5E3; color: #A32820; }
+    .rbtn { width: 56px; height: 56px; border-radius: 28px; border: 0; display: flex; align-items: center; justify-content: center; flex: none; }
+    .tg { width: 51px; height: 31px; border-radius: 16px; background: rgba(120,120,128,0.2); position: relative; flex: none; border: 0; padding: 0; }
+    .tg::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: left .15s; }
+    .tg.on { background: #0E7C86; } .tg.on::after { left: 22px; }
+    .ai { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #5F5F66; }
+    .sheet { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 28px 28px 0 0; display: flex; flex-direction: column; overflow: hidden; z-index: 8; }
+    .grab { width: 36px; height: 5px; border-radius: 3px; background: rgba(60,60,67,0.3); margin: 8px auto 2px; flex: none; }
+    .dim { position: absolute; inset: 0; background: rgba(0,0,0,0.18); z-index: 7; }
+    .pulse { width: 12px; height: 12px; border-radius: 50%; background: #0E7C86; box-shadow: 0 0 0 6px rgba(14,124,134,0.18); }
+    .rec { width: 10px; height: 10px; border-radius: 50%; background: #E0342C; }
+    .kbd { font-family: "SF Mono", Menlo, monospace; font-size: 12px; }
+    .chev { width: 8px; height: 8px; border-right: 2px solid #C4C4C6; border-bottom: 2px solid #C4C4C6; transform: rotate(-45deg); flex: none; margin-right: 2px; }
+    body { color: #F2F2F7; background: #000; }
+    .ph { background: #000; }
+    .glass { background: rgba(30,30,32,0.55); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.22), inset 0 -0.5px 0 rgba(0,0,0,0.35), 0 0 0 0.5px rgba(255,255,255,0.08), 0 14px 36px rgba(0,0,0,0.6); }
+    .glass::before { background: linear-gradient(135deg, rgba(255,255,255,0.24) 0%, rgba(255,255,255,0.05) 32%, rgba(255,255,255,0) 55%, rgba(255,255,255,0.12) 100%); }
+    .glass-flat { background: rgba(28,28,30,0.86); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.14), 0 -10px 44px rgba(0,0,0,0.6); }
+    .rt .glass, .rt .glass-flat { background: rgba(28,28,30,0.98); }
+    .gbtn, .gbtn:hover, .gcap, .gcap:hover, .gttl { color: #F2F2F7; }
+    .tab, .tab:hover { color: #E5E5EA; }
+    .tab.on, .tab.on:hover { background: rgba(255,255,255,0.14); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.3); color: #7FD6DD; }
+    .sec, .fn, .val { color: #A1A1A6; }
+    .group, .card, a.card, a.card:hover { background: #1C1C1E; color: #F2F2F7; box-shadow: none; }
+    .row, a.row, a.row:hover { background: #1C1C1E; color: #F2F2F7; }
+    .sep { background: #3A3A3C; }
+    .cap-g { background: rgba(120,120,128,0.32); color: #E5E5EA; }
+    .cap-t { background: #0B3F44; color: #7FD6DD; }
+    .seg { background: rgba(120,120,128,0.28); } .seg button { color: #F2F2F7; } .seg button.on { background: #48484A; box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.25); }
+    .btn-g, .btn-g:hover { background: rgba(120,120,128,0.32); color: #F2F2F7; }
+    a { color: #4FC3CC; } a:hover { color: #7FD6DD; }
+    .chev { border-color: #5C5C60; }
+    .tg { background: rgba(120,120,128,0.4); }
+    .grab { background: rgba(235,235,245,0.3); }
+  </style>
+</helmet>
+<div class="ph {{ rootCls }}" style="width: 390px; height: 844px; background: #000;">
+  <div style="position: absolute; left: 0; right: 0; top: 0; height: 50%; display: flex; flex-direction: column; padding: 54px 20px 56px; box-sizing: border-box; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #A1A1A6;">
+      <span>我 · 普通话</span>
+      <span class="cap cap-t">M3 双屏</span>
+      <span style="margin-left: auto;">无耳机 · 无 TTS · 常驻深色</span>
+    </div>
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px;">
+      <div style="align-self: flex-end; max-width: 86%; background: #2C2C2E; border-radius: 20px 20px 6px 20px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 11px; color: #A1A1A6;">我说 · 已译到对方半屏</span>
+        <span style="font-size: 17px; color: #F2F2F7; line-height: 1.35;">这个多少钱？可以刷卡吗？</span>
+      </div>
+      <div style="align-self: flex-start; max-width: 90%; background: #0B3F44; border-radius: 20px 20px 20px 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 11px; color: #7FD6DD;">对方 → 我 · 英语 → 普通话</span>
+        <span style="font-size: 22px; font-weight: 600; color: #F2F2F7; line-height: 1.3;">二十五美元，可以刷卡。</span>
+        <span style="font-size: 13px; color: #A1A1A6;">Twenty-five dollars, card is fine.</span>
+      </div>
+      <div style="align-self: flex-start; max-width: 90%; background: {{ bubbleBg }}; border-radius: 20px 20px 20px 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; border: 1px dashed #5C5C60;">
+        <span style="font-size: 11px; color: #A1A1A6;">{{ bubbleTag }}</span>
+        <span style="font-size: 20px; color: #A1A1A6; line-height: 1.3;">{{ bubbleText }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass" style="position: absolute; left: 12px; right: 12px; top: 50%; transform: translateY(-50%); height: 64px; border-radius: 32px; display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 16px; box-sizing: border-box; z-index: 6;">
+    <div style="display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0;">
+      <span style="font-size: 12px; color: #7FD6DD; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ dirLabel }}</span>
+      <span style="font-size: 10px; color: #C7C7CC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">气泡左右滑 = 翻转重译 · 误判 3 次建议固定方向</span>
+    </div>
+    <button type="button" onClick="{{ flip }}" style="height: 52px; border-radius: 26px; border: 0; background: rgba(255,255,255,0.14); color: #F2F2F7; font-size: 12px; font-weight: 600; padding: 0 12px; white-space: nowrap;">翻转</button>
+    <button type="button" onClick="{{ toggleSpk }}" aria-label="朗读给对方（外放，黄标）" style="height: 52px; width: 52px; border-radius: 26px; border: 0; background: {{ spkBg }}; color: {{ spkFg }}; display: flex; align-items: center; justify-content: center; flex: none;"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6"></path></svg></button>
+    <a href="LiveM0.dc.html" aria-label="回 M0" style="height: 52px; border-radius: 26px; background: rgba(255,255,255,0.14); color: #F2F2F7; font-size: 12px; font-weight: 600; padding: 0 12px; display: flex; align-items: center; white-space: nowrap;">回 M0</a>
+    <a href="LiveEnd.dc.html" aria-label="结束" style="width: 52px; height: 52px; border-radius: 26px; background: #4A1A17; color: #FF8A80; display: flex; align-items: center; justify-content: center; flex: none;"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg></a>
+  </div>
+
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 50%; transform: rotate(180deg); display: flex; flex-direction: column; padding: 40px 20px 56px; box-sizing: border-box; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #A1A1A6;">
+      <span>Them · English</span>
+      <span style="margin-left: auto;">rotated 180° · they read, never touch</span>
+    </div>
+    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px;">
+      <div style="align-self: flex-end; max-width: 86%; background: #2C2C2E; border-radius: 20px 20px 6px 20px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 11px; color: #A1A1A6;">They said</span>
+        <span style="font-size: 17px; color: #F2F2F7; line-height: 1.35;">Twenty-five dollars, card is fine.</span>
+      </div>
+      <div style="align-self: flex-start; max-width: 90%; background: #0B3F44; border-radius: 20px 20px 20px 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 11px; color: #7FD6DD;">Me → them · 普通话 → English</span>
+        <span style="font-size: 24px; font-weight: 600; color: #F2F2F7; line-height: 1.25;">How much is this? Can I pay by card?</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"reduceTransparency":{"editor":"boolean","default":false,"section":"无障碍"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { flipped: false, spk: false };
+  renderVals() {
+    const f = this.state.flipped, s = this.state.spk;
+    return {
+      rootCls: this.props.reduceTransparency ? 'rt' : '',
+      bubbleBg: f ? '#2C2C2E' : '#141416',
+      bubbleTag: f ? '已翻转 · 判为「我说」→ 重译成英语给对方' : '对方在说 · 置信度低，沿用上一方向 ?',
+      bubbleText: f ? '有没有小一点的尺码' : 'Do you have a smaller size',
+      dirLabel: f ? '自动判向 · 我在说 → 对方半屏' : '自动判向 · 对方在说 → 我这半屏',
+      flip: () => this.setState({ flipped: !f }),
+      spkBg: s ? '#FFF4D6' : 'rgba(255,255,255,0.14)', spkFg: s ? '#8A4B00' : '#F2F2F7',
+      toggleSpk: () => this.setState({ spk: !s })
+    };
+  }
+}
+</script>
+</body>
+</html>

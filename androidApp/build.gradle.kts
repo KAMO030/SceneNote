@@ -23,6 +23,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        ndk { abiFilters += listOf("arm64-v8a") }   // sherpa-onnx AAR 含 4 ABI（≈ 50 MB）；只保留 arm64（05 篇包体门禁）
     }
     packaging {
         resources {

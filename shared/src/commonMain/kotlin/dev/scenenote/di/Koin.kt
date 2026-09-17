@@ -18,7 +18,25 @@ import dev.scenenote.db.SceneNoteDb
 import dev.scenenote.live.DefaultLiveSessionMachine
 import dev.scenenote.live.LiveSessionMachine
 import dev.scenenote.ui.live.LiveViewModel
+import dev.scenenote.ui.selftest.AudioSelfTestViewModel
+import dev.scenenote.core.platform.AppPaths
+import dev.scenenote.models.ModelStore
+import dev.scenenote.asr.LocalEngineState
+import dev.scenenote.asr.SherpaAsrEngine
+import dev.scenenote.bench.AsrBench
+import dev.scenenote.bench.LatencyProbe
+import dev.scenenote.ui.models.ModelsViewModel
 import dev.scenenote.ui.settings.SettingsViewModel
+import dev.scenenote.audio.AudioSink
+import dev.scenenote.live.FastPath
+import dev.scenenote.live.PlaybackQueue
+import dev.scenenote.translate.BailianMtTranslator
+import dev.scenenote.translate.FastTranslator
+import dev.scenenote.translate.KeyTester
+import dev.scenenote.translate.Translator
+import dev.scenenote.tts.SherpaTts
+import dev.scenenote.tts.SystemTtsProvider
+import dev.scenenote.tts.TtsRouter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,13 +58,33 @@ val commonModule: Module = module {
     single { SpendGate(get(), get()) }
     single { EgressGate(get(), get(), get(), get(), EgressGate.defaultHttpClient()) }
     single<EngineSelector> { DefaultEngineSelector() }
+    single { ModelStore(get<AppPaths>(), get()) }
+    single { LatencyProbe { line -> val p = get<AppPaths>(); p.ensureDir(p.benchDir); p.appendText(p.join(p.benchDir, "latency.jsonl"), line + "\n") } }
+    single { SherpaAsrEngine(get(), get()) }
+    single { AsrBench(get(), get()) }
     single { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
+    /** 实时会话唯一的输出通道：状态机（设备切换时 stop/flush）与播放队列共用同一个 sink。 */
+    single<AudioSink> { get<AudioFactory>().sink() }
     single<LiveSessionMachine> {
         val audio = get<AudioFactory>()
-        DefaultLiveSessionMachine(audio.routeManager(), audio.sink(), audio.haptics(), get())
+        val engine = get<SherpaAsrEngine>()
+        DefaultLiveSessionMachine(audio.routeManager(), get<AudioSink>(), audio.haptics(), get(), arm = { engine.state.value is LocalEngineState.Ready || engine.load() is LocalEngineState.Ready })   // 计划由 LiveViewModel 按场景先选好
     }
-    viewModel { LiveViewModel(get(), get<AudioFactory>(), get()) }
-    viewModel { SettingsViewModel(get(), get()) }
+    // I3 快路径：翻译（百炼 BYOK；端侧 NMT 待 core/nmt）→ TTS（系统 / sherpa）→ 播放队列
+    single { BailianMtTranslator(get(), get(), get()) }
+    single { KeyTester(get(), get()) }
+    single {
+        val bailian = get<BailianMtTranslator>()
+        FastTranslator(cloud = { bailian.takeIf { it.hasKey() } }, local = { null as Translator? })
+    }
+    single { SherpaTts(get()) }
+    single { TtsRouter(system = { get<SystemTtsProvider>().get() }, local = { get<SherpaTts>() }) }
+    single { PlaybackQueue(get<AudioSink>(), get()) }
+    single { FastPath(get(), get(), get(), get<AudioSink>(), get(), get()) }
+    viewModel { LiveViewModel(get(), get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { ModelsViewModel(get()) }
+    viewModel { SettingsViewModel(get(), get(), get()) }
+    viewModel { AudioSelfTestViewModel(get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get()) }
 }
 
 fun initKoin(platformModule: Module, config: KoinAppDeclaration? = null): KoinApplication = startKoin {

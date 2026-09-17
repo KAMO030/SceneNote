@@ -14,6 +14,11 @@ sealed interface AsrEvent {
     data class Partial(val text: String, val startMs: Long) : AsrEvent
     data class Final(val segment: Segment) : AsrEvent
     data class Error(val message: String, val recoverable: Boolean) : AsrEvent
+    /** VAD 判定开始 / 结束说话（ducking 与打断用，规格 §5.4）。 */
+    data class SpeechStart(val atMs: Long) : AsrEvent
+    data class SpeechEnd(val atMs: Long) : AsrEvent
+    /** 一句话的完整音频（VAD 段，16 kHz float）：声纹判向用；可能晚于 Final 到达。 */
+    class UtteranceAudio(val utteranceId: String, val samples: FloatArray) : AsrEvent
 }
 
 interface StreamingAsrSession {

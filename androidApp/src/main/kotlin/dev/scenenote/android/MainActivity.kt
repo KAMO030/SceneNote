@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import android.content.Intent
+import dev.scenenote.core.platform.DeepLinks
 import dev.scenenote.ui.App
 
 class MainActivity : ComponentActivity() {
@@ -19,6 +21,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent { App() }
         requestRuntimePermissions()
+        if (savedInstanceState == null) intent?.dataString?.let { DeepLinks.handle(it) }   // 重建（深色 / 字号切换）不重复触发磁贴深链
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.dataString?.let { DeepLinks.handle(it) }
     }
 
     /** I0：进入即申请麦克风 / 蓝牙 / 通知；正式流程在 I4 改为场景内按需引导（显式同意页）。 */

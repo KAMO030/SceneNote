@@ -18,6 +18,15 @@ kotlin {
             baseName = "Shared"
             isStatic = true
         }
+        // 让 AVFAudio / AVAudioSession 抛出的 NSException 变成 kotlinx.cinterop.ForeignException，runCatching 才真正有效
+        iosTarget.compilations.all { compileTaskProvider.configure { compilerOptions.freeCompilerArgs.add("-Xforeign-exception-mode=objc-wrap") } }
+        // sherpa-onnx C API：静态库经 cinterop 嵌入（scripts/fetch-sherpa.sh 拉取）
+        val sherpaLibDir = if (iosTarget.name == "iosArm64") "ios-arm64" else "ios-simulator-arm64"
+        iosTarget.compilations.getByName("main").cinterops.create("sherpa") {
+            defFile(project.file("src/nativeInterop/cinterop/sherpa.def"))
+            includeDirs(project.file("native/sherpa/include"))
+            extraOpts("-libraryPath", project.file("native/sherpa/$sherpaLibDir").absolutePath)
+        }
     }
 
     android {
@@ -47,7 +56,7 @@ kotlin {
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
+            implementation(libs.compose.animation)   // core/design-system：分段控件 / 开关 / sheet 动效
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
@@ -80,8 +89,10 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.multiplatform.settings.test)
         }
         androidMain.dependencies {
+            implementation(files("libs/sherpa-onnx-1.13.8.aar"))
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)

@@ -58,6 +58,17 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>dev.scenenote.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>scenenote</string>
+			</array>
+		</dict>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>

@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.withContext
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryOptionAllowBluetoothA2DP
+import platform.AVFAudio.AVAudioSessionCategoryOptionDefaultToSpeaker
 import platform.AVFAudio.AVAudioSessionCategoryPlayAndRecord
 import platform.AVFAudio.AVAudioSessionInterruptionNotification
 import platform.AVFAudio.AVAudioSessionInterruptionTypeBegan
@@ -42,53 +42,63 @@ import platform.Foundation.NSError
 import platform.Foundation.NSNotification
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
-import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIImpactFeedbackGenerator
 import platform.UIKit.UIImpactFeedbackStyle
 import platform.UIKit.UINotificationFeedbackGenerator
 import platform.UIKit.UINotificationFeedbackType
+import kotlin.concurrent.AtomicReference
+import kotlin.concurrent.Volatile
 
 class IosAudioFactory : AudioFactory {
     private val routeManager by lazy { IosRouteManager() }
-    override fun source(): AudioSource = IosAudioSource()
+    private val engine by lazy { IosAudioEngine(routeManager) }
+    override fun source(): AudioSource = IosAudioSource(engine, routeManager)
     override fun routeManager(): RouteManager = routeManager
-    override fun sink(): AudioSink = IosAudioSink()
+    override fun sink(): AudioSink = IosAudioSink(engine, routeManager)
     override fun haptics(): Haptics = IosHaptics()
-}
-
-/** I1 接 AVAudioEngine 输入节点 + AVAudioConverter → 16 kHz 单声道 PCM16。I0 为占位。 */
-class IosAudioSource : AudioSource {
-    override val frames: Flow<ShortArray> = emptyFlow()
-    override val route: StateFlow<AudioRoute> = MutableStateFlow(AudioRoute.BuiltIn)
-    override suspend fun start(config: CaptureConfig) = Unit
-    override fun stop() = Unit
+    override fun fileWriter(path: String, sampleRate: Int, bitrate: Int): PcmFileWriter = IosAacFileWriter(path, sampleRate, bitrate)
 }
 
 /**
- * 路由铁律（iOS）：category = playAndRecord，mode = default，options = [allowBluetoothA2DP] —— 绝不加 allowBluetooth(HFP) / defaultToSpeaker；
- * preferredInput 固定为内置麦。路由变化与打断经 NSNotificationCenter 转成 RouteEvent。
+ * 音频会话（iOS）：category = playAndRecord，mode = default，options = [defaultToSpeaker, allowBluetoothA2DP]
+ * —— 有耳机走耳机，没有就外放；不加 allowBluetooth(HFP)（会把采样率压到 8/16 kHz 并接管麦克风）。
+ * 路由变化观察者用 queue = null：输出设备拔出时在投递线程同步停掉正在播的音频，再发异步事件。
  */
 class IosRouteManager : RouteManager {
     private val session = AVAudioSession.sharedInstance()
-    private val _current = MutableStateFlow(snapshot(RoutePolicyAudio.ANY))
+    private val _current = MutableStateFlow(snapshot())
     override val current: StateFlow<RouteState> = _current.asStateFlow()
-    private val _events = MutableSharedFlow<RouteEvent>(extraBufferCapacity = 16)
+    private val _events = MutableSharedFlow<RouteEvent>(extraBufferCapacity = 64)
     override val routeEvents: Flow<RouteEvent> = _events
-    private var policy = RoutePolicyAudio.ANY
+    internal val inputRoute = MutableStateFlow(AudioRoute.BuiltIn)
+    private val handlers = AtomicReference<List<() -> Unit>>(emptyList())
     private var observers: List<Any> = emptyList()
+    /** 会话是否已按铁律配置并激活（打断结束后需要重新 setActive）。 */
+    @Volatile var sessionActive: Boolean = false
+        private set
 
-    override suspend fun ensure(policy: RoutePolicyAudio): RouteState = withContext(Dispatchers.Main) {
-        this@IosRouteManager.policy = policy
+    internal fun onDeviceLost(handler: () -> Unit): () -> Unit {
+        handlers.value = handlers.value + handler
+        return { handlers.value = handlers.value - handler }
+    }
+    internal fun runLostHandlers() { handlers.value.forEach { h -> runCatching { h() } } }
+
+    override suspend fun ensure(): RouteState = withContext(Dispatchers.Main) {
         memScoped {
-            val err = alloc<ObjCObjectVar<NSError?>>()
-            session.setCategory(AVAudioSessionCategoryPlayAndRecord, mode = AVAudioSessionModeDefault,
-                options = AVAudioSessionCategoryOptionAllowBluetoothA2DP, error = err.ptr)
+            val e1 = alloc<ObjCObjectVar<NSError?>>()
+            if (!session.setCategory(AVAudioSessionCategoryPlayAndRecord, mode = AVAudioSessionModeDefault,
+                    options = AVAudioSessionCategoryOptionDefaultToSpeaker or AVAudioSessionCategoryOptionAllowBluetoothA2DP, error = e1.ptr))
+                error("AVAudioSession.setCategory 失败：${e1.value?.localizedDescription}")
             val builtIn: AVAudioSessionPortDescription? = session.availableInputs
                 ?.filterIsInstance<AVAudioSessionPortDescription>()
                 ?.firstOrNull { port -> port.portType == AVAudioSessionPortBuiltInMic }
-            if (builtIn != null) session.setPreferredInput(builtIn, error = err.ptr)
-            session.setActive(true, error = err.ptr)
-            Unit
+            if (builtIn != null) {
+                val e2 = alloc<ObjCObjectVar<NSError?>>()
+                if (!session.setPreferredInput(builtIn, error = e2.ptr)) error("setPreferredInput(内置麦) 失败：${e2.value?.localizedDescription}")
+            }
+            val e3 = alloc<ObjCObjectVar<NSError?>>()
+            if (!session.setActive(true, error = e3.ptr)) error("AVAudioSession.setActive 失败：${e3.value?.localizedDescription}")
+            sessionActive = true
         }
         if (observers.isEmpty()) observe()
         refresh()
@@ -97,8 +107,10 @@ class IosRouteManager : RouteManager {
 
     private fun observe() {
         val center = NSNotificationCenter.defaultCenter
-        val route = center.addObserverForName(AVAudioSessionRouteChangeNotification, `object` = null, queue = NSOperationQueue.mainQueue) { n: NSNotification? ->
+        // queue = null：块在通知投递线程同步执行 —— 铁律要求的"回调内同步 stop"。
+        val route = center.addObserverForName(AVAudioSessionRouteChangeNotification, `object` = null, queue = null) { n: NSNotification? ->
             val reason = (n?.userInfo?.get(AVAudioSessionRouteChangeReasonKey) as? NSNumber)?.unsignedLongValue ?: 0uL
+            if (reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable) runLostHandlers()
             refresh()
             when (reason) {
                 AVAudioSessionRouteChangeReasonOldDeviceUnavailable -> _events.tryEmit(RouteEvent.OldDeviceUnavailable)
@@ -106,18 +118,19 @@ class IosRouteManager : RouteManager {
                 AVAudioSessionRouteChangeReasonCategoryChange -> _events.tryEmit(RouteEvent.CategoryChange)
                 else -> Unit
             }
-            if (_current.value.output == AudioRoute.BluetoothHfp) _events.tryEmit(RouteEvent.PulledToHfp)
         }
-        val interruption = center.addObserverForName(AVAudioSessionInterruptionNotification, `object` = null, queue = NSOperationQueue.mainQueue) { n: NSNotification? ->
+        val interruption = center.addObserverForName(AVAudioSessionInterruptionNotification, `object` = null, queue = null) { n: NSNotification? ->
             val type = (n?.userInfo?.get(AVAudioSessionInterruptionTypeKey) as? NSNumber)?.unsignedLongValue ?: 0uL
-            _events.tryEmit(RouteEvent.Interruption(began = type == AVAudioSessionInterruptionTypeBegan))
+            val began = type == AVAudioSessionInterruptionTypeBegan
+            if (began) { runLostHandlers(); sessionActive = false }
+            _events.tryEmit(RouteEvent.Interruption(began = began))
         }
         observers = listOf(route, interruption)
     }
 
-    private fun refresh() { _current.value = snapshot(policy) }
+    private fun refresh() { val s = snapshot(); _current.value = s; inputRoute.value = s.input }
 
-    private fun snapshot(policy: RoutePolicyAudio): RouteState {
+    private fun snapshot(): RouteState {
         val route = session.currentRoute
         val outputs: List<String> = route.outputs.filterIsInstance<AVAudioSessionPortDescription>().mapNotNull { port -> port.portType }
         val inputs: List<String> = route.inputs.filterIsInstance<AVAudioSessionPortDescription>().mapNotNull { port -> port.portType }
@@ -130,33 +143,19 @@ class IosRouteManager : RouteManager {
         }
         val input = when {
             AVAudioSessionPortBluetoothHFP in inputs -> AudioRoute.BluetoothHfp
-            AVAudioSessionPortHeadsetMic in inputs -> AudioRoute.Wired
+            AVAudioSessionPortHeadsetMic in inputs || AVAudioSessionPortUSBAudio in inputs -> AudioRoute.Wired
             AVAudioSessionPortBuiltInMic in inputs -> AudioRoute.BuiltIn
             else -> AudioRoute.None
         }
-        val headset = output == AudioRoute.BluetoothA2dp || output == AudioRoute.Wired
         val note = when {
-            output == AudioRoute.BluetoothHfp -> "系统落到了 HFP（通话模式），正在纠正"
-            policy == RoutePolicyAudio.HEADSET_A2DP_ONLY && !headset -> "未连接 A2DP 耳机"
+            output == AudioRoute.BluetoothHfp || input == AudioRoute.BluetoothHfp -> "通话模式（HFP），音质受限"
             else -> null
         }
-        return RouteState(input = input, output = output, policy = policy, headsetConnected = headset, note = note)
+        return RouteState(input = input, output = output, note = note)
     }
 
-    override fun release() {
-        val center = NSNotificationCenter.defaultCenter
-        observers.forEach { center.removeObserver(it) }
-        observers = emptyList()
-    }
-}
-
-/** I1 接 AVAudioEngine playerNode（16 kHz 立体声，pan 分声道）。I0 为占位，保证 stop/flush 语义可调用。 */
-class IosAudioSink : AudioSink {
-    override var volumeDb: Float = 0f
-    override suspend fun play(chunk: ShortArray, channelMask: Int) = Unit
-    override fun stop() = Unit
-    override fun flush() = Unit
-    override fun prime() = Unit
+    /** 会话结束：不移除观察者（全局单例）；会话去激活交给引擎空闲判断（IosAudioEngine.stopIfIdle）。 */
+    override fun relax() = Unit
 }
 
 class IosHaptics : Haptics {

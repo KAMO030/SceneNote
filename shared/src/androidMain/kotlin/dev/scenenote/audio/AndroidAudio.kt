@@ -16,6 +16,7 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -28,19 +29,33 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 import kotlin.math.pow
-import kotlin.random.Random
 
 class AndroidAudioFactory(private val context: Context) : AudioFactory {
     private val routeManager by lazy { AndroidRouteManager(context.applicationContext) }
     override fun source(): AudioSource = AndroidAudioSource(context.applicationContext, routeManager)
     override fun routeManager(): RouteManager = routeManager
-    override fun sink(): AudioSink = AndroidAudioSink()
+    override fun sink(): AudioSink = AndroidAudioSink(routeManager)
     override fun haptics(): Haptics = AndroidHaptics(context.applicationContext)
+    override fun fileWriter(path: String, sampleRate: Int, bitrate: Int): PcmFileWriter = AndroidAacFileWriter(path, sampleRate, bitrate)
 }
 
-/** AudioRecord 16 kHz 单声道 PCM16；VOICE_RECOGNITION 源不带 AGC/AEC 后处理，适合 ASR；MEASUREMENT 用 UNPROCESSED。绝不启动 SCO。 */
+internal fun AudioDeviceInfo.toRoute(): AudioRoute = when (type) {
+    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> AudioRoute.BluetoothA2dp
+    AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> AudioRoute.BluetoothHfp
+    AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE -> AudioRoute.Wired
+    AudioDeviceInfo.TYPE_BUILTIN_MIC -> AudioRoute.BuiltIn
+    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> AudioRoute.Speaker
+    else -> if (Build.VERSION.SDK_INT >= 33 && (type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLE_SPEAKER)) AudioRoute.BluetoothA2dp else AudioRoute.None
+}
+internal fun AudioDeviceInfo.isHeadsetOut(): Boolean = toRoute() == AudioRoute.BluetoothA2dp || toRoute() == AudioRoute.Wired
+
+/**
+ * AudioRecord 16 kHz 单声道 PCM16；VOICE_RECOGNITION 源不带 AGC/AEC 后处理；MEASUREMENT 用 UNPROCESSED（有支持时）。
+ * 铁律：setPreferredDevice(内置麦)，绝不启动 SCO；真实输入设备经 routedDevice 上报给 RouteManager。
+ */
 class AndroidAudioSource(private val context: Context, private val routeManager: AndroidRouteManager) : AudioSource {
     private val _frames = MutableSharedFlow<ShortArray>(extraBufferCapacity = 128)
     override val frames: SharedFlow<ShortArray> = _frames
@@ -52,9 +67,11 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
 
     override suspend fun start(config: CaptureConfig) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-            throw SecurityException("RECORD_AUDIO not granted")
+            throw SecurityException("未授予麦克风权限")
         stop()
-        val source = if (config.mode == AudioMode.MEASUREMENT) MediaRecorder.AudioSource.UNPROCESSED else MediaRecorder.AudioSource.VOICE_RECOGNITION
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val unprocessedOk = config.mode == AudioMode.MEASUREMENT && am.getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
+        val source = if (unprocessedOk) MediaRecorder.AudioSource.UNPROCESSED else MediaRecorder.AudioSource.VOICE_RECOGNITION
         val minBuf = AudioRecord.getMinBufferSize(config.sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val bufBytes = maxOf(minBuf, config.frameSamples * 2 * 8)
         val rec = AudioRecord.Builder()
@@ -62,66 +79,101 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
             .setAudioFormat(AudioFormat.Builder().setSampleRate(config.sampleRate).setChannelMask(AudioFormat.CHANNEL_IN_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
             .setBufferSizeInBytes(bufBytes)
             .build()
-        check(rec.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord init failed" }
+        check(rec.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord 初始化失败" }
+        // 铁律：输入固定内置麦（有线 / USB / LE 耳机麦不接管输入）
+        am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }?.let { rec.preferredDevice = it }
         record = rec
         running = true
         rec.startRecording()
+        check(rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "AudioRecord 未进入录音状态（可能被其他 App 占用）" }
+        routeManager.reportInputDevice(rec.routedDevice)
         worker = thread(name = "scenenote-capture", priority = Thread.MAX_PRIORITY) {
             val frame = ShortArray(config.frameSamples)
+            var dropped = 0L; var reads = 0L
             while (running) {
                 var filled = 0
                 while (filled < frame.size && running) {
                     val n = rec.read(frame, filled, frame.size - filled, AudioRecord.READ_BLOCKING)
-                    if (n <= 0) break
+                    if (n < 0) { running = false; break }
+                    if (n == 0) { SystemClock.sleep(2); continue }
                     filled += n
                 }
-                if (filled == frame.size) _frames.tryEmit(frame.copyOf())
+                if (filled == frame.size) {
+                    if (!_frames.tryEmit(frame.copyOf())) dropped++
+                    if (++reads % 250 == 0L) routeManager.reportInputDevice(rec.routedDevice)  // 每 5 s 复核一次真实输入
+                }
             }
+            routeManager.captureDropped = dropped
         }
     }
 
     override fun stop() {
         running = false
-        worker?.join(200); worker = null
+        worker?.join(300); worker = null
         record?.runCatching { stop(); release() }; record = null
     }
 }
 
 /**
- * 路由铁律（Android）：MODE_NORMAL、SCO 永远关闭、扬声器永远不主动打开；输出由系统媒体路由决定（A2DP 耳机连接即走 A2DP）。
- * 输入永远是内置麦（AudioRecord 在 SCO 关闭时不会用耳机麦）。
+ * 音频会话（Android）：MODE_NORMAL + 媒体焦点；输出由系统媒体路由决定（耳机就走耳机，否则外放，App 不关心）。
+ * 输入 / 输出的"真实路由"来自 AudioRecord.routedDevice / AudioTrack.routedDevice（由 source / sink 上报），仅供展示。
+ * 输出设备拔出（BECOMING_NOISY / 设备移除）：同步停掉正在播的音频（与系统媒体 App 行为一致），再发事件。
  */
 class AndroidRouteManager(private val context: Context) : RouteManager {
     private val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private val _current = MutableStateFlow(snapshot(RoutePolicyAudio.ANY))
+    private val _current = MutableStateFlow(snapshot())
     override val current: StateFlow<RouteState> = _current.asStateFlow()
-    private val _events = MutableSharedFlow<RouteEvent>(extraBufferCapacity = 16)
+    private val _events = MutableSharedFlow<RouteEvent>(extraBufferCapacity = 64)
     override val routeEvents: Flow<RouteEvent> = _events
     internal val inputRoute = MutableStateFlow(AudioRoute.BuiltIn)
-    private var policy = RoutePolicyAudio.ANY
     private var registered = false
     private var focusRequest: AudioFocusRequest? = null
+    private val lostHandlers = CopyOnWriteArrayList<() -> Unit>()
+    @Volatile private var reportedInput: AudioRoute? = null
+    @Volatile private var reportedOutput: AudioRoute? = null
+    @Volatile private var lastLossAt = 0L
+    @Volatile internal var captureDropped = 0L
+    private var callbackPrimed = false
 
     private val deviceCallback = object : AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) { refresh(); if (addedDevices.any { it.isA2dp() }) _events.tryEmit(RouteEvent.NewDeviceAvailable) }
-        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) { refresh(); if (removedDevices.any { it.isA2dp() || it.isWired() }) _events.tryEmit(RouteEvent.OldDeviceUnavailable) }
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+            if (!callbackPrimed) { callbackPrimed = true; return }   // 注册时会回放全部现有设备，不算"新设备"
+            refresh()
+            if (addedDevices.any { it.isHeadsetOut() }) _events.tryEmit(RouteEvent.NewDeviceAvailable)
+        }
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+            if (removedDevices.any { it.isHeadsetOut() }) deviceLost()
+            refresh()
+        }
     }
     private val noisyReceiver = object : BroadcastReceiver() {
-        override fun onReceive(c: Context?, intent: Intent?) { if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) { refresh(); _events.tryEmit(RouteEvent.OldDeviceUnavailable) } }
+        override fun onReceive(c: Context?, intent: Intent?) { if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) { deviceLost(); refresh() } }
     }
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
-            AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> _events.tryEmit(RouteEvent.Interruption(began = true))
+            AudioManager.AUDIOFOCUS_LOSS -> { focusRequest = null; runLostHandlers(); _events.tryEmit(RouteEvent.Interruption(began = true)) }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> { runLostHandlers(); _events.tryEmit(RouteEvent.Interruption(began = true)) }
             AudioManager.AUDIOFOCUS_GAIN -> _events.tryEmit(RouteEvent.Interruption(began = false))
         }
     }
 
-    override suspend fun ensure(policy: RoutePolicyAudio): RouteState = withContext(Dispatchers.Main.immediate) {
-        this@AndroidRouteManager.policy = policy
-        // 铁律：不进通话模式、不开 SCO、不开扬声器。
+    /** 同步停掉正在播的音频；300 ms 内的重复触发（设备回调 + BECOMING_NOISY）只算一次事件。 */
+    private fun deviceLost() {
+        runLostHandlers()
+        reportedOutput = null
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastLossAt > 300) { lastLossAt = now; _events.tryEmit(RouteEvent.OldDeviceUnavailable) }
+    }
+    private fun runLostHandlers() { lostHandlers.forEach { h -> runCatching { h() } } }
+    internal fun onDeviceLost(handler: () -> Unit): () -> Unit { lostHandlers += handler; return { lostHandlers -= handler } }
+
+    internal fun reportInputDevice(d: AudioDeviceInfo?) { reportedInput = d?.toRoute(); refresh() }
+    internal fun reportOutputDevice(d: AudioDeviceInfo?) { reportedOutput = d?.toRoute(); refresh() }
+
+    override suspend fun ensure(): RouteState = withContext(Dispatchers.Main.immediate) {
+        // 媒体模式：不进通话模式、不开 SCO（SCO 会把采样率压到 8/16 kHz 并接管麦克风）。
         if (am.mode != AudioManager.MODE_NORMAL) am.mode = AudioManager.MODE_NORMAL
         @Suppress("DEPRECATION") if (am.isBluetoothScoOn) { am.isBluetoothScoOn = false; am.stopBluetoothSco() }
-        @Suppress("DEPRECATION") if (am.isSpeakerphoneOn) am.isSpeakerphoneOn = false
         if (!registered) {
             am.registerAudioDeviceCallback(deviceCallback, null)
             ContextCompat.registerReceiver(context, noisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY), ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -131,44 +183,41 @@ class AndroidRouteManager(private val context: Context) : RouteManager {
             val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                 .setOnAudioFocusChangeListener(focusListener).build()
-            am.requestAudioFocus(req); focusRequest = req
+            if (am.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) focusRequest = req
         }
         refresh()
         _current.value
     }
 
     private fun refresh() {
-        val s = snapshot(policy)
+        val s = snapshot()
         _current.value = s
         inputRoute.value = s.input
     }
 
-    private fun snapshot(policy: RoutePolicyAudio): RouteState {
+    private fun snapshot(): RouteState {
         val outs = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        val a2dp = outs.any { it.isA2dp() }
-        val wired = outs.any { it.isWired() }
-        @Suppress("DEPRECATION") val sco = am.isBluetoothScoOn
-        val output = when { sco -> AudioRoute.BluetoothHfp; a2dp -> AudioRoute.BluetoothA2dp; wired -> AudioRoute.Wired; else -> AudioRoute.Speaker }
-        val input = if (sco) AudioRoute.BluetoothHfp else AudioRoute.BuiltIn
+        val a2dp = outs.any { it.toRoute() == AudioRoute.BluetoothA2dp }
+        val wired = outs.any { it.toRoute() == AudioRoute.Wired }
+        @Suppress("DEPRECATION") val sco = am.isBluetoothScoOn || (Build.VERSION.SDK_INT >= 31 && am.communicationDevice?.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO && am.mode == AudioManager.MODE_IN_COMMUNICATION)
+        // 输出：优先用 AudioTrack 上报的真实路由；否则按 AOSP 媒体策略估算（BLE/A2DP > 有线 > 扬声器）
+        val output = reportedOutput ?: when { sco -> AudioRoute.BluetoothHfp; a2dp -> AudioRoute.BluetoothA2dp; wired -> AudioRoute.Wired; else -> AudioRoute.Speaker }
+        val input = reportedInput ?: if (sco) AudioRoute.BluetoothHfp else AudioRoute.BuiltIn
         val note = when {
-            policy == RoutePolicyAudio.HEADSET_A2DP_ONLY && !a2dp && wired -> "有线耳机：允许，但延迟口径不同"
-            policy == RoutePolicyAudio.HEADSET_A2DP_ONLY && !a2dp && !wired -> "未连接 A2DP 耳机"
+            output == AudioRoute.BluetoothHfp || input == AudioRoute.BluetoothHfp -> "通话模式（HFP），音质受限"
             else -> null
         }
-        return RouteState(input = input, output = output, policy = policy, headsetConnected = a2dp || wired, note = note)
+        return RouteState(input = input, output = output, note = note)
     }
 
-    override fun release() {
-        if (registered) { am.unregisterAudioDeviceCallback(deviceCallback); runCatching { context.unregisterReceiver(noisyReceiver) }; registered = false }
-        focusRequest?.let { am.abandonAudioFocusRequest(it) }; focusRequest = null
-    }
-
-    private fun AudioDeviceInfo.isA2dp() = type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || (Build.VERSION.SDK_INT >= 33 && (type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLE_BROADCAST))
-    private fun AudioDeviceInfo.isWired() = type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || type == AudioDeviceInfo.TYPE_WIRED_HEADSET || type == AudioDeviceInfo.TYPE_USB_HEADSET
+    override fun relax() { focusRequest?.let { am.abandonAudioFocusRequest(it) }; focusRequest = null }
 }
 
-/** AudioTrack 16 kHz 立体声 PCM16 低延迟流；channelMask 位 1 = 左、2 = 右，未选声道填零。 */
-class AndroidAudioSink(private val sampleRate: Int = 16_000) : AudioSink {
+/**
+ * AudioTrack 16 kHz 立体声 PCM16 低延迟流；channelMask 位 1 = 左、2 = 右，未选声道填零。
+ * play() 阻塞写入到轨道缓冲即返回（≈ 40 ms 背压）；stop() = pause + flush，同步；注册到 RouteManager.onDeviceLost。
+ */
+class AndroidAudioSink(private val routeManager: AndroidRouteManager, private val sampleRate: Int = 16_000) : AudioSink {
     private val track: AudioTrack by lazy {
         val minBuf = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
         AudioTrack.Builder()
@@ -178,7 +227,11 @@ class AndroidAudioSink(private val sampleRate: Int = 16_000) : AudioSink {
             .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
+            .also { t -> t.addOnRoutingChangedListener(android.media.AudioRouting.OnRoutingChangedListener { r -> routeManager.reportOutputDevice(r.routedDevice) }, null) }
     }
+    private val unregister: () -> Unit = routeManager.onDeviceLost { stop() }
+    @Volatile private var stopped = false
+
     override var volumeDb: Float = 0f
         set(v) { field = v; track.setVolume(10f.pow(v / 20f).coerceIn(0f, 1f)) }
 
@@ -188,23 +241,33 @@ class AndroidAudioSink(private val sampleRate: Int = 16_000) : AudioSink {
             if (channelMask and 1 != 0) stereo[2 * i] = chunk[i]
             if (channelMask and 2 != 0) stereo[2 * i + 1] = chunk[i]
         }
-        if (track.playState != AudioTrack.PLAYSTATE_PLAYING) track.play()
+        stopped = false
+        if (track.playState != AudioTrack.PLAYSTATE_PLAYING) { track.play(); routeManager.reportOutputDevice(track.routedDevice) }
         var off = 0
-        while (off < stereo.size) {
-            val n = track.write(stereo, off, stereo.size - off, AudioTrack.WRITE_BLOCKING)
+        while (off < stereo.size && !stopped) {
+            val n = track.write(stereo, off, minOf(stereo.size - off, 640), AudioTrack.WRITE_BLOCKING)
             if (n <= 0) break
             off += n
         }
     }
 
-    override fun stop() { runCatching { track.pause(); track.flush() } }
+    /** 同步：pause 立即停止渲染，flush 丢弃缓冲；不切扬声器（AudioTrack 不接触路由）。 */
+    override fun stop() { stopped = true; runCatching { track.pause(); track.flush() } }
     override fun flush() { runCatching { track.flush() } }
     override fun prime() {
-        // 200 ms −60 dB 噪声，唤醒蓝牙耳机的省电睡眠。
-        val n = sampleRate / 5
-        val buf = ShortArray(n * 2) { (Random.nextInt(-33, 33)).toShort() }
-        runCatching { if (track.playState != AudioTrack.PLAYSTATE_PLAYING) track.play(); track.write(buf, 0, buf.size, AudioTrack.WRITE_NON_BLOCKING) }
+        // 200 ms −60 dB 噪声唤醒蓝牙耳机；后台线程阻塞写入，不占调用方线程。
+        thread(name = "scenenote-prime") {
+            runCatching {
+                val noise = Pcm.nearSilence(sampleRate, 200)
+                val buf = ShortArray(noise.size * 2) { i -> noise[i / 2] }
+                stopped = false
+                if (track.playState != AudioTrack.PLAYSTATE_PLAYING) track.play()
+                var off = 0
+                while (off < buf.size && !stopped) { val n = track.write(buf, off, minOf(buf.size - off, 640), AudioTrack.WRITE_BLOCKING); if (n <= 0) break; off += n }
+            }
+        }
     }
+    override fun release() { unregister(); runCatching { track.stop(); track.release() } }
 }
 
 class AndroidHaptics(context: Context) : Haptics {

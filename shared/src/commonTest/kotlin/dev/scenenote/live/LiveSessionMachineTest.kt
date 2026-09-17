@@ -6,7 +6,6 @@ import dev.scenenote.audio.HapticPattern
 import dev.scenenote.audio.Haptics
 import dev.scenenote.audio.RouteEvent
 import dev.scenenote.audio.RouteManager
-import dev.scenenote.audio.RoutePolicyAudio
 import dev.scenenote.audio.RouteState
 import dev.scenenote.core.model.LiveState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -19,15 +18,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
-private class FakeRoute(var headset: Boolean = true) : RouteManager {
+private class FakeRoute : RouteManager {
     val events = MutableSharedFlow<RouteEvent>(extraBufferCapacity = 8)
-    private val _current = MutableStateFlow(state())
-    override val current: StateFlow<RouteState> get() = _current
+    override val current: StateFlow<RouteState> = MutableStateFlow(RouteState(AudioRoute.BuiltIn, AudioRoute.Speaker))
     override val routeEvents = events
     var ensureCalls = 0
-    private fun state() = RouteState(AudioRoute.BuiltIn, if (headset) AudioRoute.BluetoothA2dp else AudioRoute.Speaker, RoutePolicyAudio.HEADSET_A2DP_ONLY, headset)
-    override suspend fun ensure(policy: RoutePolicyAudio): RouteState { ensureCalls++; _current.value = state(); return _current.value }
-    override fun release() = Unit
+    override suspend fun ensure(): RouteState { ensureCalls++; return current.value }
+    override fun relax() = Unit
 }
 
 private class FakeSink : AudioSink {
@@ -37,6 +34,7 @@ private class FakeSink : AudioSink {
     override fun stop() { stops++ }
     override fun flush() { flushes++ }
     override fun prime() { primes++ }
+    override fun release() = Unit
 }
 
 private class FakeHaptics : Haptics { val played = mutableListOf<HapticPattern>(); override fun play(pattern: HapticPattern) { played += pattern } }
@@ -51,28 +49,32 @@ class LiveSessionMachineTest {
         assertEquals(listOf(HapticPattern.START), haptics.played)
     }
 
-    @Test fun noHeadsetDegrades() = runTest {
-        val route = FakeRoute(headset = false)
-        val m = DefaultLiveSessionMachine(route, FakeSink(), FakeHaptics(), backgroundScope)
+    @Test fun armFailureReturnsIdle() = runTest {
+        val m = DefaultLiveSessionMachine(FakeRoute(), FakeSink(), FakeHaptics(), backgroundScope, arm = { false })
         m.trigger(); runCurrent()
-        assertEquals(LiveState.Degraded, m.state.value)
+        assertEquals(LiveState.Idle, m.state.value)
     }
 
-    @Test fun earbudLostStopsAndFlushesNeverSpeaker() = runTest {
+    @Test fun outputDeviceRemovedStopsQueueButStaysLive() = runTest {
         val route = FakeRoute(); val sink = FakeSink()
         val m = DefaultLiveSessionMachine(route, sink, FakeHaptics(), backgroundScope)
         m.trigger(); runCurrent()
-        route.headset = false
-        m.onRoute(RouteEvent.OldDeviceUnavailable)
-        assertEquals(LiveState.Paused("earbud_lost"), m.state.value)
+        route.events.tryEmit(RouteEvent.OldDeviceUnavailable); runCurrent()
+        assertIs<LiveState.Live>(m.state.value)        // 耳机只是输出设备，拔掉后继续（系统已切外放）
         assertTrue(sink.stops >= 1 && sink.flushes >= 1)
-        // 再按触发不会在无耳机时恢复
+    }
+
+    @Test fun interruptionPausesThenResumesWithReEnsure() = runTest {
+        val route = FakeRoute(); val sink = FakeSink()
+        val m = DefaultLiveSessionMachine(route, sink, FakeHaptics(), backgroundScope)
         m.trigger(); runCurrent()
-        assertEquals(LiveState.Paused("earbud_lost"), m.state.value)
-        // 耳机重连 → 校验路由 → 恢复
-        route.headset = true
-        m.onRoute(RouteEvent.NewDeviceAvailable); runCurrent()
+        val calls = route.ensureCalls
+        m.onRoute(RouteEvent.Interruption(began = true))
+        assertEquals(LiveState.Paused("call"), m.state.value)
+        m.onRoute(RouteEvent.Interruption(began = false)); runCurrent()
         assertIs<LiveState.Live>(m.state.value)
+        assertTrue(route.ensureCalls > calls)
+        assertEquals(2, sink.primes)
     }
 
     @Test fun endReturnsToIdle() = runTest {

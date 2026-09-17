@@ -20,45 +20,51 @@ interface AudioSource {
     fun stop()
 }
 
-enum class RoutePolicyAudio { HEADSET_A2DP_ONLY, SPEAKER_AEC, ANY }
-
 sealed interface RouteEvent {
     data object NewDeviceAvailable : RouteEvent
     data object OldDeviceUnavailable : RouteEvent
     data object CategoryChange : RouteEvent
+    /** 来电 / Siri / 其他 App 抢占音频（began=true）与结束（began=false）。 */
     data class Interruption(val began: Boolean) : RouteEvent
-    /** 系统把路由拉回了 HFP（通话模式）——违反铁律，需要纠正并提示。 */
-    data object PulledToHfp : RouteEvent
 }
 
-data class RouteState(
-    val input: AudioRoute, val output: AudioRoute, val policy: RoutePolicyAudio,
-    val headsetConnected: Boolean, val note: String? = null
-) {
-    /** 铁律成立：输入 = 内置麦，输出 = A2DP 耳机。 */
-    val obeysHeadsetRule: Boolean get() = input == AudioRoute.BuiltIn && output == AudioRoute.BluetoothA2dp
-}
+/** 当前音频路由，仅供展示与日志；App 不区分耳机与扬声器（决策 2026-09-17：耳机只是一个输出设备）。 */
+data class RouteState(val input: AudioRoute, val output: AudioRoute, val note: String? = null)
 
-/** 路由铁律的唯一入口：耳机模式下输入 = 内置麦、输出 = A2DP；绝不加 HFP / defaultToSpeaker；耳机断开绝不切扬声器。 */
+/**
+ * 音频会话管理（单例、全局共享）：配置会话 / 焦点，上报路由与打断事件。
+ * iOS：playAndRecord + defaultToSpeaker + allowBluetoothA2DP（有耳机走耳机，没有就外放）；Android：MODE_NORMAL + 媒体焦点。
+ */
 interface RouteManager {
     val current: StateFlow<RouteState>
     val routeEvents: Flow<RouteEvent>
-    suspend fun ensure(policy: RoutePolicyAudio): RouteState
-    fun release()
+    suspend fun ensure(): RouteState
+    /** 会话结束：放弃音频焦点；监听保持。 */
+    fun relax()
 }
 
-/** 2 声道交织缓冲，无译文的声道填零；硬件缓冲 ≤ 40 ms；stop+flush 必须在路由回调内同步完成。 */
+/**
+ * 2 声道交织缓冲，无译文的声道填零；硬件缓冲 ≤ 40 ms。
+ * play() 语义：把块交给播放器后即返回（可能因背压短暂挂起），不等播完；stop() 同步清空已调度的全部缓冲。
+ */
 interface AudioSink {
     suspend fun play(chunk: ShortArray, channelMask: Int = 3)
     var volumeDb: Float
     fun stop()
     fun flush()
-    /** 队列空转非空前 200 ms 送 −60 dB 噪声帧唤醒耳机。 */
+    /** 队列由空转非空前调用：送 200 ms −60 dB 噪声帧唤醒耳机（由 PlaybackQueue 负责时机，I3）。 */
     fun prime()
+    fun release()
 }
 
 enum class HapticPattern { START /* 短-短 */, READY /* 短 */, FLIP /* 长 */, LOST /* 长-长-长 */, DIDNT_GET /* 双短 */ }
 interface Haptics { fun play(pattern: HapticPattern) }
+
+/** 16 kHz 单声道 PCM16 → AAC-LC .m4a（Android MediaCodec+MediaMuxer；iOS AVAudioFile）。close() 返回最终文件路径。 */
+interface PcmFileWriter {
+    fun write(frame: ShortArray)
+    fun close(): String
+}
 
 /** 平台通过 Koin platformModule 提供实现（Android 需要 Context，iOS 直接构造）。 */
 interface AudioFactory {
@@ -66,4 +72,27 @@ interface AudioFactory {
     fun routeManager(): RouteManager
     fun sink(): AudioSink
     fun haptics(): Haptics
+    fun fileWriter(path: String, sampleRate: Int = 16_000, bitrate: Int = 32_000): PcmFileWriter
+}
+
+/** 帧级工具：RMS（dBFS）与 1 kHz 测试音。 */
+object Pcm {
+    fun rmsDb(frame: ShortArray): Float {
+        if (frame.isEmpty()) return -120f
+        var acc = 0.0
+        for (s in frame) { val v = s / 32768.0; acc += v * v }
+        val rms = kotlin.math.sqrt(acc / frame.size)
+        return if (rms <= 1e-9) -120f else (20.0 * kotlin.math.log10(rms)).toFloat()
+    }
+
+    fun tone(sampleRate: Int, hz: Double, ms: Int, amplitude: Double = 0.2): ShortArray {
+        val n = sampleRate * ms / 1000
+        return ShortArray(n) { i -> (amplitude * 32767.0 * kotlin.math.sin(2.0 * kotlin.math.PI * hz * i / sampleRate)).toInt().toShort() }
+    }
+
+    /** −60 dBFS 白噪声：唤醒蓝牙耳机而听不见。 */
+    fun nearSilence(sampleRate: Int, ms: Int, seed: Int = 7): ShortArray {
+        var x = seed
+        return ShortArray(sampleRate * ms / 1000) { x = x * 1103515245 + 12345; ((x ushr 16) % 66 - 33).toShort() }
+    }
 }

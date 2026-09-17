@@ -18,6 +18,19 @@ iosApp/build/
 iosApp/DerivedData/
 *.xcuserstate
 
+# Test audio samples（只提交 README 与 .txt）
+bench/samples/**/*.m4a
+bench/samples/**/*.wav
+bench/samples/**/*.mp3
+bench/samples/**/*.aac
+bench/samples/**/*.flac
+
+# sherpa-onnx 预编译产物（scripts/fetch-sherpa.sh 拉取，不入库）
+shared/libs/*.aar
+shared/native/sherpa/ios-arm64/
+shared/native/sherpa/ios-simulator-arm64/
+shared/native/sherpa/include/
+
 # Models & secrets（模型包不入库；Key 只存 SecureStore）
 models/
 *.onnx

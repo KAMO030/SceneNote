@@ -5,7 +5,6 @@ import dev.scenenote.audio.HapticPattern
 import dev.scenenote.audio.Haptics
 import dev.scenenote.audio.RouteEvent
 import dev.scenenote.audio.RouteManager
-import dev.scenenote.audio.RoutePolicyAudio
 import dev.scenenote.core.model.DirState
 import dev.scenenote.core.model.FastPathEvent
 import dev.scenenote.core.model.LiveState
@@ -29,18 +28,16 @@ interface LiveSessionMachine {
 }
 
 /**
- * 实时会话状态机（03 篇 §3.5 / 附录 A.2）：
- * Idle → Arming（重载模型 + 路由铁律 + prime）→ Live(LISTENING, UNDETERMINED)。
- * 耳机断开 → 回调内同步 stop + flush → Paused(earbud_lost)，绝不切扬声器；耳机重连 → 校验路由后回 Live。
- * 来电 / Siri → Paused(call)；end → Ending → Idle。
- * I0 只落地状态迁移与路由铁律；管线阶段在 I3 接入。
+ * 实时会话状态机（03 篇 §3.5 / 附录 A.2）。
+ * - trigger：Idle → Arming（订阅路由事件、ensure 会话、加载模型、prime）→ Live。
+ * - 输出设备变化（耳机插拔）：App 不关心，系统自动切换输出；只把已排队的播放停掉避免突兀。
+ * - 打断（来电 / Siri）：Paused("call")；结束后重新 ensure 会话再恢复。
  */
 class DefaultLiveSessionMachine(
     private val routeManager: RouteManager,
     private val sink: AudioSink,
     private val haptics: Haptics,
     private val scope: CoroutineScope,
-    private val policy: RoutePolicyAudio = RoutePolicyAudio.HEADSET_A2DP_ONLY,
     /** I2 起替换为真实的模型加载；返回 false 表示无法进入 Live。 */
     private val arm: suspend () -> Boolean = { true },
 ) : LiveSessionMachine {
@@ -50,56 +47,46 @@ class DefaultLiveSessionMachine(
     private var armJob: Job? = null
 
     override fun trigger() {
-        when (val s = _state.value) {
+        when (_state.value) {
             LiveState.Idle, LiveState.NeedForeground, LiveState.Degraded -> startArming()
-            is LiveState.Paused -> if (s.reason != "earbud_lost") resume()
+            is LiveState.Paused -> scope.launch { resume() }
             else -> Unit
         }
     }
 
     private fun startArming() {
         _state.value = LiveState.Arming
+        listenRoute()
         armJob?.cancel()
         armJob = scope.launch {
-            val route = routeManager.ensure(policy)
-            if (policy == RoutePolicyAudio.HEADSET_A2DP_ONLY && !route.headsetConnected) {
-                _state.value = LiveState.Degraded   // 没有 A2DP 耳机：只能降级到 M3 双屏（UI 决定）
-                return@launch
-            }
+            routeManager.ensure()
             if (!arm()) { _state.value = LiveState.Idle; return@launch }
             sink.prime()
-            listenRoute()
             haptics.play(HapticPattern.START)
             _state.value = LiveState.Live(PlayState.LISTENING, DirState.UNDETERMINED)
         }
     }
 
     private fun listenRoute() {
-        routeJob?.cancel()
+        if (routeJob?.isActive == true) return
         routeJob = scope.launch { routeManager.routeEvents.onEach { onRoute(it) }.collect() }
     }
 
     override fun onRoute(e: RouteEvent) {
         when (e) {
-            RouteEvent.OldDeviceUnavailable -> {
-                // 铁律：回调内同步 stop + flush；不切扬声器；泄漏窗口 ≤ 100 ms。
+            RouteEvent.OldDeviceUnavailable -> { sink.stop(); sink.flush() }   // 系统已切换输出；丢掉排队中的旧音频即可
+            RouteEvent.NewDeviceAvailable, RouteEvent.CategoryChange -> Unit
+            is RouteEvent.Interruption -> if (e.began) {
                 sink.stop(); sink.flush()
-                if (_state.value is LiveState.Live) { haptics.play(HapticPattern.LOST); _state.value = LiveState.Paused("earbud_lost") }
-            }
-            RouteEvent.NewDeviceAvailable -> {
-                val s = _state.value
-                if (s is LiveState.Paused && s.reason == "earbud_lost") scope.launch {
-                    val route = routeManager.ensure(policy)
-                    if (route.obeysHeadsetRule) resume()
-                }
-            }
-            is RouteEvent.Interruption -> if (e.began) { sink.stop(); _state.value = LiveState.Paused("call") } else if ((_state.value as? LiveState.Paused)?.reason == "call") resume()
-            RouteEvent.PulledToHfp -> scope.launch { routeManager.ensure(policy) }
-            RouteEvent.CategoryChange -> Unit
+                if (_state.value is LiveState.Live) _state.value = LiveState.Paused("call")
+            } else if ((_state.value as? LiveState.Paused)?.reason == "call") scope.launch { resume() }
         }
     }
 
-    private fun resume() {
+    private suspend fun resume() {
+        if (_state.value !is LiveState.Paused) return
+        routeManager.ensure()
+        sink.prime()
         haptics.play(HapticPattern.READY)
         _state.value = LiveState.Live(PlayState.LISTENING, DirState.UNDETERMINED)
     }
@@ -113,9 +100,9 @@ class DefaultLiveSessionMachine(
     override fun end() {
         if (_state.value == LiveState.Idle) return
         _state.value = LiveState.Ending
-        armJob?.cancel(); routeJob?.cancel()
+        armJob?.cancel(); routeJob?.cancel(); routeJob = null
         sink.stop(); sink.flush()
-        routeManager.release()
+        routeManager.relax()
         _state.value = LiveState.Idle
     }
 }

@@ -33,7 +33,7 @@
 
 **待验证——屏外实时（来自《矩阵规格》§13.3，合并）**：
 16. 各端侧模型（流式 zipformer（greedy 与 modified_beam_search=4 分别）/ SenseVoice / 川渝 Paraformer / 3D-Speaker CAM++）在旗舰机与基线机的 RTF / 首包 / 内存；sherpa 官方 RTF 为桌面数据，手机 ×2–3 待实测；声纹 int8 体积；各档常驻内存峰值；发热时切换模型的尖峰；whisper-tiny LID 包（≈ 98 MB）是否值得（待决策 21）。
-17. qwen-mt-lite / qwen-mt-flash / claude-haiku-4-5（关 thinking）/ Gemini Flash-Lite / 豆包的实测 TTFT 与每句延迟；跨境 RTT 下在线档是否落在 1.8–2.1 s；系统 TTS 首包按平台单列（iOS `AVSpeechSynthesizer.write` 首次合成；Android `onAudioAvailable` 支持度与无 Google TTS 的国产 ROM）；A2DP 回环补偿实测值。
+17. qwen-mt-lite / qwen-mt-flash / claude-haiku-4-5（关 thinking）/ Gemini Flash-Lite / 豆包的实测 TTFT 与每句延迟；跨境 RTT 下在线档是否落在 1.8–2.1 s；系统 TTS 首包按平台单列（iOS `AVSpeechSynthesizer.write` 首次合成；Android `onAudioAvailable` 支持度与无 Google TTS 的国产 ROM）；A2DP 回环补偿实测值。 **2026-09-17 补（I3）**：系统 TTS 首包已实测——iOS 模拟器 `AVSpeechSynthesizer.write` 中文首块 429 ms / 英文 112 ms（buffer 格式随语音变化：22050 Hz Float32 常见、Eloquence 16 kHz，不能写死，已按 format 重采样）；vivo V2054A `com.vivo.aiservice.tts.VivoTextToSpeechService`（包名不含 tts，靠 `TextToSpeech.engines` 探测，targetSdk 30 需 `<queries>`）synthesizeToFile 整句 395 ms / 232 ms；端侧 Matcha zh-en 在骁龙 480 RTF≈1.1（2/4 线程无差别），首音 ≈ 首小句时长。qwen-mt 各模型的真实 TTFT 仍待用户填 Key 后实测。
 18. 混合档 30 分钟温度与耗电（目标 1 小时 ≤ 15%，无来源）；待机档 8 小时电量与待机 → Live 重载时延（目标 1–2 s）；jetsam / 国产 ROM 下待机进程存活率；基线机离线档句尾 → 首音是否 ≤ 2.5 s。
 19. OEM（三星 / 小米 / OPPO）在 `VOICE_COMMUNICATION` 源下自动拉 SCO 的行为；A2DP 下硬件 AEC 参考路径。
 20. TWS 各品牌单耳放回充电盒后的下混行为（M5）；AirPods 4 开放式泄漏对手机麦的影响；`AVAudioSession.outputLatency` 对 AirPods 的可靠性；LE Audio 耳机作系统默认输入时 Android `setPreferredDevice(TYPE_BUILTIN_MIC)` 的实际路由；iOS `supportedPolarPatterns` 覆盖机型；拔耳机脚本下的实际泄漏窗口（目标 ≤ 100 ms）。
@@ -70,14 +70,14 @@
 45. Koog 结构化输出在本地小模型（Qwen3.5-2B GGUF / Foundation Models）上的成功率与修复重试成本；Anthropic `output_config.format` 是否已由 Koog 覆盖。
 
 **待验证——UI 设计语言（§7.14）**：
-46. compose-cupertino / Calf 与 CMP 1.12.0、Kotlin 2.4.0 的兼容与维护状态；haze 在 iOS（Skia）上的模糊性能与"降低透明度"回退。
+46. compose-cupertino / Calf 与 CMP 1.12.0、Kotlin 2.4.0 的兼容与维护状态；haze 在 iOS（Skia）上的模糊性能与"降低透明度"回退。**2026-09-17 补**：自研 `Modifier.glass()`（GraphicsLayer 录制内容 → 玻璃条嵌套重绘 + BlurEffect）在 iOS 上因 Skiko 嵌套 `drawLayer` 于 `RenderNode::drawShadow` 崩溃，已关闭；Android ≥ 12（RenderEffect 路径，与 haze 同构）的模糊与滚动跟随尚未在真机验证（手头 vivo 为 Android 11）；见 `docs/验收记录/design-system.md`。
 47. Android 端替代 SF Symbols 的符号集（Phosphor / Lucide）语义覆盖率与权重匹配；SF Pro / SF Symbols 许可边界的法务复核。
 48. iOS 功能层原生化（UITabBarController + UINavigationController 外壳 + Compose 内容）在 CMP 1.12 下的滑动返回、sheet detent、键盘避让与 Compose 手势冲突；Dynamic Type 最大字号下双屏 / 气泡布局的截图矩阵。
 
 **待验证——端侧 NMT（`core/nmt`，§7.4 / §7.7）**：
-49. opus-mt zh↔en int8 在基线机（iPhone 12 / 骁龙 7 系）与旗舰机的单句延迟 P50 / P95（10 / 20 / 40 token）、常驻内存、冷启动加载时间；与 zipformer + 系统 TTS 同跑 10 分钟的发热与降频曲线（周 4 spike）。
+49. opus-mt zh↔en int8 在基线机（iPhone 12 / 骁龙 7 系）与旗舰机的单句延迟 P50 / P95（10 / 20 / 40 token）、常驻内存、冷启动加载时间；与 zipformer + 系统 TTS 同跑 10 分钟的发热与降频曲线（周 4 spike）。 **2026-09-17 补**：Xenova/opus-mt-zh-en、en-zh 的 int8 ONNX（encoder 52.7 MB + decoder_merged 60.0 MB + spm/vocab）每方向 ≈ 115 MB（文档"≈ 80 MB"偏低）；解码 I/O 名与 generation_config 已核实（decoder_start = pad = 65000、eos = 0、en→zh 句首加 `>>cmn_Hans<<`）；zh-en 基模型 CC-BY-4.0、en-zh Apache-2.0。实现后移为 I3.5（13 篇决策记录）。
 50. opus-mt 模型许可（Helsinki-NLP 标 CC-BY-4.0，署名义务与商用条款待法务核实）；SentencePiece 模型随包分发的许可；int8 量化后与 fp32 的 BLEU / 人工可懂度差异。
-51. ONNX Runtime 与 sherpa-onnx 共用同一份运行时的链接冲突（静态库符号重复、版本锁定、iOS xcframework 与 Android AAR 各自的单副本策略）；不可解时的隔离方案。
+51. ONNX Runtime 与 sherpa-onnx 共用同一份运行时的链接冲突（静态库符号重复、版本锁定、iOS xcframework 与 Android AAR 各自的单副本策略）；不可解时的隔离方案。 **2026-09-17 补**：Android 已证实——Maven Central 无 onnxruntime-android 1.28.2（只有 1.28.0 / 1.29.0 / 1.30.0），sherpa 1.13.8 的 libonnxruntime.so 只导出 `OrtGetApiBase@@VERS_1.28.2`，bionic 要求符号版本精确匹配，Maven 1.28.0 的 JNI 库必炸；可行路径 = Maven 1.28.0 的 classes.jar + csukuangfj onnxruntime-android-1.28.2.zip 内的 libonnxruntime4j_jni.so + sherpa AAR 的 libonnxruntime.so（同版本，不需 pickFirst）。iOS：sherpa 的 onnxruntime.xcframework 含 Headers，K/N 2.4.10 对 onnxruntime_c_api.h 的 cinterop 已试通，可与 sherpa.def 并存（不要重复 staticLibraries）。
 52. SentencePiece 分词的 KMP 实现选型（cinterop 官方 C++ 库 vs 纯 Kotlin 解码器）；占位符 token 在 SentencePiece 词表中的保留方式与对 NMT 输出的影响（漏译 / 错位率）。
 53. Background Assets / PAD 对语言对包（每方向 ≈ 80 MB）的按需下载体验：出门预热强制预下载的完成率、无 GMS 手动导入 `.sherpa-pack` 的可用性。
 54. 更多 opus-mt 语言对（en↔ja / en↔ko / 欧语）的可用模型与质量（v1.1 评估）。
@@ -120,5 +120,6 @@
 31. TTS 是否也统一到 sherpa-onnx（Matcha + Vocos）以做到两端一致（预设：否——系统 TTS 默认、Matcha 只作无系统语音包时的兜底；v1.1 按各平台语音包覆盖率与音质复评）。
 32. 中 ↔ 英 NMT 语言对包（双向约 160 MB）随包内置还是按需下载（预设：按需下载，出门预热强制预下载；若灰度期"首次面对面时模型未就绪"占比 > 20% 则改为随包内置并重议首装阈值）。
 33. 系统识别 / 系统翻译插件在 v1.1 是否实现（预设：先实现 Android SpeechRecognizer 与 ML Kit Translation 的评估版，iOS 侧视 Swift 注入成本再定；一律默认关闭）。
+34. 「复制一张再改」场景编辑 sheet（原型 `SceneEdit`）归 I7 还是随 `.scene` 导入导出一起推 v1.1（预设：I7——术语桶 / 入口绑定 / 隐私档到 I7 才有真实数据；砍范围时整体推 v1.1，MVP 只保留内置五张卡）。
 
 **结语**：v2 把"场景"保留为唯一主语，把"实时翻译"立为旗舰——屏外面对面：说话的人只管说，听的人戴上耳机；屏内媒体：手机里播什么就翻什么，Android 走系统抓取，iOS 走文件与诚实的实验层；两者共用一条双速管线与同一份本地知识库，多设备之间默认只传说话方的音频流（三种显式例外可见、听者的云端识别对说话方可见）。方案 0 的三载体与留言翻译作为场景的输出层（新增对话卡片与 .srt），方案 1 的 Vault + 指标体系作为场景之下的数据层（新增对话纪要与观影词汇），方案 2 的账本、锁定与诚实分层作为所有场景共享的信任层（新增局域网类目、对方音频不落盘、屏内 tier 文案）。没有服务器、没有账号、没有内置 Key、没有域名依赖、没有自有分发端点、没有转播第三方音频、没有绕过版权；零 Key 能做什么、不能做什么写在摘要第二段；用户留下的原因是本地资产越用越像自己——每一场对话、每一集视频都让下一次翻译更准，而这些资产随时可以带走。

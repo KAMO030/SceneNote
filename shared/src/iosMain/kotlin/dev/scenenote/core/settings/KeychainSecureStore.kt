@@ -56,9 +56,10 @@ class KeychainSecureStore(private val service: String = "dev.scenenote.secure") 
         val dataRef = CFBridgingRetain(data)
         CFDictionaryAddValue(query, kSecValueData, dataRef)
         CFDictionaryAddValue(query, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
-        SecItemAdd(query, null)
+        val status = SecItemAdd(query, null)
         CFRelease(query)
         CFRelease(dataRef)
+        if (status != errSecSuccess) error("Keychain 写入失败（OSStatus $status）")
     }
 
     override fun remove(key: String) {

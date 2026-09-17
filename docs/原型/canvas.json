@@ -1,0 +1,46 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-09-17T04:10:00Z" },
+  "title": "场记 SceneNote 交互原型",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Home.dc.html":          { "x": 0,    "y": 0,    "w": 390, "h": 844, "title": "场景 Tab · 首页五张卡", "is_interactive": true },
+    "Live.dc.html":          { "x": 470,  "y": 0,    "w": 390, "h": 844, "title": "实时 Tab · 屏外 / 屏内", "is_interactive": true },
+    "Library.dc.html":       { "x": 940,  "y": 0,    "w": 390, "h": 844, "title": "资料库 Tab · 知识库", "is_interactive": true },
+    "Settings.dc.html":      { "x": 1410, "y": 0,    "w": 390, "h": 844, "title": "设置 Tab", "is_interactive": true },
+
+    "LiveM0.dc.html":        { "x": 0,    "y": 1300, "w": 390, "h": 844, "title": "M0 仅听 · 会话中", "is_interactive": true },
+    "LiveM1.dc.html":        { "x": 470,  "y": 1300, "w": 390, "h": 844, "title": "M1 耳听·面屏 · 对方半屏", "is_interactive": true },
+    "LiveM3.dc.html":        { "x": 940,  "y": 1300, "w": 390, "h": 844, "title": "M3 双屏对话 · 常驻深色", "is_interactive": true },
+    "LiveM4.dc.html":        { "x": 1410, "y": 1300, "w": 390, "h": 844, "title": "M4 速译一句 · 大字卡", "is_interactive": true },
+    "LiveEnd.dc.html":       { "x": 1880, "y": 1300, "w": 390, "h": 844, "title": "会话结束 · 对话卡片 + 新词", "is_interactive": true },
+
+    "ScreenIntake.dc.html":  { "x": 0,    "y": 2600, "w": 390, "h": 844, "title": "屏内入口 · 选视频 / 直链 / 平台清单", "is_interactive": true },
+    "ScreenS4.dc.html":      { "x": 470,  "y": 2600, "w": 390, "h": 844, "title": "S4 文件字幕播放器", "is_interactive": true },
+    "Meeting.dc.html":       { "x": 940,  "y": 2600, "w": 390, "h": 844, "title": "会议 · 录音中", "is_interactive": true },
+    "MeetingResult.dc.html": { "x": 1410, "y": 2600, "w": 390, "h": 844, "title": "纪要 · 有 Key / 零 Key", "is_interactive": true },
+
+    "KeyWallet.dc.html":     { "x": 0,    "y": 3900, "w": 390, "h": 844, "title": "Key 钱包 · sheet", "is_interactive": true },
+    "Ledger.dc.html":        { "x": 470,  "y": 3900, "w": 390, "h": 844, "title": "去向账本", "is_interactive": true },
+    "SceneEdit.dc.html":     { "x": 940,  "y": 3900, "w": 390, "h": 844, "title": "场景编辑 · 复制一张再改", "is_interactive": true },
+    "Onboarding.dc.html":    { "x": 1410, "y": 3900, "w": 390, "h": 844, "title": "出门预热引导 · 三页", "is_interactive": true }
+  },
+  "order": [
+    "Home.dc.html", "Live.dc.html", "Library.dc.html", "Settings.dc.html",
+    "LiveM0.dc.html", "LiveM1.dc.html", "LiveM3.dc.html", "LiveM4.dc.html", "LiveEnd.dc.html",
+    "ScreenIntake.dc.html", "ScreenS4.dc.html", "Meeting.dc.html", "MeetingResult.dc.html",
+    "KeyWallet.dc.html", "Ledger.dc.html", "SceneEdit.dc.html", "Onboarding.dc.html"
+  ],
+  "notes": {
+    "t1": { "kind": "title1", "x": 0, "y": -300, "maxW": 1800, "text": "① 主导航 · 四 Tab：场景 / 实时 / 资料库 / 设置" },
+    "t2": { "kind": "title1", "x": 0, "y": 1000, "maxW": 2270, "text": "② 旗舰 · 实时翻译会话流：M0 → M1 → M3 → 结束（M4 旁路）" },
+    "t3": { "kind": "title1", "x": 0, "y": 2300, "maxW": 1800, "text": "③ 屏内字幕 S4 与会议卡" },
+    "t4": { "kind": "title1", "x": 0, "y": 3600, "maxW": 1800, "text": "④ 设置子页（sheet）、去向账本与出门预热" },
+    "s1": { "x": 1890, "y": 0, "w": 340, "color": "teal", "text": "怎么点\n• 四个 Tab 互链；场景卡按钮 → 会话页；「···」→ 场景编辑\n• 首页「口述成稿」展开三子卡；「更多场景」展开折叠\n• 实时 Tab 分段控件切换 屏外 / 屏内，主按钮悬浮在拇指区\n\nLiquid Glass 两层模型（07 §7.14）\n• 功能层才是玻璃：浮动胶囊 Tab 栏、圆形玻璃导航按钮、底部 dock、sheet 材质——内容滚到玻璃下面会被模糊 + 提饱和\n• 内容层（卡片、气泡、字幕、列表）不透明，永不用玻璃\n• 玻璃无固有色，其上标签单色；一个视图只有一个着色主按钮\n• 每张画板 Tweaks 里有「reduceTransparency」开关 = 系统「降低透明度」时的不透明回退" },
+    "s2": { "x": 2360, "y": 1300, "w": 340, "color": "teal", "text": "升级阶梯 · 每级只多一个动作，随时退回\nM0 仅听 →（竖起手机朝向对方）M1 →（摘下耳机）M3\n• M1 / M3 的对方半屏旋转 180°，对方只看不碰\n• M1「模拟」按钮：礼貌卡 → 呼吸灯 partial → 对勾 final\n• M3「翻转上一句」= 气泡左右滑翻转重译；外放是黄标开关，默认关\n• M4：按住说话 → 松手 → 大字卡，最亮不锁屏\n• 结束 → 对话卡片：双语对照 + 要点（AI 标记）+ 新词确认" },
+    "s3": { "x": 1890, "y": 2600, "w": 340, "color": "teal", "text": "屏内与录音\n• 入口页：剪贴板直链提示可忽略；相册 / 文件 → 播放器；iOS / Android 平台诚实清单常驻\n• S4 播放器常驻深色；「模拟：转写追上」= Waiting 自动暂停；快路径轨 / 精修轨切换；生词抽屉\n• 会议页：暂停 / 标记要点 / 停止成稿；录音不出手机胶囊常驻\n• 纪要页：有 Key 模板成稿 ⇄ 零 Key 时间轴要点，一样能分享" },
+    "s4": { "x": 1890, "y": 3900, "w": 340, "color": "teal", "text": "设置子页\n• Key 钱包、场景编辑是 sheet：grabber + 取消 / 完成，可下滑关闭\n• Key 钱包「测试连接」显示连通结果；消费闸门超限自动降端侧 NMT\n• 场景编辑：路由「优先云端」× 非「音频上云」→ 行内红字提示不合法组合，不弹窗\n• 去向账本：今天 / 7 天；每条数据去了哪、多少字节\n• 出门预热三页：三姿态 / 零 Key 诚实清单 / 入口绑定" }
+  },
+  "designSystems": []
+}

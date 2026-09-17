@@ -18,7 +18,7 @@ Xcode 的「Compile Kotlin Framework」脚本会自动解析 JDK 21（`/usr/libe
 ## 结构
 
 ```
-shared/      KMP 库：core/model · core/db(SQLDelight) · core/settings · core/egress · audio · asr · live · ui · di
+shared/      KMP 库：core/model · core/db(SQLDelight) · core/settings · core/egress · core/designsystem(Apple HIG + Liquid Glass，无 material3) · audio · asr · live · ui · di
 androidApp/  Android 壳（MainActivity / Application / Manifest）
 iosApp/      Xcode 工程（SwiftUI 壳，embedAndSignAppleFrameworkForXcode）
 docs/        方案、规格、流程图、执行计划、验收记录

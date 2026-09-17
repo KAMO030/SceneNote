@@ -1,0 +1,6 @@
+# sherpa-onnx C API（v1.13.8）+ onnxruntime（1.28.2）静态库，经 -include-binary 嵌入 klib；库目录由 Gradle 按目标传入（-libraryPath）。
+headers = sherpa-onnx/c-api/c-api.h
+headerFilter = sherpa-onnx/c-api/*
+package = dev.scenenote.sherpa.native
+staticLibraries = libsherpa-onnx-c-api.a libonnxruntime.a
+linkerOpts = -lc++ -framework CoreML -framework Foundation -framework Accelerate

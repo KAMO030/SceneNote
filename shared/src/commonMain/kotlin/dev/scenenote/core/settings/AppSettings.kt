@@ -29,6 +29,31 @@ class AppSettings(private val settings: Settings) {
         get() = settings.getStringOrNull(KEY_DEFAULT_PROVIDER)
         set(v) = if (v == null) settings.remove(KEY_DEFAULT_PROVIDER) else settings.putString(KEY_DEFAULT_PROVIDER, v)
 
+    /** TTS 偏好：auto / system / local / off（tts.TtsPreference）。 */
+    var ttsPreference: String
+        get() = settings.getString(KEY_TTS_PREF, "auto")
+        set(v) = settings.putString(KEY_TTS_PREF, v)
+
+    /** 快路径云端翻译模型（百炼 qwen-mt 系列）。 */
+    var mtModel: String
+        get() = settings.getString(KEY_MT_MODEL, "qwen-mt-flash")
+        set(v) = settings.putString(KEY_MT_MODEL, v)
+
+    /** M0 → M1 姿态自动进入（03 篇 §3.3；待决策：默认自动）。 */
+    var autoPosture: Boolean
+        get() = settings.getBoolean(KEY_AUTO_POSTURE, true)
+        set(v) = settings.putBoolean(KEY_AUTO_POSTURE, v)
+
+    /** 判向：auto（脚本 + 声纹）/ fixed（固定对方 → 我，退化单工）。待决策：默认自动。 */
+    var directionAuto: Boolean
+        get() = settings.getBoolean(KEY_DIRECTION_AUTO, true)
+        set(v) = settings.putBoolean(KEY_DIRECTION_AUTO, v)
+
+    /** 进入 M1 时自动播一句开场白（−6 dB，规格 §4.2）；默认关。 */
+    var politeOpener: Boolean
+        get() = settings.getBoolean(KEY_POLITE_OPENER, false)
+        set(v) = settings.putBoolean(KEY_POLITE_OPENER, v)
+
     var onboardingDone: Boolean
         get() = settings.getBoolean(KEY_ONBOARDING, false)
         set(v) = settings.putBoolean(KEY_ONBOARDING, v)
@@ -40,6 +65,11 @@ class AppSettings(private val settings: Settings) {
         const val KEY_MONTHLY_LIMIT = "monthly_limit"
         const val KEY_DEFAULT_PROVIDER = "default_provider"
         const val KEY_ONBOARDING = "onboarding_done"
+        const val KEY_TTS_PREF = "tts_pref"
+        const val KEY_MT_MODEL = "mt_model"
+        const val KEY_AUTO_POSTURE = "auto_posture"
+        const val KEY_DIRECTION_AUTO = "direction_auto"
+        const val KEY_POLITE_OPENER = "polite_opener"
     }
 }
 
@@ -61,7 +91,7 @@ data class CloudProvider(
 object Providers {
     val bailian = CloudProvider("bailian", "阿里云百炼", "dashscope.aliyuncs.com",
         setOf(CloudProvider.Capability.ASR, CloudProvider.Capability.MT, CloudProvider.Capability.LLM, CloudProvider.Capability.TTS),
-        keyHint = "sk-…", docUrl = "https://bailian.console.aliyun.com", region = "cn")
+        keyHint = "sk-…（百炼控制台 → 模型 → 设置 → API Key；北京地域）", docUrl = "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key", region = "cn")
     val anthropic = CloudProvider("anthropic", "Anthropic", "api.anthropic.com",
         setOf(CloudProvider.Capability.LLM, CloudProvider.Capability.MT),
         keyHint = "sk-ant-…", docUrl = "https://console.anthropic.com", region = "global")
