@@ -11,5 +11,5 @@ import dev.scenenote.core.designsystem.SceneText
 /** 占位：资料库列表页在 I5 落地（14 篇 §1 ①）。 */
 @Composable
 fun LibraryTab() {
-    Column(Modifier.fillMaxSize().padding(top = 104.dp, bottom = 140.dp, start = 16.dp, end = 16.dp)) { SceneText("资料库", style = dev.scenenote.core.designsystem.SceneTheme.type.largeTitle); SceneText("对话 / 纪要 / 字幕 / 留言卡会在这里按日分组（稍后开放）", color = dev.scenenote.core.designsystem.SceneTheme.colors.secondaryLabel) }
+    Column(Modifier.fillMaxSize().padding(top = 104.dp, bottom = 140.dp, start = 16.dp, end = 16.dp)) { SceneText("资料库", style = dev.scenenote.core.designsystem.SceneTheme.type.largeTitle); SceneText("稍后开放", color = dev.scenenote.core.designsystem.SceneTheme.colors.secondaryLabel) }
 }

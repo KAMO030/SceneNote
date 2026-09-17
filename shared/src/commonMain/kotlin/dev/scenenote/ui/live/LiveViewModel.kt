@@ -165,10 +165,14 @@ class LiveViewModel(
      * 进页一次性初始化（同一个 VM 实例只执行一次：从模型页返回 / Activity 重建不会重复 trigger）。
      * 会清掉上一场会话残留在单例 FastPath 里的句子。
      */
-    fun enter(sceneId: String, myLang: String = "", otherLang: String = "", feed: String = "", autostart: Boolean = false, voiceOut: Boolean? = null) {
+    fun enter(sceneId: String, myLang: String = "", otherLang: String = "", feed: String = "", autostart: Boolean = false, voiceOut: Boolean? = null, initialMode: String = "") {
         if (entered) return
         entered = true
         load(sceneId)
+        // 入口指定了模式（实时 Tab「双屏」）：直接换成该模式，不触发姿态规则
+        if (initialMode.isNotBlank() && initialMode != _ui.value.mode?.id) runCatching { ModeSpecs.byId(initialMode) }.getOrNull()?.let { m ->
+            _ui.value = _ui.value.copy(mode = m); configureFastPath(); applyModeEffects(m.id, entering = false)
+        }
         feedFile = feed.takeIf { it.isNotBlank() }
         if (myLang.isNotBlank()) setMyLang(myLang)
         if (otherLang.isNotBlank()) setOtherLang(otherLang)
@@ -335,11 +339,11 @@ class LiveViewModel(
 
     private fun hintFor(s: LiveState): String = when (s) {
         LiveState.Idle -> "按一下开始；戴耳机或外放都可以"
-        LiveState.Arming -> "正在准备：装载端侧模型…"
-        is LiveState.Live -> when (_ui.value.mode?.interaction) { Interaction.SIMPLEX_IN -> "正在听对方"; Interaction.SIMPLEX_OUT -> "说一句，松手出字"; else -> "正在听（自动判向）" }
+        LiveState.Arming -> "准备中…"
+        is LiveState.Live -> when (_ui.value.mode?.interaction) { Interaction.SIMPLEX_IN -> "正在听对方"; Interaction.SIMPLEX_OUT -> "说一句，松手出字"; else -> "正在听" }
         is LiveState.Paused -> when (s.reason) { "call" -> "来电 / 系统打断，稍后继续"; else -> "已暂停" }
         LiveState.NeedForeground -> "预热已失效，解锁并点一下继续"
-        LiveState.Degraded -> "当前策略要求耳机但未检测到：可改用双屏对话（M3）"
+        LiveState.Degraded -> "请戴上耳机，或改用双屏"
         LiveState.Ending -> "正在整理会话…"
     }
 

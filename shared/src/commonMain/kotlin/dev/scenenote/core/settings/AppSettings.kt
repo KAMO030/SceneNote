@@ -54,6 +54,11 @@ class AppSettings(private val settings: Settings) {
         get() = settings.getBoolean(KEY_POLITE_OPENER, false)
         set(v) = settings.putBoolean(KEY_POLITE_OPENER, v)
 
+    /** 一次性轻提示（会话页空态气泡等）：看过一次就不再打扰。 */
+    fun hintSeen(key: String): Boolean = settings.getBoolean("hint.$key", false)
+    fun markHintSeen(key: String) = settings.putBoolean("hint.$key", true)
+    fun resetHints(vararg keys: String) = keys.forEach { settings.remove("hint.$it") }
+
     var onboardingDone: Boolean
         get() = settings.getBoolean(KEY_ONBOARDING, false)
         set(v) = settings.putBoolean(KEY_ONBOARDING, v)

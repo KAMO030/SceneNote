@@ -59,6 +59,7 @@ class IosThermalMonitor : ThermalMonitor {
             NSProcessInfoThermalState.NSProcessInfoThermalStateFair -> ThermalLevel.FAIR
             NSProcessInfoThermalState.NSProcessInfoThermalStateSerious -> ThermalLevel.SERIOUS
             NSProcessInfoThermalState.NSProcessInfoThermalStateCritical -> ThermalLevel.CRITICAL
+            else -> ThermalLevel.NOMINAL   // cinterop 共享化后该枚举在 iosMain 视为 expect enum，when 必须带 else
         }
     }
 

@@ -33,13 +33,12 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.scenenote.core.designsystem.ButtonStyle
-import dev.scenenote.core.designsystem.CapsuleTone
 import dev.scenenote.core.designsystem.GlassScaffold
 import dev.scenenote.core.designsystem.SceneButton
-import dev.scenenote.core.designsystem.SceneCapsule
 import dev.scenenote.core.designsystem.SceneDivider
 import dev.scenenote.core.designsystem.SceneDock
 import dev.scenenote.core.designsystem.SceneGlassCapsuleButton
@@ -47,24 +46,26 @@ import dev.scenenote.core.designsystem.SceneGroup
 import dev.scenenote.core.designsystem.SceneIcon
 import dev.scenenote.core.designsystem.SceneIcons
 import dev.scenenote.core.designsystem.SceneNavBar
-import dev.scenenote.core.designsystem.SceneRadius
 import dev.scenenote.core.designsystem.SceneRow
 import dev.scenenote.core.designsystem.SceneSectionFooter
 import dev.scenenote.core.designsystem.SceneSpacing
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
+import dev.scenenote.core.platform.PlatformInfo
+import dev.scenenote.core.platform.isIos
 
 private const val PAGE_COUNT = 3
 
 /**
- * 出门预热引导（原型 Onboarding.dc.html，14 篇 §1 ④）：三页 = 三姿态 → 零 Key 能 / 不能清单 → 入口绑定表。
- * 右上「跳过」玻璃胶囊；dock 里页点 + 「继续」/「开始使用」。
+ * 新手引导（docs/15 §2）：① 怎么用 → ② 要不要填翻译 Key → ③ 入口（按平台）。
+ * 右上「跳过」；dock 里页点 + 「继续」/「开始使用」。
  */
 @Composable
-fun OnboardingScreen(initialPage: Int, onDone: () -> Unit, onOpenModels: () -> Unit) {
+fun OnboardingScreen(initialPage: Int, onDone: () -> Unit, onOpenModels: () -> Unit, onOpenKey: () -> Unit = {}) {
     val c = SceneTheme.colors
     var page by rememberSaveable { mutableStateOf(initialPage.coerceIn(0, PAGE_COUNT - 1)) }
     val last = page == PAGE_COUNT - 1
+    val next = { page = (page + 1).coerceAtMost(PAGE_COUNT - 1) }
     GlassScaffold(
         background = c.systemBackground,
         topBar = { SceneNavBar(trailing = { SceneGlassCapsuleButton("跳过", onClick = onDone) }) },
@@ -76,7 +77,7 @@ fun OnboardingScreen(initialPage: Int, onDone: () -> Unit, onOpenModels: () -> U
                 Spacer(Modifier.width(12.dp))
                 SceneButton(
                     if (last) "开始使用" else "继续",
-                    onClick = { if (last) onDone() else page = (page + 1).coerceAtMost(PAGE_COUNT - 1) },
+                    onClick = { if (last) onDone() else next() },
                     style = ButtonStyle.Prominent, height = 56.dp, modifier = Modifier.weight(1f),
                 )
             }
@@ -88,36 +89,34 @@ fun OnboardingScreen(initialPage: Int, onDone: () -> Unit, onOpenModels: () -> U
                 verticalArrangement = Arrangement.spacedBy(SceneSpacing.m),
             ) {
                 when (p) {
-                    0 -> PosturePage()
-                    1 -> ZeroKeyPage(onOpenModels)
-                    else -> EntryBindingPage()
+                    0 -> HowToPage()
+                    1 -> KeyPage(onOpenModels = onOpenModels, onLater = next, onOpenKey = onOpenKey)
+                    else -> EntryPage()
                 }
             }
         }
     }
 }
 
-/** 第 1 页：手机放这三处之一（胸前口袋 / 手持胸前 / 挂绳）+ 黄标提醒。 */
+// ---------- ① 怎么用 ----------
+
 @Composable
-private fun PosturePage() {
+private fun HowToPage() {
     val c = SceneTheme.colors
     Column(Modifier.padding(horizontal = SceneSpacing.page), verticalArrangement = Arrangement.spacedBy(SceneSpacing.m)) {
-        SceneText("手机放这三处之一，\n不用举、不用看屏幕", style = SceneTheme.type.title1)
-        SceneText("M0 仅听用的是手机内置麦克风。对方开口后耳机单击，震动两短确认，译文进耳机。", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+        SceneText("戴上耳机，\n对方说话，你听译文", style = SceneTheme.type.title1)
+        SceneText("手机放胸前，不用举、不用看", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PostureCard(Posture.Pocket, "胸前口袋", Modifier.weight(1f))
             PostureCard(Posture.Hand, "手持胸前", Modifier.weight(1f))
             PostureCard(Posture.Lanyard, "挂绳", Modifier.weight(1f))
-        }
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(SceneRadius.m)).background(c.warningSoft).padding(horizontal = 12.dp, vertical = 10.dp)) {
-            SceneText("裤兜隔着布料、朝向不对，能不能用要实测；我们只承诺「不用举手机、不用看屏幕」。冷启动或被打断后需要解锁点一下。", style = SceneTheme.type.footnote, color = c.onWarningSoft)
         }
     }
 }
 
 private enum class Posture { Pocket, Hand, Lanyard }
 
-/** 姿态卡：浅灰底 18 dp 圆角，简笔示意 + 13 pt 标签。 */
+/** 图示卡：浅灰底 18 dp 圆角，简笔示意 + 13 pt 标签。 */
 @Composable
 private fun PostureCard(posture: Posture, label: String, modifier: Modifier = Modifier) {
     val c = SceneTheme.colors
@@ -131,7 +130,7 @@ private fun PostureCard(posture: Posture, label: String, modifier: Modifier = Mo
     }
 }
 
-/** 简笔示意（原型 64×64 视口的 SVG 路径按比例重画）：手机 = 着色圆角矩形；口袋 / 手 / 挂绳 = 单色描边。 */
+/** 简笔示意（64×64 视口按比例重画）：手机 = 着色圆角矩形；口袋 / 手 / 挂绳 = 单色描边。 */
 @Composable
 private fun PostureIllustration(posture: Posture) {
     val c = SceneTheme.colors
@@ -141,7 +140,6 @@ private fun PostureIllustration(posture: Posture) {
         fun phone(x: Float, y: Float, h: Float) = drawRoundRect(c.tint, Offset(x * u, y * u), Size(12f * u, h * u), CornerRadius(3f * u))
         when (posture) {
             Posture.Pocket -> {
-                // 衣襟轮廓（浅）→ 手机 → 口袋盖住下半截
                 drawRect(c.tertiaryLabel, Offset(20f * u, 10f * u), Size(24f * u, 44f * u), style = stroke)
                 phone(26f, 18f, 22f)
                 drawRect(c.systemBackground, Offset(14f * u, 30f * u), Size(36f * u, 24f * u))
@@ -169,83 +167,74 @@ private fun PostureIllustration(posture: Posture) {
     }
 }
 
-/** 第 2 页：不填 Key 也能用，但要说清楚——清单与当前真实能力一致（I2/I3：端侧识别 + 端侧中英语音 + 规则整理）。 */
+// ---------- ② 要不要填翻译 Key ----------
+
 @Composable
-private fun ZeroKeyPage(onOpenModels: () -> Unit) {
-    val c = SceneTheme.colors
+private fun KeyPage(onOpenModels: () -> Unit, onLater: () -> Unit, onOpenKey: () -> Unit) {
     Column(Modifier.padding(horizontal = SceneSpacing.page), verticalArrangement = Arrangement.spacedBy(SceneSpacing.m)) {
-        SceneText("不填 Key 也能用，\n但要说清楚", style = SceneTheme.type.title1)
-        Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneText("零 Key 能做", style = SceneTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.onTintSoft)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                CapabilityLine(true, "录、转写：普通话 / 英文 / 四川话，端侧识别，完全离线")
-                CapabilityLine(true, "中文、英文朗读：端侧语音包，出声不联网")
-                CapabilityLine(true, "规则整理、字幕导出、分享、时间轴要点")
-            }
-            SceneText("零 Key 做不到", Modifier.padding(top = 6.dp), style = SceneTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.onDestructiveSoft)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                CapabilityLine(false, "云端翻译与大模型润色：要填你自己的 Key")
-                CapabilityLine(false, "粤语真正翻成普通话")
-                CapabilityLine(false, "上海话 / 闽南语识别")
-                CapabilityLine(false, "中英以外的语言对（日 / 韩 / 欧语要在线档 + Key）")
-            }
+        SceneText("要不要填翻译 Key", style = SceneTheme.type.title1)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CapabilityColumn(
+                "不填也能", SceneIcons.Check,
+                listOf("识别普通话", "识别英文", "识别四川话", "本机朗读"),
+                Modifier.weight(1f),
+            )
+            CapabilityColumn(
+                "填了才能", SceneIcons.Key,
+                listOf("翻译", "更多语言"),
+                Modifier.weight(1f),
+            )
         }
-        // 端侧识别 / 语音包不随包内置，按需下载
-        SceneButton(onClick = onOpenModels, style = ButtonStyle.Plain, contentPadding = 0.dp) {
-            SceneText("下载语言包", style = SceneTheme.type.headline)
-            SceneIcon(SceneIcons.ChevronRight, contentDescription = null, size = 16.dp)
+        SceneButton("去填 Key", onClick = onOpenKey, style = ButtonStyle.Prominent, modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
+            SceneButton("稍后", onClick = onLater, style = ButtonStyle.Gray, modifier = Modifier.weight(1f))
+            SceneButton("先下载语音包", onClick = onOpenModels, style = ButtonStyle.Tinted, modifier = Modifier.weight(1f))
         }
     }
 }
 
-/** 清单行：对勾（能）/ 叉（不能）+ 15 pt 文字；状态靠符号传达，颜色只是语气。 */
+/** 能力列：标题 + 每行一个符号和 ≤ 10 字的条目。 */
 @Composable
-private fun CapabilityLine(can: Boolean, text: String) {
+private fun CapabilityColumn(title: String, icon: ImageVector, items: List<String>, modifier: Modifier = Modifier) {
     val c = SceneTheme.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.Top) {
-        SceneIcon(
-            if (can) SceneIcons.Check else SceneIcons.Close,
-            contentDescription = if (can) "能" else "不能",
-            modifier = Modifier.padding(top = 2.dp), size = 18.dp,
-            tint = if (can) c.tint else c.onDestructiveSoft,
-        )
-        SceneText(text, style = SceneTheme.type.subheadline)
+    Column(
+        modifier.clip(RoundedCornerShape(18.dp)).background(c.secondarySystemBackground).padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(SceneSpacing.s),
+    ) {
+        SceneText(title, style = SceneTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.secondaryLabel)
+        items.forEach { item ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                SceneIcon(icon, contentDescription = null, size = 16.dp, tint = c.tint)
+                SceneText(item, style = SceneTheme.type.subheadline, maxLines = 1)
+            }
+        }
     }
 }
 
-/** 第 3 页：把「面对面对话」绑到一个物理入口——耳机媒体键 / 快捷指令 / 磁贴在 I4 接入，这里只展示（禁用态）。 */
+// ---------- ③ 入口（按平台） ----------
+
 @Composable
-private fun EntryBindingPage() {
+private fun EntryPage() {
     val c = SceneTheme.colors
-    Column(Modifier.padding(horizontal = SceneSpacing.page), verticalArrangement = Arrangement.spacedBy(SceneSpacing.m)) {
-        SceneText("把「面对面对话」\n绑到一个物理入口", style = SceneTheme.type.title1)
-        SceneText("目标是从「想用」到「出结果」只被迫点 1 下。待机时耳机按键不接管——你听音乐时单击控制的还是音乐。", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+    val ios = PlatformInfo.isIos
+    Column(Modifier.padding(horizontal = SceneSpacing.page)) {
+        SceneText("一键开始", style = SceneTheme.type.title1)
     }
     Column {
         SceneGroup(background = c.secondarySystemBackground) {
-            EntryRow("耳机单击", "开始 / 暂停", subtitle = "会话中生效", tag = "稍后开放")
+            if (ios) {
+                SceneRow("快捷指令", value = "仅听 · 速译 · 面对面")
+                SceneDivider()
+                SceneRow("操作按钮", value = "仅听")
+            } else {
+                SceneRow("快捷设置磁贴", value = "仅听 · 速译")
+            }
             SceneDivider()
-            EntryRow("快捷指令 / Action Button", "面对面对话", tag = "稍后开放")
-            SceneDivider()
-            EntryRow("Action Button 长按", "速译一句", tag = "稍后开放")
-            SceneDivider()
-            EntryRow("Android 磁贴", "仅听 · 屏内翻译", tag = "稍后开放")
-            SceneDivider()
-            EntryRow("手表软开关", "仅听", tag = "v1.1")
+            SceneRow("耳机按键", value = "开始 / 暂停")
         }
-        SceneSectionFooter("入口绑定稍后开放，现在还不能改。耳机双击 = 跳过当前译文（对话模式 = 翻转上一句重译），三击 = 重播上一句。")
+        SceneSectionFooter(
+            if (ios) "设置 → 操作按钮 → 快捷指令，选「场记」"
+            else "下拉通知栏 → 编辑磁贴，拖入「场记」",
+        )
     }
-}
-
-/** 入口绑定行（禁用态）：标题灰字 + 里程碑胶囊 + 绑定动作。 */
-@Composable
-private fun EntryRow(title: String, action: String, tag: String, subtitle: String? = null) {
-    val c = SceneTheme.colors
-    SceneRow(
-        title, subtitle = subtitle, titleColor = c.secondaryLabel,
-        trailing = {
-            SceneCapsule(tag, tone = CapsuleTone.Gray)
-            SceneText(action, style = SceneTheme.type.body, color = c.secondaryLabel, maxLines = 1)
-        },
-    )
 }

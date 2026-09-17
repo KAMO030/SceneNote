@@ -57,9 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.scenenote.core.designsystem.AlertAction
-import dev.scenenote.core.designsystem.CapsuleTone
 import dev.scenenote.core.designsystem.SceneAlert
-import dev.scenenote.core.designsystem.SceneCapsule
 import dev.scenenote.core.designsystem.SceneDivider
 import dev.scenenote.core.designsystem.SceneGroup
 import dev.scenenote.core.designsystem.SceneIcon
@@ -76,21 +74,24 @@ import dev.scenenote.core.designsystem.SceneTheme
 import dev.scenenote.core.settings.Providers
 import dev.scenenote.translate.KeyTestResult
 
-/** 消费闸门步进：每次 ± ¥5，0 = 不限。 */
+/** 每月上限步进：每次 ± ¥5，0 = 不限。 */
 private const val LIMIT_STEP = 5.0
 
+/** 空 Key 时输入框上方的三步引导（≤ 3 行）。 */
+private val KEY_STEPS = listOf("1  打开 bailian.console.aliyun.com", "2  新建 API Key", "3  复制粘贴到这里")
+
 /**
- * Key 钱包 sheet（原型 KeyWallet.dc.html，14 篇 §1 ④）：厂商列表 → API Key / 端点 / 测试连接 → 消费闸门 → 页脚。
+ * 翻译 Key sheet：厂商一行（只接百炼）→ API Key / 端点 / 测试连接 → 每月上限 → 页脚。
  * 测试结果行内展示（青绿 ok / 红色错误），不弹窗；只有清除 Key 这类不可撤销动作才用 Alert。
  * 「完成」提交未保存的草稿再关闭，「取消」丢弃草稿。
  */
 @Composable
 fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsViewModel, onDismiss: () -> Unit) {
     val c = SceneTheme.colors
-    var selectedId by remember { mutableStateOf(ui.providers.firstOrNull()?.id.orEmpty()) }
-    val p = ui.providers.firstOrNull { it.id == selectedId } ?: ui.providers.firstOrNull()
-    var keyDraft by remember(selectedId) { mutableStateOf("") }
-    var baseDraft by remember(selectedId, p?.baseUrl) { mutableStateOf(p?.baseUrl.orEmpty()) }
+    // 只显示百炼一行：其他厂商还没接，直接不渲染
+    val p = ui.providers.firstOrNull { it.id == Providers.bailian.id }
+    var keyDraft by remember { mutableStateOf("") }
+    var baseDraft by remember(p?.baseUrl) { mutableStateOf(p?.baseUrl.orEmpty()) }
     var confirmClear by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
     @Suppress("DEPRECATION") val clipboard = LocalClipboardManager.current
@@ -116,83 +117,65 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
     SceneSheet(
         visible = visible,
         onDismiss = { keyDraft = ""; baseDraft = p?.baseUrl.orEmpty(); focus.clearFocus(); onDismiss() },
-        title = "Key 钱包",
+        title = "翻译 Key",
         onDone = { saveKey(); saveBaseUrl(); onDismiss() },
     ) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(top = 8.dp, bottom = 140.dp),
             verticalArrangement = Arrangement.spacedBy(SceneSpacing.l),
         ) {
-            // ---- 厂商 ----
-            Column {
-                SceneSectionHeader("厂商 · 只用你自己的 Key 直连")
-                SceneGroup {
-                    ui.providers.forEachIndexed { i, row ->
-                        if (i > 0) SceneDivider()
-                        val on = row.id == p?.id
-                        val testable = row.id == Providers.bailian.id
-                        Box(Modifier.background(if (on) c.tintSoft else c.secondaryGroupedBackground)) {
-                            SceneRow(
-                                row.name,
-                                value = if (row.masked != null) "已配置" else "未配置",
-                                chevron = !on,
-                                titleColor = if (on) c.onTintSoft else c.label,
-                                trailing = { if (testable) SceneCapsule("翻译 · 润色", tone = CapsuleTone.Tint) },
-                                onClick = { focus.clearFocus(); selectedId = row.id },
-                            )
-                        }
+            // ---- 厂商（只有百炼）----
+            if (p != null) {
+                Column {
+                    SceneSectionHeader("厂商")
+                    SceneGroup {
+                        SceneRow(p.name, value = if (p.masked != null) "已填写" else "未填写")
                     }
                 }
-                SceneSectionFooter("MVP 先只接百炼（qwen-mt / qwen-plus）；其余端点可先存 Key，I3 之后开放直连与测试。")
-            }
 
-            // ---- 选中厂商：Key / 端点 / 测试 ----
-            if (p != null) {
-                val host = Providers.byId(p.id)?.host.orEmpty()
-                val canTest = p.id == Providers.bailian.id && p.masked != null && ui.testing == null
+                // ---- Key / 端点 / 测试 ----
                 val testing = ui.testing == p.id
                 val result = ui.keyTest[p.id]
                 Column {
-                    SceneSectionHeader(p.name)
+                    SceneSectionHeader("API Key")
                     SceneGroup {
+                        // 空 Key：输入框上方三步引导
+                        if (p.masked == null) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                KEY_STEPS.forEach { SceneText(it, style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            }
+                            SceneDivider()
+                        }
                         // API Key 行：密文输入 + 粘贴 / 保存
                         Row(
                             Modifier.fillMaxWidth().defaultMinSize(minHeight = SceneSize.rowMinHeight).padding(horizontal = SceneSpacing.row, vertical = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            SceneText("API Key", style = SceneTheme.type.subheadline, color = c.label)
+                            SceneText("Key", style = SceneTheme.type.subheadline, color = c.label)
                             InlineField(
                                 value = keyDraft, onValueChange = { keyDraft = it },
-                                placeholder = p.masked ?: "粘贴或输入 Key", secure = true,
+                                placeholder = p.masked ?: "粘贴或输入", secure = true,
                                 modifier = Modifier.weight(1f), onDone = ::saveKey,
                             )
                             if (keyDraft.isBlank()) SmallPill("粘贴", onClick = ::paste) else SmallPill("保存", onClick = ::saveKey, tinted = true)
                         }
                         SceneDivider()
-                        // 端点：需要 Base URL 的厂商必填，其余可选（留空 = 官方端点）
+                        // 端点：留空 = 官方端点
                         Row(
                             Modifier.fillMaxWidth().defaultMinSize(minHeight = SceneSize.rowMinHeight).padding(horizontal = SceneSpacing.row, vertical = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            SceneText(if (p.needsBaseUrl) "Base URL" else "端点", style = SceneTheme.type.subheadline, color = c.label)
+                            SceneText("端点", style = SceneTheme.type.subheadline, color = c.label)
                             InlineField(
                                 value = baseDraft, onValueChange = { baseDraft = it },
-                                placeholder = if (p.needsBaseUrl) "https://…/v1（必填）" else "$host（默认，可选填）",
+                                placeholder = "默认，可不填",
                                 modifier = Modifier.weight(1f), onDone = ::saveBaseUrl,
                             )
                         }
-                        SceneDivider()
-                        // 测试连接：只有百炼可测；testing 时转圈文字
-                        TestRow(
-                            enabled = canTest, testing = testing, tested = result != null,
-                            disabledNote = when {
-                                p.id != Providers.bailian.id -> "测试连接 · I3 只接百炼"
-                                p.masked == null -> "测试连接 · 先填写 Key"
-                                else -> null
-                            },
-                            onClick = { vm.testKey(p.id) },
-                        )
+                        // 测试连接 / 清除 Key：只有填了 Key 才渲染
                         if (p.masked != null) {
+                            SceneDivider()
+                            TestRow(enabled = ui.testing == null, testing = testing, tested = result != null, onClick = { vm.testKey(p.id) })
                             SceneDivider()
                             SceneRow("清除 Key", titleColor = c.destructive, onClick = { confirmClear = true })
                         }
@@ -201,43 +184,33 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
                 }
             }
 
-            // ---- 消费闸门 ----
+            // ---- 每月上限 ----
             Column {
-                SceneSectionHeader("消费闸门")
+                SceneSectionHeader("每月上限")
                 SceneGroup {
-                    SceneRow("每月上限", trailing = {
+                    SceneRow("金额", trailing = {
                         StepButton("−", contentDescription = "减少", enabled = ui.monthlyLimit > 0.0) { vm.setMonthlyLimit((ui.monthlyLimit - LIMIT_STEP).coerceAtLeast(0.0)) }
                         SceneText(fmtLimit(ui.monthlyLimit), Modifier.widthIn(min = 48.dp), style = SceneTheme.type.body, color = c.label, textAlign = TextAlign.Center, maxLines = 1)
                         StepButton("+", contentDescription = "增加") { vm.setMonthlyLimit(ui.monthlyLimit + LIMIT_STEP) }
                     })
                     SceneDivider()
-                    SceneRow("超限后", value = "自动切回仅本机")
+                    SceneRow("超限后", value = "停止联网翻译")
                 }
-                SceneSectionFooter("按厂商公开价换算，仅供参考；0 = 不限。超限不弹窗，会话里胶囊变为「离线 · 基础质量」。")
             }
 
             // ---- 页脚 ----
-            Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.xs)) {
-                SceneText(
-                    "Key 只存在本机 Keychain / Keystore，不备份、不同步；App 不内置任何 Key，也没有我们的服务器。",
-                    Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page + SceneSpacing.row),
-                    style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center,
-                )
-                if (p != null && p.keyHint.isNotBlank()) {
-                    SceneText(
-                        "获取 ${p.name} Key：${p.keyHint}",
-                        Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page + SceneSpacing.row),
-                        style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center,
-                    )
-                }
-            }
+            SceneText(
+                "Key 只存在本机，不上传",
+                Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page + SceneSpacing.row),
+                style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center,
+            )
         }
     }
 
     if (confirmClear && p != null) {
         SceneAlert(
-            title = "清除 ${p.name} 的 Key？",
-            message = "会从本机 Keychain / Keystore 删除，云端翻译回到零 Key 状态。",
+            title = "清除 Key？",
+            message = "清除后将无法联网翻译。",
             actions = listOf(
                 AlertAction("取消", onClick = { confirmClear = false }, isDefault = true),
                 AlertAction("清除", onClick = { vm.setKey(p.id, ""); confirmClear = false }, destructive = true),
@@ -317,9 +290,9 @@ private fun StepButton(symbol: String, contentDescription: String, enabled: Bool
     }
 }
 
-/** 「测试连接」整行按钮：青绿居中文字；testing 时转圈 + 灰字；不可测时灰字注明原因。 */
+/** 「测试连接」整行按钮：青绿居中文字；testing 时转圈 + 灰字。 */
 @Composable
-private fun TestRow(enabled: Boolean, testing: Boolean, tested: Boolean, disabledNote: String?, onClick: () -> Unit) {
+private fun TestRow(enabled: Boolean, testing: Boolean, tested: Boolean, onClick: () -> Unit) {
     val c = SceneTheme.colors
     val interaction = remember { MutableInteractionSource() }
     Row(
@@ -331,33 +304,29 @@ private fun TestRow(enabled: Boolean, testing: Boolean, tested: Boolean, disable
         horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        when {
-            testing -> { Spinner(); SceneText("正在测试连接…", style = SceneTheme.type.headline, color = c.secondaryLabel) }
-            disabledNote != null -> SceneText(disabledNote, style = SceneTheme.type.body, color = c.secondaryLabel)
-            else -> SceneText(if (tested) "再次测试连接" else "测试连接", style = SceneTheme.type.headline, color = c.tint)
+        if (testing) {
+            Spinner()
+            SceneText("正在连接…", style = SceneTheme.type.headline, color = c.secondaryLabel)
+        } else {
+            SceneText(if (tested) "再测一次" else "测试连接", style = SceneTheme.type.headline, color = c.tint)
         }
     }
 }
 
-/** 测试结果页脚：未测 → 说明；ok → 青绿对勾一行（首字延迟 / 模型 / 译文 / 估价）；失败 → 红字原因。 */
+/** 测试结果页脚：未测 → 无；ok → 「已连接 · 0.4 s」；失败 → 红字一句。 */
 @Composable
 private fun TestResultFooter(r: KeyTestResult?) {
     val c = SceneTheme.colors
     when {
-        r == null -> SceneSectionFooter("会发一条 10 字以内的测试翻译，计入去向账本。")
+        r == null -> Unit
         r.ok -> Row(
             Modifier.padding(start = SceneSpacing.page + SceneSpacing.row, end = SceneSpacing.page, top = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
         ) {
-            SceneIcon(SceneIcons.Check, contentDescription = "已连通", size = 14.dp, tint = c.onTintSoft, modifier = Modifier.padding(top = 2.dp))
-            val cost = r.estCost?.let { " · 估 ${fmtCost(it)}" }.orEmpty()
-            val sample = r.sample.takeIf { it.isNotBlank() }?.let { " · 「$it」" }.orEmpty()
-            SceneText(
-                "已连通 · 首字 ${fmtSeconds(r.latencyMs)} · ${r.model.ifBlank { "qwen-mt" }} 可用$sample$cost · Key 已存本机 Keychain / Keystore",
-                style = SceneTheme.type.footnote, color = c.onTintSoft,
-            )
+            SceneIcon(SceneIcons.Check, contentDescription = "已连接", size = 14.dp, tint = c.onTintSoft)
+            SceneText("已连接 · ${fmtSeconds(r.latencyMs)}", style = SceneTheme.type.footnote, color = c.onTintSoft, maxLines = 1)
         }
-        else -> SceneSectionFooter("连接失败 · ${r.message}", color = c.destructive)
+        else -> SceneSectionFooter("连接失败 · 检查 Key 或网络", color = c.destructive)   // 原始原因只进诊断
     }
 }
 
@@ -381,6 +350,5 @@ private fun fmtNumber(v: Double): String {
     return if (v == i.toDouble()) i.toString() else "${(v * 100).toLong() / 100.0}"
 }
 
-private fun fmtSeconds(ms: Long): String = "${ms / 1000}.${((ms % 1000) / 10).toString().padStart(2, '0')} s"
-
-private fun fmtCost(v: Double): String = if (v < 0.01) "< ¥ 0.01" else "¥ ${fmtNumber(v)}"
+/** 毫秒 → 一位小数的秒（「0.4 s」）。 */
+private fun fmtSeconds(ms: Long): String = "${ms / 1000}.${(ms % 1000) / 100} s"

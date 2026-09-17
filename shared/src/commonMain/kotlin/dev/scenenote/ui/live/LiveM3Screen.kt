@@ -56,7 +56,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
@@ -68,7 +67,6 @@ import dev.scenenote.core.designsystem.CapsuleTone
 import dev.scenenote.core.designsystem.GlassScaffold
 import dev.scenenote.core.designsystem.SceneButton
 import dev.scenenote.core.designsystem.SceneCapsule
-import dev.scenenote.core.designsystem.SceneIcon
 import dev.scenenote.core.designsystem.SceneIconButton
 import dev.scenenote.core.designsystem.SceneIcons
 import dev.scenenote.core.designsystem.SceneNavBar
@@ -79,13 +77,14 @@ import dev.scenenote.core.designsystem.SceneTheme
 import dev.scenenote.core.designsystem.glass
 import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.LiveState
-import dev.scenenote.core.model.PlaybackStatus
 import dev.scenenote.core.model.Speaker
 import dev.scenenote.core.platform.ThermalLevel
+import dev.scenenote.core.settings.AppSettings
 import dev.scenenote.live.LiveLine
 import dev.scenenote.live.Phrases
 import dev.scenenote.live.PipelineHealth
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -93,35 +92,40 @@ import kotlin.math.roundToInt
 private const val MaxBubbles = 8
 
 /**
- * M3 双屏对话（原型 LiveM3.dc.html，14 篇 §1 ② / §2「深色仅用于 M3 双屏」）：无耳机，两人各看各的半屏。
- * - 常驻深色：整页套 `SceneTheme(dark = true)` 用深色令牌，不写死颜色（与 M4 大字卡同做法）。
- * - 上半屏我方视角（我的语言）：我说的原文靠右灰泡；对方 → 我 的译文靠左青绿泡 22 pt；最新 partial 虚线灰泡。
- * - 中央玻璃胶囊（功能层，唯一的玻璃）：判向状态 / 固定建议 + 翻转 + 外放黄标（默认关）+ 回 M0 + 结束。
- * - 下半屏 rotate(180°) 对方视角（对方语言）：对方说的原文靠右；我 → 对方 的译文靠左 24 pt。对方只看不碰。
- * - 判向待定（两句防抖沿用旧方向）→ 虚线气泡 + 「?」；气泡左右滑 > 60 dp = 翻转重译（规格 §3.2 纠错）。
- * - M3 是文本模式：默认不出声；外放只作显式黄标降级（规格 §6.2）。
+ * 双屏（原型 LiveM3.dc.html）：无耳机，两人各看各的半屏。
+ * - 常驻深色：整页套 `SceneTheme(dark = true)` 用深色令牌，不写死颜色。
+ * - 上半屏我方视角（我的语言）：我说的原文靠右灰泡；对方的译文靠左青绿泡 22 pt；最新 partial 虚线灰泡。
+ * - 中央玻璃胶囊（功能层，唯一的玻璃）：谁在说（自动 / 固定）+ 翻转 + 外放 + 仅听 + 结束。
+ * - 下半屏 rotate(180°) 对方视角（对方语言）：对方说的原文靠右；给对方的译文靠左 24 pt。对方只看不碰。
+ * - 还没分清谁在说 → 虚线气泡 + 「?」；气泡左右滑 > 60 dp = 翻转重译（首次进入提示一次，AppSettings.hintSeen("m3")）。
+ * - 文本模式：默认不出声；外放开着时橙色小字「会外放」。
  */
 @Composable
 fun LiveM3Screen(vm: LiveViewModel, onBack: () -> Unit, onOpenModels: () -> Unit) {
     val ui by vm.ui.collectAsState()
     val finish: () -> Unit = { vm.end(); onBack() }
 
+    // 一次性引导：本次进入显示，之后不再打扰
+    val settings = koinInject<AppSettings>()
+    val firstVisit = remember { !settings.hintSeen("m3") }
+    LaunchedEffect(Unit) { if (firstVisit) settings.markHintSeen("m3") }
+
     SceneTheme(dark = true, typography = SceneTheme.type, accessibility = SceneTheme.a11y) {
         val c = SceneTheme.colors
         GlassScaffold(
             background = c.systemBackground,
             topBar = {
-                val (label, tone) = m3HealthCapsule(ui.health, ui.speakerOut)
+                val (label, tone) = m3StatusCapsule(ui.state, ui.health, ui.speakerOut)
                 SceneNavBar(
-                    title = "M3 双屏对话",
-                    onBack = { vm.switchMode("M0") }, backContentDescription = "回 M0",
+                    title = "双屏",
+                    onBack = { vm.switchMode("M0") }, backContentDescription = "回仅听",
                     trailing = { SceneCapsule(label, tone = tone) },
                 )
             },
             // 中央胶囊放在功能层槽位里：它要取样内容层做玻璃，不能自己也被录进内容层
             bottomBar = {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CenterCapsule(ui = ui, vm = vm, onFinish = finish)
+                    CenterCapsule(ui = ui, vm = vm, firstVisit = firstVisit, onFinish = finish)
                 }
             },
         ) {
@@ -143,19 +147,14 @@ fun LiveM3Screen(vm: LiveViewModel, onBack: () -> Unit, onOpenModels: () -> Unit
 
 // ---------- 上半屏：我方视角 ----------
 
-/** 头行（我 · 普通话 / M3 双屏 / 输出状态）→ 引擎 / 会话提示 → 气泡列（贴底，新句到达自动滚到底）。 */
+/** 头行（呼吸点 + 你 · 普通话）→ 本机识别提示 → 气泡列（贴底，新句到达自动滚到底）。 */
 @Composable
 private fun MyHalf(ui: LiveUiState, onFlip: (String) -> Unit, onOpenModels: () -> Unit, modifier: Modifier = Modifier) {
     val c = SceneTheme.colors
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
             SpeakingDot(active = ui.speaking)
-            SceneText("我 · ${Lang.displayName(ui.myLang)}", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
-            SceneCapsule("M3 双屏", tone = CapsuleTone.Tint)
-            SceneText(
-                outputStatus(ui), Modifier.weight(1f), style = SceneTheme.type.caption1,
-                color = if (ui.speakerOut) c.onWarningSoft else c.secondaryLabel, textAlign = TextAlign.End, maxLines = 1,
-            )
+            SceneText("你 · ${Lang.displayName(ui.myLang)}", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
         }
         EngineNotice(ui, onOpenModels)
         BubbleColumn(Modifier.weight(1f).fillMaxWidth()) {
@@ -166,11 +165,11 @@ private fun MyHalf(ui: LiveUiState, onFlip: (String) -> Unit, onOpenModels: () -
                 }
             }
             if (ui.partial.isNotBlank()) {
-                Bubble(side = BubbleSide.Left, tag = "正在说 · 句尾判向", text = ui.partial, textStyle = partialStyle(), textColor = c.secondaryLabel, dashed = true)
+                Bubble(side = BubbleSide.Left, tag = "正在说", text = ui.partial, textStyle = partialStyle(), textColor = c.secondaryLabel, dashed = true)
             }
             if (ui.lines.isEmpty() && ui.partial.isBlank()) {
                 SceneText(
-                    if (ui.state is LiveState.Live) "把手机放在两人之间，任一方开口即可" else "开始后，两边的话会各自出现在对应半屏",
+                    if (ui.state is LiveState.Live) "手机放两人之间，谁说话都行" else "开始后，两边的话各自出现在半屏",
                     style = SceneTheme.type.subheadline, color = c.tertiaryLabel,
                 )
             }
@@ -178,18 +177,13 @@ private fun MyHalf(ui: LiveUiState, onFlip: (String) -> Unit, onOpenModels: () -
     }
 }
 
-/** 我说的话（右侧灰泡）：原文 17 pt；小标「已译到对方半屏」/「翻译中…」/ 未译原因。 */
+/** 我说的话（右侧灰泡）：小标「你」+ 原文 17 pt。 */
 @Composable
 private fun MyHalfMeBubble(line: LiveLine, onFlip: () -> Unit) {
     val c = SceneTheme.colors
-    val state = when {
-        line.translation != null -> "已译到对方半屏"
-        line.mtDegraded -> "未译"
-        else -> "翻译中…"
-    }
     Bubble(
         side = BubbleSide.Right,
-        tag = "我说 · $state" + if (line.dirTentative) " · 判向待定 ?" else "",
+        tag = "你",
         text = line.text, textStyle = SceneTheme.type.body, textColor = c.label,
         dashed = line.dirTentative,
         badges = lineBadges(line),
@@ -197,13 +191,13 @@ private fun MyHalfMeBubble(line: LiveLine, onFlip: () -> Unit) {
     )
 }
 
-/** 对方 → 我（左侧青绿泡）：译文 22 pt + 原文 13 pt；缺译文时显示原文 + 原因胶囊。 */
+/** 对方的话（左侧青绿泡）：小标「对方」+ 译文 22 pt + 原文 13 pt；缺译文时显示原文。 */
 @Composable
 private fun MyHalfOtherBubble(line: LiveLine, onFlip: () -> Unit) {
     val c = SceneTheme.colors
     Bubble(
         side = BubbleSide.Left, tinted = true,
-        tag = "对方 → 我 · ${Lang.displayName(line.srcLang)} → ${Lang.displayName(line.tgtLang)}" + if (line.dirTentative) " · 置信度低，沿用上一方向 ?" else "",
+        tag = "对方",
         text = line.translation ?: line.text, textStyle = translationStyle(22.sp, 28.sp), textColor = c.label,
         sub = line.text.takeIf { line.translation != null },
         dashed = line.dirTentative,
@@ -212,77 +206,58 @@ private fun MyHalfOtherBubble(line: LiveLine, onFlip: () -> Unit) {
     )
 }
 
-/** 一行的小胶囊：缺译文 → 原因（降级红 / 其余灰）；已译但降级 → 「降级」；被打断 → 「未播完」；外放播放中 → 「播放中」。 */
+/** 一句话的小胶囊，只有三种：「未翻译」（没译文且已放弃）/「没播完」（外放被打断）/「?」（还没分清谁在说）。 */
 private fun lineBadges(line: LiveLine): List<Badge> = buildList {
-    when {
-        line.translation == null && line.mtDegraded -> add(Badge(line.mtReason ?: "未译", CapsuleTone.Destructive))
-        line.translation == null -> add(Badge(line.mtReason ?: "翻译中…", CapsuleTone.Gray))
-        line.mtDegraded -> add(Badge("降级", CapsuleTone.Warning))
-    }
-    if (line.interrupted) add(Badge("未播完", CapsuleTone.Gray))
-    if (line.tts == PlaybackStatus.PLAYING) add(Badge("播放中", CapsuleTone.Tint, icon = true))
+    if (line.translation == null && line.mtDegraded) add(Badge("未翻译", CapsuleTone.Destructive))
+    if (line.interrupted) add(Badge("没播完", CapsuleTone.Gray))
+    if (line.dirTentative) add(Badge("?", CapsuleTone.Gray))
 }
 
-/** 头行右侧的输出状态：默认「无耳机 · 无 TTS · 常驻深色」（原型）；黄标外放开着时改为外放状态（无语音时并入提示）。 */
-private fun outputStatus(ui: LiveUiState): String = when {
-    !ui.speakerOut -> "无耳机 · 无 TTS · 常驻深色"
-    ui.health.tts == "无" || ui.health.tts == "失败" -> "外放 · 黄标 · 无可用语音"
-    else -> "外放 · 黄标 · 常驻深色"
-}
-
-/** 引擎 / 会话状态的行内提示（不弹窗）：Error → 红字 + 「去下载模型」；装载中灰字；非 Live 的状态机提示；采集错误。 */
+/** 本机识别的行内提示（不弹窗）：不可用 → 红字 + 「去下载语音包」；加载中灰字；录音出错红字（原因只进诊断页）。 */
 @Composable
 private fun EngineNotice(ui: LiveUiState, onOpenModels: () -> Unit) {
     val c = SceneTheme.colors
-    when (val e = ui.engine) {
+    when (ui.engine) {
         is LocalEngineState.Error -> Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneText("端侧引擎不可用：${e.reason}", style = SceneTheme.type.footnote, color = c.destructive)
-            SceneButton("去下载模型", onClick = onOpenModels, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
+            SceneText("本机识别不可用", style = SceneTheme.type.footnote, color = c.destructive)
+            SceneButton("去下载语音包", onClick = onOpenModels, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
         }
-        LocalEngineState.Loading -> SceneText("端侧模型装载中…", style = SceneTheme.type.footnote, color = c.secondaryLabel)
+        LocalEngineState.Loading -> SceneText("语音包加载中…", style = SceneTheme.type.footnote, color = c.secondaryLabel)
         else -> {}
     }
-    if (ui.state != LiveState.Idle && ui.state !is LiveState.Live && ui.hint.isNotBlank()) {
-        SceneText(ui.hint, style = SceneTheme.type.footnote, color = c.secondaryLabel)
-    }
-    ui.error?.let { SceneText(it, style = SceneTheme.type.footnote, color = c.destructive) }
+    if (ui.error != null) SceneText("录音出错", style = SceneTheme.type.footnote, color = c.destructive)
 }
 
 // ---------- 下半屏：对方视角（旋转 180°，对方语言）----------
 
-/** 头行（Them · English / rotated 180° · they read, never touch）→ 气泡列。不接手势：对方只看不碰。 */
+/** 头行（Them · English）→ 气泡列。不接手势：对方只看不碰。 */
 @Composable
 private fun TheirHalf(ui: LiveUiState, modifier: Modifier = Modifier) {
     val c = SceneTheme.colors
     val w = theirWords(ui.otherLang)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
-            SceneText("${w.them} · ${nativeName(ui.otherLang)}", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
-            SceneText(w.note, Modifier.weight(1f), style = SceneTheme.type.caption1, color = c.secondaryLabel, textAlign = TextAlign.End, maxLines = 1)
-        }
+        SceneText("${w.them} · ${nativeName(ui.otherLang)}", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
         BubbleColumn(Modifier.weight(1f).fillMaxWidth()) {
             ui.lines.takeLast(MaxBubbles).forEach { line ->
                 key(line.id) {
+                    val tentative = if (line.dirTentative) listOf(Badge("?", CapsuleTone.Gray)) else emptyList()
                     if (line.speaker == Speaker.OTHER) {
                         // 对方自己说的话（右侧灰泡）：原文 17 pt
                         Bubble(
                             side = BubbleSide.Right,
-                            tag = w.theySaid + if (line.dirTentative) " ?" else "",
+                            tag = w.theySaid,
                             text = line.text, textStyle = SceneTheme.type.body, textColor = c.label,
                             dashed = line.dirTentative,
+                            badges = tentative,
                         )
                     } else {
-                        // 我 → 对方（左侧青绿泡）：译文 24 pt（≥ 22）；缺译文时显示原文 + 对方语言的原因胶囊
+                        // 给对方的译文（左侧青绿泡）：24 pt（≥ 22）；缺译文时显示原文
                         Bubble(
                             side = BubbleSide.Left, tinted = true,
-                            tag = "${w.meToThem} · ${nativeName(line.srcLang)} → ${nativeName(line.tgtLang)}" + if (line.dirTentative) " ?" else "",
+                            tag = w.meToThem,
                             text = line.translation ?: line.text, textStyle = translationStyle(24.sp, 30.sp), textColor = c.label,
                             dashed = line.dirTentative,
-                            badges = when {
-                                line.translation == null && line.mtDegraded -> listOf(Badge(w.notTranslated, CapsuleTone.Destructive))
-                                line.translation == null -> listOf(Badge(w.translating, CapsuleTone.Gray))
-                                else -> emptyList()
-                            },
+                            badges = (if (line.translation == null && line.mtDegraded) listOf(Badge(w.notTranslated, CapsuleTone.Destructive)) else emptyList()) + tentative,
                         )
                     }
                 }
@@ -295,13 +270,13 @@ private fun TheirHalf(ui: LiveUiState, modifier: Modifier = Modifier) {
 }
 
 /** 对方半屏的固定文案：按对方语言取（原型是英语：Them · English / They said / Me → them）。 */
-private class TheirWords(val them: String, val note: String, val theySaid: String, val meToThem: String, val translating: String, val notTranslated: String)
+private class TheirWords(val them: String, val theySaid: String, val meToThem: String, val notTranslated: String)
 
 private fun theirWords(lang: String): TheirWords = when (lang.substringBefore('-')) {
-    "zh", "yue", "wuu", "nan" -> TheirWords("对方", "已旋转 180° · 只看不碰", "对方说", "我 → 对方", "翻译中…", "未译")
-    "ja" -> TheirWords("相手", "180° 回転 · 見るだけで触らない", "相手の発言", "私 → 相手", "翻訳中…", "未翻訳")
-    "ko" -> TheirWords("상대", "180° 회전 · 보기만 하세요", "상대의 말", "나 → 상대", "번역 중…", "번역 안 됨")
-    else -> TheirWords("Them", "rotated 180° · they read, never touch", "They said", "Me → them", "Translating…", "Not translated")
+    "zh", "yue", "wuu", "nan" -> TheirWords("对方", "对方说", "我 → 对方", "未翻译")
+    "ja" -> TheirWords("相手", "相手の発言", "私 → 相手", "未翻訳")
+    "ko" -> TheirWords("상대", "상대의 말", "나 → 상대", "번역 안 됨")
+    else -> TheirWords("Them", "They said", "Me → them", "Not translated")
 }
 
 /** 语言的本族名（给对方半屏看）：普通话 / English / 日本語 / 한국어。 */
@@ -313,22 +288,23 @@ private fun nativeName(tag: String): String = when (tag) {
 // ---------- 中央玻璃胶囊 ----------
 
 /**
- * 判向状态（可点：建议固定 → 固定为 对方 → 我；已固定 → 恢复自动）+ 翻转上一句 + 外放黄标（默认关）+ 回 M0 + 结束。
- * 64 dp 高、圆角胶囊、左右 12 dp 边距（原型 `.glass` 条）。
+ * 左侧文字：「自动分辨谁在说」/「固定：对方说」（可点：建议固定 → 固定为对方说；已固定 → 恢复自动）；
+ * 第二行只在两种情况出现：外放开着 → 橙色「会外放」；首次进入 → 「气泡左右滑可翻转」。
+ * 右侧四钮：翻转 / 外放 / 仅听 / 结束。64 dp 高、圆角胶囊、左右 12 dp 边距（原型 `.glass` 条）。
  */
 @Composable
-private fun CenterCapsule(ui: LiveUiState, vm: LiveViewModel, onFinish: () -> Unit) {
+private fun CenterCapsule(ui: LiveUiState, vm: LiveViewModel, firstVisit: Boolean, onFinish: () -> Unit) {
     val c = SceneTheme.colors
     val fixed = ui.fixedDirection
     val title = when {
-        fixed != null -> "已固定：${if (fixed == Speaker.OTHER) "对方 → 我" else "我 → 对方"}"
-        ui.suggestFixed -> "连续纠正 3 次 · 固定方向？"
-        else -> "自动判向" + (ui.current?.let { if (it.speaker == Speaker.ME) " · 我 → 对方" else " · 对方 → 我" } ?: "")
+        fixed != null -> if (fixed == Speaker.OTHER) "固定：对方说" else "固定：你说"
+        ui.suggestFixed -> "固定为对方说？"
+        else -> "自动分辨谁在说"
     }
-    val hint = when {
-        fixed != null -> "点此恢复自动判向"
-        ui.suggestFixed -> "点此固定为 对方 → 我（退化单工）"
-        else -> "气泡左右滑 = 翻转重译 · 误判 3 次建议固定方向"
+    val note: Pair<String, Color>? = when {
+        ui.speakerOut -> "会外放" to c.onWarningSoft
+        firstVisit -> "气泡左右滑可翻转" to c.secondaryLabel
+        else -> null
     }
     val onDirClick: (() -> Unit)? = when {
         fixed != null -> { { vm.fixDirection(null) } }
@@ -345,9 +321,9 @@ private fun CenterCapsule(ui: LiveUiState, vm: LiveViewModel, onFinish: () -> Un
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 判向状态：建议固定 / 已固定时是一枚可点的小胶囊（黄标 / 青绿），自动时只是文字
+        // 谁在说：建议固定 / 已固定时是一枚可点的小胶囊（橙 / 青绿），自动时只是文字
         val dirBg = when { ui.suggestFixed -> c.warningSoft; fixed != null -> c.tintSoft; else -> Color.Transparent }
-        val titleColor = when { ui.suggestFixed -> c.onWarningSoft; fixed != null -> c.onTintSoft; else -> c.onTintSoft }
+        val titleColor = if (ui.suggestFixed) c.onWarningSoft else c.onTintSoft
         Column(
             Modifier
                 .weight(1f)
@@ -359,38 +335,47 @@ private fun CenterCapsule(ui: LiveUiState, vm: LiveViewModel, onFinish: () -> Un
             verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically),
         ) {
             SceneText(title, style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            SceneText(hint, style = SceneTheme.type.caption2, color = if (ui.suggestFixed) c.onWarningSoft else c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (note != null) SceneText(note.first, style = SceneTheme.type.caption2, color = note.second, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        SceneIconButton(SceneIcons.Rotate, contentDescription = "翻转上一句方向并重译", onClick = vm::flipLast, size = 48.dp, style = ButtonStyle.Gray, enabled = ui.current != null)
-        // 外放黄标：默认关；开 = 对方 → 我 的译文也出声（规格 §6.2 外放只作显式黄标降级）
+        SceneIconButton(SceneIcons.Rotate, contentDescription = "翻转上一句", onClick = vm::flipLast, size = 48.dp, style = ButtonStyle.Gray, enabled = ui.current != null)
+        // 外放：默认关；开 = 给对方的译文也出声（橙色提示）
         SceneIconButton(
-            SceneIcons.Speaker, contentDescription = if (ui.speakerOut) "朗读给对方：开（外放，黄标）" else "朗读给对方：关（外放，黄标）",
+            SceneIcons.Speaker, contentDescription = if (ui.speakerOut) "外放：开" else "外放：关",
             onClick = { vm.setSpeakerOut(!ui.speakerOut) }, size = 48.dp, style = if (ui.speakerOut) ButtonStyle.Warning else ButtonStyle.Gray,
         )
         SceneButton(onClick = { vm.switchMode("M0") }, style = ButtonStyle.Gray, height = 48.dp, contentPadding = 12.dp) {
-            SceneText("回 M0", style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+            SceneText("仅听", style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
         }
-        SceneIconButton(SceneIcons.Stop, contentDescription = "结束会话", onClick = onFinish, size = 48.dp, style = ButtonStyle.Destructive)
+        SceneIconButton(SceneIcons.Stop, contentDescription = "结束", onClick = onFinish, size = 48.dp, style = ButtonStyle.Destructive)
     }
 }
 
-/** 导航栏健康胶囊：热 / 电阶梯优先，其次翻译健康，外放开着时并入语音异常。 */
-private fun m3HealthCapsule(h: PipelineHealth, speakerOut: Boolean): Pair<String, CapsuleTone> = when {
-    h.thermal == ThermalLevel.CRITICAL -> "过热 · 只出字" to CapsuleTone.Destructive
-    h.thermal >= ThermalLevel.SERIOUS || h.lowBattery -> (if (h.lowBattery) "低电 · 降频" else "发热 · 降频") to CapsuleTone.Warning
-    h.mt == "unavailable" -> "无翻译" to CapsuleTone.Destructive
-    h.mt == "fallback" -> "已降级" to CapsuleTone.Warning
-    h.mt == "slow" -> "云端慢" to CapsuleTone.Gray
-    speakerOut && (h.tts == "无" || h.tts == "失败") -> "外放 · 无语音" to CapsuleTone.Warning
-    h.thermal == ThermalLevel.FAIR -> "混合档 · 省算力" to CapsuleTone.Tint
-    else -> "混合档 · 正常" to CapsuleTone.Tint
+/**
+ * 右上状态胶囊：一个词 + 颜色（docs/15 §2）。
+ * 进行中：过热 / 低电 / 发热 > 无翻译 > 无语音（外放开着时）> 离线 > 已连接；未进行时显示会话状态词。
+ */
+private fun m3StatusCapsule(state: LiveState, h: PipelineHealth, speakerOut: Boolean): Pair<String, CapsuleTone> = when (state) {
+    LiveState.Idle -> "待机" to CapsuleTone.Gray
+    LiveState.Arming -> "准备中" to CapsuleTone.Gray
+    is LiveState.Paused -> "已暂停" to CapsuleTone.Gray
+    LiveState.NeedForeground -> "点一下继续" to CapsuleTone.Warning
+    LiveState.Ending -> "结束中" to CapsuleTone.Gray
+    is LiveState.Live, LiveState.Degraded -> when {
+        h.thermal == ThermalLevel.CRITICAL -> "过热" to CapsuleTone.Destructive
+        h.lowBattery -> "低电" to CapsuleTone.Warning
+        h.thermal >= ThermalLevel.SERIOUS -> "发热" to CapsuleTone.Warning
+        h.mt == "unavailable" -> "无翻译" to CapsuleTone.Destructive
+        speakerOut && (h.tts == "无" || h.tts == "失败") -> "无语音" to CapsuleTone.Warning
+        h.mt == "fallback" -> "离线" to CapsuleTone.Warning
+        else -> "已连接" to CapsuleTone.Tint
+    }
 }
 
 // ---------- 气泡 ----------
 
 private enum class BubbleSide { Left, Right }
 
-private class Badge(val text: String, val tone: CapsuleTone, val icon: Boolean = false)
+private class Badge(val text: String, val tone: CapsuleTone)
 
 /** 气泡列：贴底排布，内容超出半屏时可滚，新句 / partial 到达自动滚到底（Reduce Motion 时直接跳）。 */
 @Composable
@@ -408,7 +393,7 @@ private fun BubbleColumn(modifier: Modifier, content: @Composable ColumnScope.()
 /**
  * 一枚气泡（内容层，不透明，不用玻璃）：小标 11 pt + 正文 + 可选原文 13 pt + 小胶囊。
  * - 右侧 = 说话人自己的原文（灰底，右下角 6 dp）；左侧 = 译文（青绿深底 / 灰底，左下角 6 dp）。
- * - [dashed]：判向待定或 partial，虚线描边、无实底。
+ * - [dashed]：还没分清谁在说或 partial，虚线描边、无实底。
  * - [onFlip] 非空时接左右滑手势（只给我方半屏）。
  */
 @Composable
@@ -434,7 +419,7 @@ private fun Bubble(
         Modifier
             .fillMaxWidth(if (side == BubbleSide.Right) 0.86f else 0.9f)
             .wrapContentWidth(align)
-            .then(if (onFlip != null) Modifier.swipeToFlip(onFlip).semantics { customActions = listOf(CustomAccessibilityAction("翻转方向并重译") { onFlip(); true }) } else Modifier)   // 屏幕阅读器可翻转任一句
+            .then(if (onFlip != null) Modifier.swipeToFlip(onFlip).semantics { customActions = listOf(CustomAccessibilityAction("翻转这一句") { onFlip(); true }) } else Modifier)   // 屏幕阅读器可翻转任一句
             .clip(shape)
             .background(bg)
             .then(if (dashed) Modifier.dashedOutline(shape, c.tertiaryLabel) else Modifier)
@@ -443,10 +428,7 @@ private fun Bubble(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             SceneText(tag, style = SceneTheme.type.caption2, color = tagColor)
-            badges.forEach { b ->
-                if (b.icon) SceneIcon(SceneIcons.Speaker, contentDescription = null, size = 12.dp, tint = c.tint)
-                SceneCapsule(b.text, tone = b.tone)
-            }
+            badges.forEach { b -> SceneCapsule(b.text, tone = b.tone) }
         }
         SceneText(text, style = textStyle, color = textColor)
         if (sub != null) SceneText(sub, style = SceneTheme.type.footnote, color = c.secondaryLabel)
@@ -462,7 +444,7 @@ private fun translationStyle(size: TextUnit, lineHeight: TextUnit): TextStyle =
 @Composable
 private fun partialStyle(): TextStyle = SceneTheme.type.title3.copy(fontWeight = FontWeight.Normal)
 
-/** 虚线描边（判向待定 / partial）：沿气泡自身的不对称圆角轮廓画，内缩半个线宽避免被 clip 吃掉。 */
+/** 虚线描边（还没分清谁在说 / partial）：沿气泡自身的不对称圆角轮廓画，内缩半个线宽避免被 clip 吃掉。 */
 private fun Modifier.dashedOutline(shape: Shape, color: Color): Modifier = drawBehind {
     val stroke = 1.dp.toPx()
     inset(stroke / 2) {
@@ -499,7 +481,7 @@ private fun Modifier.swipeToFlip(onFlip: () -> Unit): Modifier {
         }
 }
 
-/** 头行的「在听」点：VAD 判定有人在说时青绿呼吸，否则灰点（Reduce Motion 时静止）。 */
+/** 头行的「在听」点：有人在说时青绿呼吸，否则灰点（Reduce Motion 时静止）。 */
 @Composable
 private fun SpeakingDot(active: Boolean) {
     val c = SceneTheme.colors

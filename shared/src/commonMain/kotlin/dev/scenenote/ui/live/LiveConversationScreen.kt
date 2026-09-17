@@ -14,9 +14,10 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LiveConversationScreen(
     sceneId: String, onBack: () -> Unit, onOpenModels: () -> Unit, autostart: Boolean, otherLang: String, myLang: String, feed: String,
     onOpenQuickPhrase: () -> Unit,
+    initialMode: String = "",
     vm: LiveViewModel = koinViewModel(),
 ) {
-    LaunchedEffect(Unit) { vm.enter(sceneId, myLang, otherLang, feed, autostart) }
+    LaunchedEffect(Unit) { vm.enter(sceneId, myLang, otherLang, feed, autostart, initialMode = initialMode) }
     val ui by vm.ui.collectAsState()
     when (ui.mode?.id) {
         "M1" -> LiveM1Screen(vm = vm, onBack = onBack, onOpenModels = onOpenModels)

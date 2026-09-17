@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,17 +24,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.scenenote.asr.LocalEngineState
-import dev.scenenote.audio.AudioRoute
 import dev.scenenote.core.designsystem.ButtonStyle
 import dev.scenenote.core.designsystem.CapsuleTone
 import dev.scenenote.core.designsystem.GlassScaffold
@@ -45,6 +46,7 @@ import dev.scenenote.core.designsystem.SceneIconButton
 import dev.scenenote.core.designsystem.SceneIcons
 import dev.scenenote.core.designsystem.SceneNavBar
 import dev.scenenote.core.designsystem.SceneRadius
+import dev.scenenote.core.designsystem.SceneSize
 import dev.scenenote.core.designsystem.SceneSpacing
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
@@ -52,14 +54,18 @@ import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.LiveState
 import dev.scenenote.core.model.PlaybackStatus
 import dev.scenenote.core.model.Speaker
+import dev.scenenote.core.settings.AppSettings
+import dev.scenenote.core.settings.KeyWallet
 import dev.scenenote.live.LiveLine
 import dev.scenenote.live.PipelineHealth
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * M0 仅听（原型 LiveM0.dc.html）：手机在口袋时偶尔瞥一眼。
- * 玻璃导航（返回 / 「M0 仅听」/ 健康胶囊）→ 状态行 → 历史句淡出 → 当前句 28 pt → 对方 partial → M1 卡（I4）→ 震动语义；
- * 底部 dock：速译（圆）/ 暂停·继续 72 pt 主钮 / 语音开关 / 结束（红圆）。内容贴底排布，与原型 `justify-content: flex-end` 一致。
+ * 仅听：手机在口袋时偶尔瞥一眼。
+ * 导航（返回 / 「仅听」/ 一词状态胶囊）→ 状态行 → 历史句淡出 → 当前句 → 对方 partial → 一行「举起手机」提示；
+ * 底部 dock：速译（圆）/ 暂停·继续 72 pt 主钮 / 语音开关 / 结束（红圆）。内容贴底排布。
+ * 页面上不出现工程数据（装载耗时 / 路由 / 引擎名），见 docs/15。
  */
 @Composable
 fun LiveM0Screen(
@@ -69,11 +75,17 @@ fun LiveM0Screen(
 ) {
     LaunchedEffect(Unit) { vm.enter(sceneId, myLang, otherLang, feed, autostart) }
     val ui by vm.ui.collectAsState()
+    val settings = koinInject<AppSettings>()
+    val wallet = koinInject<KeyWallet>()
     val c = SceneTheme.colors
     val motion = SceneTheme.motion
     val scroll = rememberScrollState()
     val live = ui.state is LiveState.Live
     val finish: () -> Unit = { vm.end(); onBack() }
+    // 一次性引导：首次进入显示气泡，本次停留期间保持，下次起只留一行灰字
+    val firstVisit = remember { !settings.hintSeen(HINT_KEY) }
+    LaunchedEffect(Unit) { if (firstVisit) settings.markHintSeen(HINT_KEY) }
+    val hasKey = remember { wallet.anyKey() }
 
     // 新句 / partial 到达时贴底：仅听是"瞥一眼"的界面，最新内容永远在拇指区上方
     LaunchedEffect(scroll.maxValue) { if (motion.reduced) scroll.scrollTo(scroll.maxValue) else scroll.animateScrollTo(scroll.maxValue) }
@@ -81,19 +93,19 @@ fun LiveM0Screen(
     GlassScaffold(
         background = c.systemBackground,
         topBar = {
-            val (label, tone) = healthCapsule(ui.health, ui.voiceOut, live)
+            val (label, tone) = statusCapsule(ui.health, ui.voiceOut, hasKey)
             SceneNavBar(
-                title = ui.mode?.let { if (it.id == "M0") "M0 仅听" else "${it.id} ${it.name}" } ?: "M0 仅听",
-                onBack = finish, backContentDescription = "返回实时",
+                title = "仅听",
+                onBack = finish, backContentDescription = "返回",
                 trailing = { SceneCapsule(label, tone = tone) },
             )
         },
         bottomBar = {
             SceneDock {
-                SceneIconButton(SceneIcons.Mic, contentDescription = "速译一句", onClick = { vm.end(); onOpenQuickPhrase() }, size = 56.dp)   // 先结束本会话再切 M4（单例状态机 / 麦克风）
+                SceneIconButton(SceneIcons.Mic, contentDescription = "速译一句", onClick = { vm.end(); onOpenQuickPhrase() }, size = 56.dp)   // 先结束本会话再切速译（单例状态机 / 麦克风）
                 PauseResumeButton(ui.state, onPause = vm::pause, onResume = vm::trigger)
-                SceneIconButton(SceneIcons.Speaker, contentDescription = if (ui.voiceOut) "语音输出：开" else "语音输出：关", onClick = { vm.setVoiceOut(!ui.voiceOut) }, size = 56.dp, style = if (ui.voiceOut) ButtonStyle.Tinted else ButtonStyle.Gray)
-                SceneIconButton(SceneIcons.Stop, contentDescription = "结束会话", onClick = finish, size = 56.dp, style = ButtonStyle.Destructive)
+                SceneIconButton(SceneIcons.Speaker, contentDescription = if (ui.voiceOut) "语音：开" else "语音：关", onClick = { vm.setVoiceOut(!ui.voiceOut) }, size = 56.dp, style = if (ui.voiceOut) ButtonStyle.Tinted else ButtonStyle.Gray)
+                SceneIconButton(SceneIcons.Stop, contentDescription = "结束", onClick = finish, size = 56.dp, style = ButtonStyle.Destructive)
             }
         },
     ) {
@@ -101,9 +113,9 @@ fun LiveM0Screen(
             Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 104.dp, bottom = 140.dp, start = SceneSpacing.page, end = SceneSpacing.page),
             verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.Bottom),
         ) {
-            StatusRow(ui = ui, live = live)
+            StatusRow(state = ui.state, live = live)
 
-            // 历史句淡出：越旧越淡（原型两条分别 0.45 / 0.7）
+            // 历史句淡出：越旧越淡
             val history = ui.history.takeLast(4)
             history.forEachIndexed { i, line ->
                 val fade = (0.75f - 0.15f * (history.size - 1 - i)).coerceAtLeast(0.3f)
@@ -111,7 +123,7 @@ fun LiveM0Screen(
             }
 
             val current = ui.current
-            if (current != null) CurrentLine(current) else EmptyCurrent(live)
+            if (current != null) CurrentLine(current) else EmptyGuide(bubble = firstVisit)
 
             if (ui.partial.isNotBlank()) {
                 Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.xs)) {
@@ -120,32 +132,20 @@ fun LiveM0Screen(
                 }
             }
 
-            EngineStatus(ui.engine, ui.error, onOpenModels)
-            if (ui.mode?.id == "M0") PostureCard(ui.autoPosture, onEnter = { vm.switchMode("M1") })
-            else SceneText("耳听·面屏 / 双屏对话页面稍后开放，先按仅听运行", Modifier.fillMaxWidth(), style = SceneTheme.type.caption1, color = c.secondaryLabel, textAlign = TextAlign.Center)
-            SceneText(
-                "震动：短-短 开始监听 · 短 译文就绪 · 长 方向切换",
-                Modifier.fillMaxWidth(), style = SceneTheme.type.caption1, color = c.secondaryLabel, textAlign = TextAlign.Center,
-            )
+            EngineNotice(ui.engine, ui.error, onOpenModels)
+            PostureHint(onEnter = { vm.switchMode("M1") })
         }
     }
 }
 
-/** 状态行：脉冲点 + 「进行中 · 正在听对方」+ 「译文 → 当前输出 · 耳语档」。 */
+private const val HINT_KEY = "m0"
+
+/** 状态行：脉冲点 + 一个状态词（进行中 = 「正在听对方」）。 */
 @Composable
-private fun StatusRow(ui: LiveUiState, live: Boolean) {
-    val c = SceneTheme.colors
-    val state = m0StateLabel(ui.state)
-    val hint = ui.hint.takeIf { it.isNotBlank() && it != state }
-    val destination = when {
-        !ui.voiceOut -> "译文 → 屏幕 · 语音关"
-        ui.health.tts == "无" || ui.health.tts == "失败" -> "译文 → 屏幕 · 无语音"
-        else -> "译文 → ${routeName(ui.route?.output)} · 耳语档"
-    }
+private fun StatusRow(state: LiveState, live: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
         PulseDot(active = live)
-        SceneText(if (hint == null) state else "$state · $hint", Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.secondaryLabel)
-        SceneText(destination, style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
+        SceneText(stateWord(state), Modifier.weight(1f), style = SceneTheme.type.footnote, color = SceneTheme.colors.secondaryLabel, maxLines = 1)
     }
 }
 
@@ -165,7 +165,7 @@ private fun PulseDot(active: Boolean) {
     )
 }
 
-/** 历史句：方向小字 + 译文 17 pt + 原文 13 pt 次要色。 */
+/** 历史句：方向小字 + 译文 17 pt + 原文 13 pt 次要色 + 例外胶囊。 */
 @Composable
 private fun HistoryLine(line: LiveLine, modifier: Modifier = Modifier) {
     val c = SceneTheme.colors
@@ -173,89 +173,94 @@ private fun HistoryLine(line: LiveLine, modifier: Modifier = Modifier) {
         LineHeader(line, color = c.secondaryLabel)
         SceneText(line.translation ?: line.text, style = SceneTheme.type.body, color = c.label)
         if (line.translation != null) SceneText(line.text, style = SceneTheme.type.footnote, color = c.secondaryLabel)
+        LineFlags(line)
     }
 }
 
-/** 当前句：方向 + 语言对 + 翻译胶囊 → 译文 28 pt → 原文 15 pt。 */
+/** 当前句：方向 + 语言对 → 译文 28 pt → 原文 15 pt → 例外胶囊。 */
 @Composable
 private fun CurrentLine(line: LiveLine) {
     val c = SceneTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         LineHeader(line, color = c.onTintSoft, showLangs = true)
         SceneText(line.translation ?: line.text, style = SceneTheme.type.title1, color = c.label)
-        when {
-            line.translation != null -> SceneText(line.text, style = SceneTheme.type.subheadline, color = c.secondaryLabel)
-            line.mtReason != null -> SceneText(line.mtReason, style = SceneTheme.type.subheadline, color = c.secondaryLabel)
-        }
+        if (line.translation != null) SceneText(line.text, style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+        LineFlags(line)
     }
 }
 
-/** 还没有句子时占住当前句的位置，避免版面跳动。 */
+/** 空态引导：首次进入是青绿气泡，之后只留一行灰字；同时占住当前句的位置，避免版面跳动。 */
 @Composable
-private fun EmptyCurrent(live: Boolean) {
-    SceneText(
-        if (live) "等对方开口，译文会出现在这里" else "开始后，对方的话会出现在这里",
-        style = SceneTheme.type.title3.copy(fontWeight = FontWeight.Normal), color = SceneTheme.colors.tertiaryLabel,
-    )
+private fun EmptyGuide(bubble: Boolean) {
+    val c = SceneTheme.colors
+    if (bubble) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(SceneRadius.m)).background(c.tintSoft).padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SceneIcon(SceneIcons.Headphones, contentDescription = null, size = 22.dp, tint = c.onTintSoft)
+            SceneText(GUIDE, style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.onTintSoft)
+        }
+    } else {
+        SceneText(GUIDE, style = SceneTheme.type.title3.copy(fontWeight = FontWeight.Normal), color = c.tertiaryLabel)
+    }
 }
 
-/** 一句的方向行：「对方 → 我」/「我 → 对方 · M0 下对方听不到译文」+ 降级 / 云翻译胶囊 + 播放中标记。 */
+private const val GUIDE = "对方说话，译文会出现在这里并从耳机播放"
+
+/** 一句的方向行：「对方」/「我」（当前句附语言对）+ 播放中的小喇叭。 */
 @Composable
 private fun LineHeader(line: LiveLine, color: Color, showLangs: Boolean = false) {
     val c = SceneTheme.colors
-    val direction = if (line.speaker == Speaker.ME) "我 → 对方 · M0 下对方听不到译文"
-    else if (showLangs) "对方 → 我 · ${Lang.displayName(line.srcLang)} → ${Lang.displayName(line.tgtLang)}" else "对方 → 我"
+    val who = if (line.speaker == Speaker.ME) "我" else "对方"
+    val direction = if (showLangs) "$who · ${Lang.displayName(line.srcLang)} → ${Lang.displayName(line.tgtLang)}" else who
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        SceneText(direction, style = SceneTheme.type.footnote, color = color)
-        when {
-            line.translation == null && line.mtDegraded -> SceneCapsule("未译", tone = CapsuleTone.Destructive)
-            line.mtDegraded -> SceneCapsule("降级", tone = CapsuleTone.Warning)
-            line.translation != null && line.mtLatencyMs != null && line.mtEngine?.startsWith("none") != true ->
-                SceneCapsule("云翻译 ${tenths(line.mtLatencyMs)} s", tone = CapsuleTone.Tint)
-        }
-        if (line.tts == PlaybackStatus.PLAYING) {
-            SceneIcon(SceneIcons.Speaker, contentDescription = null, size = 14.dp, tint = c.tint)
-            SceneText("播放中", style = SceneTheme.type.caption2, color = c.tint)
-        }
+        SceneText(direction, style = SceneTheme.type.footnote, color = color, maxLines = 1)
+        if (line.tts == PlaybackStatus.PLAYING) SceneIcon(SceneIcons.Speaker, contentDescription = "播放中", size = 14.dp, tint = c.tint)
     }
 }
 
-/** 引擎状态：Error → 原因 + 「去下载模型」；Loading → 装载中；另附采集错误。 */
+/** 译文下方只允许两种例外胶囊：「没播完」（被打断）/「未翻译」（翻译失败）。都没有就不占位。 */
 @Composable
-private fun EngineStatus(engine: LocalEngineState, error: String?, onOpenModels: () -> Unit) {
+private fun LineFlags(line: LiveLine) {
+    val untranslated = line.translation == null && line.mtDegraded
+    if (!line.interrupted && !untranslated) return
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (untranslated) SceneCapsule("未翻译", tone = CapsuleTone.Destructive)
+        if (line.interrupted) SceneCapsule("没播完", tone = CapsuleTone.Warning)
+    }
+}
+
+/** 语音包缺失：一句话 + 「去下载」；录音出错：一句话。其余引擎状态不显示。 */
+@Composable
+private fun EngineNotice(engine: LocalEngineState, error: String?, onOpenModels: () -> Unit) {
     val c = SceneTheme.colors
-    when (engine) {
-        is LocalEngineState.Error -> Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneText("端侧引擎错误：${engine.reason}", style = SceneTheme.type.footnote, color = c.destructive)
-            SceneButton("去下载模型", onClick = onOpenModels, style = ButtonStyle.Tinted, height = 44.dp)
+    if (engine is LocalEngineState.Error) {
+        Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
+            SceneText("语音包未下载", Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.destructive)
+            SceneButton("去下载", onClick = onOpenModels, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
         }
-        LocalEngineState.Loading -> SceneText("端侧模型装载中…", style = SceneTheme.type.footnote, color = c.secondaryLabel)
-        else -> {}
     }
-    if (error != null) SceneText(error, style = SceneTheme.type.footnote, color = c.destructive)
+    if (error != null) SceneText("录音出错，请重试", style = SceneTheme.type.footnote, color = c.destructive)
 }
 
-/** 青绿卡「竖起手机朝向对方 → M1」：可点手动进入；姿态自动检测开着时右侧显示「自动」，否则「点此进入」。 */
+/** 一行轻提示「举起手机朝向对方 → 面屏」：可点手动进入面屏。 */
 @Composable
-private fun PostureCard(autoPosture: Boolean, onEnter: () -> Unit) {
+private fun PostureHint(onEnter: () -> Unit) {
     val c = SceneTheme.colors
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(SceneRadius.m)).background(c.tintSoft)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onEnter).padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(SceneRadius.m))
+            .clickable(role = Role.Button, onClick = onEnter)
+            .defaultMinSize(minHeight = SceneSize.touchTarget).padding(horizontal = SceneSpacing.s),
+        horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            SceneIcon(SceneIcons.Rotate, contentDescription = null, size = 22.dp, tint = c.onTintSoft)
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                SceneText("竖起手机朝向对方 → M1 耳听 · 面屏", style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.onTintSoft)
-                SceneText("姿态自动检测，不重启音频；对方看半屏大字", style = SceneTheme.type.caption1, color = c.onTintSoft)
-            }
-        }
-        SceneText(if (autoPosture) "自动 · 或点此" else "点此进入", style = SceneTheme.type.caption1, color = c.secondaryLabel)
+        SceneIcon(SceneIcons.Rotate, contentDescription = null, size = 18.dp, tint = c.secondaryLabel)
+        SceneText("举起手机朝向对方 → 面屏", Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
+        SceneIcon(SceneIcons.ChevronRight, contentDescription = null, size = 16.dp, tint = c.tertiaryLabel)
     }
 }
 
-/** dock 主钮 72 pt：Live → 暂停；Idle / Paused → 开始 / 继续；Arming / Ending 禁用。 */
+/** dock 主钮 72 pt：进行中 → 暂停；待机 / 已暂停 → 开始 / 继续；准备中 / 结束中禁用。 */
 @Composable
 private fun PauseResumeButton(state: LiveState, onPause: () -> Unit, onResume: () -> Unit) {
     val (label, icon, enabled) = when (state) {
@@ -276,38 +281,21 @@ private fun PauseResumeButton(state: LiveState, onPause: () -> Unit, onResume: (
     }
 }
 
-/** 导航栏健康胶囊：翻译健康为主；语音异常时并入（缩短翻译文案，避免与标题胶囊重叠）。 */
-private fun healthCapsule(h: PipelineHealth, voiceOut: Boolean, live: Boolean): Pair<String, CapsuleTone> {
-    val (mt, tone) = when (h.mt) {
-        "ok" -> (if (live) "混合档 · 正常" else "混合档") to CapsuleTone.Tint
-        "slow" -> "云端慢" to CapsuleTone.Gray
-        "fallback" -> "已降级" to CapsuleTone.Warning
-        "unavailable" -> "无翻译" to CapsuleTone.Destructive
-        else -> h.mt to CapsuleTone.Gray
-    }
-    val tts = when {
-        !voiceOut -> null
-        h.tts == "无" -> "无语音"
-        h.tts == "失败" -> "语音失败"
-        else -> null
-    }
-    return if (tts == null) mt to tone
-    else "${mt.substringAfterLast(" · ")} · $tts" to (if (tone == CapsuleTone.Tint) CapsuleTone.Warning else tone)
+/** 导航栏状态胶囊，只有一个词：无翻译 > 无语音 > 离线（未填 Key）> 已连接。 */
+private fun statusCapsule(h: PipelineHealth, voiceOut: Boolean, hasKey: Boolean): Pair<String, CapsuleTone> = when {
+    h.mt == "unavailable" -> "无翻译" to CapsuleTone.Destructive
+    voiceOut && (h.tts == "无" || h.tts == "失败") -> "无语音" to CapsuleTone.Warning
+    h.mt == "fallback" || !hasKey -> "离线" to CapsuleTone.Gray
+    else -> "已连接" to CapsuleTone.Tint
 }
 
-private fun m0StateLabel(s: LiveState): String = when (s) {
-    LiveState.Idle -> "待机"; LiveState.Arming -> "准备中"; is LiveState.Live -> "进行中"; is LiveState.Paused -> "已暂停"
-    LiveState.NeedForeground -> "需要前台"; LiveState.Degraded -> "降级"; LiveState.Ending -> "结束中"
+/** 状态行的一个词（不用 VM 的 hint：那里有工程措辞）。 */
+private fun stateWord(s: LiveState): String = when (s) {
+    LiveState.Idle -> "未开始"
+    LiveState.Arming -> "准备中…"
+    is LiveState.Live -> "正在听对方"
+    is LiveState.Paused -> "已暂停"
+    LiveState.NeedForeground -> "点一下继续"
+    LiveState.Degraded -> "请戴上耳机"
+    LiveState.Ending -> "结束中…"
 }
-
-/** 输出设备的中文名（仅展示；App 不区分耳机与扬声器）。 */
-private fun routeName(r: AudioRoute?): String = when (r) {
-    AudioRoute.BluetoothA2dp, AudioRoute.BluetoothHfp -> "蓝牙耳机"
-    AudioRoute.Wired -> "有线耳机"
-    AudioRoute.Speaker -> "扬声器"
-    AudioRoute.BuiltIn -> "听筒"
-    AudioRoute.None, null -> "耳机"
-}
-
-/** 毫秒 → 一位小数的秒（common 无 String.format）。 */
-private fun tenths(ms: Long): String { val t = (ms + 50) / 100; return "${t / 10}.${t % 10}" }

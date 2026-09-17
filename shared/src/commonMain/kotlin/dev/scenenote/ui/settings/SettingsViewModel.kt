@@ -61,7 +61,7 @@ class SettingsViewModel(private val settings: AppSettings, private val wallet: K
         if (_ui.value.testing != null) return
         _ui.value = _ui.value.copy(testing = providerId)
         viewModelScope.launch {
-            val r = if (providerId == Providers.bailian.id) tester.testBailian() else KeyTestResult(false, "该厂商尚未接入（I3 只接百炼）")
+            val r = if (providerId == Providers.bailian.id) tester.testBailian() else KeyTestResult(false, "暂不支持")
             _ui.value = _ui.value.copy(testing = null, keyTest = _ui.value.keyTest + (providerId to r))
         }
     }

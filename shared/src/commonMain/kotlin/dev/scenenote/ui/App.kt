@@ -46,10 +46,11 @@ import dev.scenenote.ui.theme.SceneNoteTheme
  * - models / selftest / gallery / onboarding
  */
 object Routes {
-    const val MAIN = "main?tab={tab}"
-    fun main(tab: Int = 0) = "main?tab=$tab"
-    const val LIVE = "live/{sceneId}?autostart={autostart}&other={other}&my={my}&feed={feed}"
-    fun live(sceneId: String, autostart: Boolean = false, other: String = "", my: String = "", feed: String = "") = "live/$sceneId?autostart=$autostart&other=$other&my=$my&feed=$feed"
+    const val MAIN = "main?tab={tab}&key={key}"
+    fun main(tab: Int = 0, openKey: Boolean = false) = "main?tab=$tab&key=$openKey"
+    const val LIVE = "live/{sceneId}?autostart={autostart}&other={other}&my={my}&feed={feed}&mode={mode}"
+    /** mode：M0 / M1 / M3 覆盖场景默认模式（实时 Tab「双屏」直接进双屏）。 */
+    fun live(sceneId: String, autostart: Boolean = false, other: String = "", my: String = "", feed: String = "", mode: String = "") = "live/$sceneId?autostart=$autostart&other=$other&my=$my&feed=$feed&mode=$mode"
     const val GALLERY = "gallery"
     const val ONBOARDING = "onboarding?page={page}"
     fun onboarding(page: Int = 0) = "onboarding?page=$page"
@@ -70,7 +71,7 @@ fun App() {
             val l = link ?: return@LaunchedEffect
             when (l.host) {
                 "selftest" -> nav.navigate(Routes.selfTest(l.query["autostart"] == "1", l.query["stop"]?.toIntOrNull() ?: 0, l.query["bench"] ?: "", l.query["tts"] == "1"))
-                "scene" -> l.path.firstOrNull()?.let { nav.navigate(Routes.live(it, l.query["autostart"] == "1", l.query["other"] ?: "", l.query["my"] ?: "", l.query["feed"] ?: "")) }
+                "scene" -> l.path.firstOrNull()?.let { nav.navigate(Routes.live(it, l.query["autostart"] == "1", l.query["other"] ?: "", l.query["my"] ?: "", l.query["feed"] ?: "", l.query["mode"] ?: "")) }
                 "settings" -> nav.navigate(Routes.main(Tabs.SETTINGS)) { popUpTo(Routes.MAIN) { inclusive = true } }
                 "live" -> nav.navigate(Routes.main(Tabs.LIVE)) { popUpTo(Routes.MAIN) { inclusive = true } }
                 "library" -> nav.navigate(Routes.main(Tabs.LIBRARY)) { popUpTo(Routes.MAIN) { inclusive = true } }
@@ -80,25 +81,42 @@ fun App() {
             }
             DeepLinks.consume()
         }
-        NavHost(navController = nav, startDestination = Routes.main()) {
-            composable(Routes.MAIN, arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "0" })) { entry ->
+        // 首次启动先进新手引导（docs/15 §2）；引导结束写 onboardingDone，之后从设置 → 新手引导 可再看
+        val settings = org.koin.compose.koinInject<dev.scenenote.core.settings.AppSettings>()
+        val start = remember { if (settings.onboardingDone) Routes.main() else Routes.onboarding() }   // 只在首次组合决定，避免 NavGraph 重建
+        NavHost(navController = nav, startDestination = start) {
+            composable(Routes.MAIN, arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "0" }, navArgument("key") { type = NavType.StringType; defaultValue = "false" })) { entry ->
                 val initial = entry.savedStateHandle.get<String>("tab")?.toIntOrNull() ?: 0
-                MainShell(nav, initial)
+                val openKey = entry.savedStateHandle.get<String>("key") == "true"
+                MainShell(nav, initial, openKey)
             }
             composable(Routes.LIVE, arguments = listOf(
                 navArgument("sceneId") { type = NavType.StringType }, navArgument("autostart") { type = NavType.StringType; defaultValue = "false" },
                 navArgument("other") { type = NavType.StringType; defaultValue = "" }, navArgument("my") { type = NavType.StringType; defaultValue = "" },
-                navArgument("feed") { type = NavType.StringType; defaultValue = "" },
+                navArgument("feed") { type = NavType.StringType; defaultValue = "" }, navArgument("mode") { type = NavType.StringType; defaultValue = "" },
             )) { entry ->
                 val sceneId = entry.savedStateHandle.get<String>("sceneId") ?: "listen"
                 val auto = entry.savedStateHandle.get<String>("autostart") == "true"
                 val other = entry.savedStateHandle.get<String>("other").orEmpty(); val my = entry.savedStateHandle.get<String>("my").orEmpty()
                 val feed = entry.savedStateHandle.get<String>("feed").orEmpty()
-                LiveSessionRouter(nav, sceneId, auto, other, my, feed)
+                val mode = entry.savedStateHandle.get<String>("mode").orEmpty()
+                LiveSessionRouter(nav, sceneId, auto, other, my, feed, mode)
             }
             composable(Routes.GALLERY) { DesignSystemGallery(onBack = { nav.popBackStack() }) }
             composable(Routes.ONBOARDING, arguments = listOf(navArgument("page") { type = NavType.StringType; defaultValue = "0" })) { entry ->
-                OnboardingScreen(initialPage = entry.savedStateHandle.get<String>("page")?.toIntOrNull() ?: 0, onDone = { nav.popBackStack() }, onOpenModels = { nav.navigate(Routes.models()) })
+                OnboardingScreen(
+                    initialPage = entry.savedStateHandle.get<String>("page")?.toIntOrNull() ?: 0,
+                    onDone = {
+                        settings.onboardingDone = true
+                        // 首次启动时引导是栈底：用 main 替换；从设置进来时直接返回
+                        if (!nav.popBackStack()) nav.navigate(Routes.main()) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+                    },
+                    onOpenModels = { nav.navigate(Routes.models()) },
+                    onOpenKey = {
+                        settings.onboardingDone = true
+                        nav.navigate(Routes.main(Tabs.SETTINGS, openKey = true)) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+                    },
+                )
             }
             composable(Routes.MODELS, arguments = listOf(navArgument("install") { type = NavType.StringType; defaultValue = "" })) { entry ->
                 val install = entry.savedStateHandle.get<String>("install").orEmpty().split(",").filter { it.isNotBlank() }
@@ -125,20 +143,20 @@ fun App() {
 
 /** 四 Tab 壳（14 篇 §1 ①）：浮动玻璃胶囊 Tab 栏，内容从下面滚过。 */
 @Composable
-fun MainShell(nav: NavHostController, initialTab: Int) {
+fun MainShell(nav: NavHostController, initialTab: Int, openKey: Boolean = false) {
     var tab by rememberSaveable { mutableStateOf(initialTab.coerceIn(0, 3)) }
     val tabs = listOf(SceneTab("场景", SceneIcons.Scenes), SceneTab("实时", SceneIcons.Waveform), SceneTab("资料库", SceneIcons.Library), SceneTab("设置", SceneIcons.Sliders))
     val overlay = remember { mutableStateOf<(@Composable BoxScope.() -> Unit)?>(null) }
     CompositionLocalProvider(LocalShellOverlay provides overlay) {
         Box(Modifier.fillMaxSize()) {
-            GlassScaffold(bottomBar = { SceneTabBar(tabs, tab, onSelect = { tab = it }) }) { TabContent(nav, tab, onSelectTab = { tab = it }) }
+            GlassScaffold(bottomBar = { SceneTabBar(tabs, tab, onSelect = { tab = it }) }) { TabContent(nav, tab, onSelectTab = { tab = it }, openKey = openKey) }
             overlay.value?.let { it() }   // sheet / 压暗层盖在 Tab 栏之上
         }
     }
 }
 
 @Composable
-private fun TabContent(nav: NavHostController, tab: Int, onSelectTab: (Int) -> Unit) {
+private fun TabContent(nav: NavHostController, tab: Int, onSelectTab: (Int) -> Unit, openKey: Boolean = false) {
     Box(Modifier.fillMaxSize()) {
         when (tab) {
             Tabs.HOME -> HomeTab(
@@ -146,13 +164,14 @@ private fun TabContent(nav: NavHostController, tab: Int, onSelectTab: (Int) -> U
                 onOpenOnboarding = { nav.navigate(Routes.onboarding()) },
                 onOpenLiveTab = { onSelectTab(Tabs.LIVE) },
             )
-            Tabs.LIVE -> LiveTab(onStart = { sceneId -> nav.navigate(Routes.live(sceneId)) })
+            Tabs.LIVE -> LiveTab(onStart = { sceneId, mode -> nav.navigate(Routes.live(sceneId, mode = mode)) })
             Tabs.LIBRARY -> LibraryTab()
             else -> SettingsTab(
                 onOpenModels = { nav.navigate(Routes.models()) },
                 onOpenSelfTest = { nav.navigate(Routes.selfTest()) },
                 onOpenGallery = { nav.navigate(Routes.GALLERY) },
                 onOpenOnboarding = { nav.navigate(Routes.onboarding()) },
+                openKeyOnEnter = openKey,
             )
         }
     }
@@ -160,14 +179,14 @@ private fun TabContent(nav: NavHostController, tab: Int, onSelectTab: (Int) -> U
 
 /** 按场景的 liveModeId 分发到对应会话页：M0 / M1 → LiveM0Screen（M1 的耳听·面屏在 I4 单独成页），M4 → LiveM4Screen，其余占位。 */
 @Composable
-private fun LiveSessionRouter(nav: NavHostController, sceneId: String, autostart: Boolean, other: String, my: String, feed: String) {
+private fun LiveSessionRouter(nav: NavHostController, sceneId: String, autostart: Boolean, other: String, my: String, feed: String, modeOverride: String = "") {
     val scene = Scenes.byId(sceneId)
-    val mode = scene?.liveModeId?.let { ModeSpecs.byId(it) }
+    val mode = (modeOverride.takeIf { it.isNotBlank() } ?: scene?.liveModeId)?.let { runCatching { ModeSpecs.byId(it) }.getOrNull() }
     val back: () -> Unit = { nav.popBackStack() }
     when (mode?.id) {
         "M4" -> LiveM4Screen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed)
-        "M0", "M1", "M3" -> LiveConversationScreen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed,
+        "M0", "M1", "M3" -> LiveConversationScreen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed, initialMode = modeOverride,
             onOpenQuickPhrase = { nav.navigate(Routes.live(Scenes.quickPhrase.id)) { popUpTo(Routes.LIVE) { inclusive = true } } })   // M4 替换 M0，不叠在其上
-        else -> PlaceholderSessionScreen(title = scene?.name ?: sceneId, note = "该场景在后续里程碑落地（会议 I5 / 屏内字幕 I6）", onBack = back)
+        else -> PlaceholderSessionScreen(title = scene?.name ?: sceneId, note = "稍后开放", onBack = back)
     }
 }

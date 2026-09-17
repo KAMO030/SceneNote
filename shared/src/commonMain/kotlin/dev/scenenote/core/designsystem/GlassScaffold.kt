@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 
 /**
- * 两层模型的页面骨架：内容层在下（被录制供玻璃取样），功能层（导航按钮 / Tab 栏 / dock）浮在上面。
+ * 两层模型的页面骨架：内容层在下（haze 取样源，含页面底色），功能层（导航按钮 / Tab 栏 / dock）浮在上面取样它。
  * 内容自己负责给顶部 / 底部留出空间（见 [SceneSize.navBar] / [SceneSize.tabBar]），因为 iOS 26 的内容本来就要从玻璃下面滚过去。
  */
 @Composable
@@ -26,7 +26,8 @@ fun GlassScaffold(
     val backdrop = rememberGlassBackdrop()
     CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
         Box(modifier.fillMaxSize().background(background)) {
-            Box(Modifier.fillMaxSize().glassBackdropSource(backdrop)) { content() }
+            // 底色画在取样源里面，玻璃模糊到的才是"页面"而不是透明
+            Box(Modifier.fillMaxSize().glassBackdropSource(backdrop).background(background)) { content() }
             Box(Modifier.align(Alignment.TopCenter).fillMaxWidth()) { topBar() }
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) { bottomBar() }
         }

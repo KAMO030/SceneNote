@@ -57,6 +57,8 @@ kotlin {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.animation)   // core/design-system：分段控件 / 开关 / sheet 动效
+            implementation(libs.haze)                 // 玻璃模糊（功能层取样内容层）
+            implementation(libs.haze.materials)
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)

@@ -31,3 +31,9 @@
 - 待验证 46（补）：Android 12+ 真机验证 `Modifier.glass()` 的模糊与滚动跟随；若 tick 订阅方案掉帧，改为 `GraphicsLayer.toImageBitmap()` 或引入 haze 2.0 正式版。
 - 待验证 48（补）：iOS 26 原生 `UITabBarController / UINavigationController / UISheetPresentationController` 外壳 + Compose 内容层的 interop 落地；在此之前 iOS 玻璃为不透明回退。
 - 待决策 30（补）：Android 字体仍为系统默认套 Apple 刻度；Inter + 思源黑体未引入。
+
+## 2026-09-17 补：玻璃改用 haze 1.7.3，页面文案整改
+
+- `Modifier.glass()` / `GlassScaffold` 内部改为 haze（`hazeSource` 取样内容层，`hazeEffect` 画功能层），删除自绘 GraphicsLayer 嵌套路径与 `platformSupportsBackdropBlur()`。公开 API 不变。
+- 行为：iOS（Skia）真模糊——iPhone 17 模拟器首页 / 设置 / Key 钱包 sheet 滚动与打开均不再崩溃；Android 12+ RenderEffect 真模糊（待真机）；Android 11（vivo）走 haze `fallbackTint` 高填充回退，与此前一致。待验证 46 的"iOS 崩溃"已消除。
+- 页面按 `docs/15-文案与信息密度规范.md` 整改：去掉 M0/混合档/端侧/判向等工程词，每组 ≤ 1 说明 + ≤ 1 页脚，平台无关项不渲染（Android 无 Apple / ML Kit，iOS 无磁贴），首次启动进新手引导，会话页只显示对话与一个状态词。

@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,22 +62,21 @@ import dev.scenenote.core.designsystem.SceneSpacing
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
 import dev.scenenote.core.designsystem.glass
-import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.LiveState
-import dev.scenenote.core.model.PlaybackStatus
+import dev.scenenote.core.settings.AppSettings
 import dev.scenenote.live.LiveLine
 import dev.scenenote.live.Phrases
 import dev.scenenote.live.PipelineHealth
+import org.koin.compose.koinInject
 
 /**
- * M1 耳听·面屏（原型 LiveM1.dc.html，14 篇 §1 ②）：我私听，对方看半屏。
+ * 面屏（原型 LiveM1.dc.html）：我私听，对方看半屏。
  *
- * 上 1/3 我方：小字「对方 → 我 · 已进耳机」（译文 17 pt + 原文 13 pt）、「我 → 对方 · 已上屏」（原文 13 pt）、
- * 玻璃控制条（回 M0 / 双屏 M3 / 结束）→ 分隔说明 → 下 2/3 **对方半屏旋转 180°**（常驻浅色底，大字 ≥ 28 pt）：
- * 礼貌卡（进入后 3 s）→ Listening… 灰字 partial + 呼吸灯 → Received 对勾 + 32 pt final；常驻「No thanks, I'm fine」→ 播退出语（−6 dB）并回 M0。
+ * 上 0.42：「对方说」译文 + 原文、「你说」原文 → 玻璃控制条（仅听 / 双屏 / 结束）→ 没耳机时的「改用双屏」提示。
+ * 下 0.58：对方半屏旋转 180°（常驻浅色底，大字 ≥ 28 pt）：礼貌卡（进入后 3 s）→ 在听 → 已收到 + 大字；常驻「No thanks」按钮。
  *
- * 与原型的差异：「摘下耳机 → M3」的自动降级改为手动按钮「双屏 M3」，并在没有耳机（扬声器 / 听筒）时行内提示「没有耳机：改用双屏对话」；
- * 「模拟」三态按钮是原型演示用，这里由 VM 的 politeCard / speaking / lastMe 驱动。
+ * 文案遵守 docs/15：页面上只有一个状态词（右上胶囊），不显示路由 / 引擎 / 播放去向等工程信息；
+ * 「下半屏给对方看」只在首次进入提示一次（AppSettings.hintSeen("m1")）。
  * 同一会话、同一个 VM：切模式不重启音频（进页 / 结束由 LiveConversationScreen 与 M0 负责）。
  */
 @Composable
@@ -86,36 +86,39 @@ fun LiveM1Screen(vm: LiveViewModel, onBack: () -> Unit, onOpenModels: () -> Unit
     val live = ui.state is LiveState.Live
     val finish: () -> Unit = { vm.end(); onBack() }
 
+    // 一次性引导：本次进入显示，之后不再打扰
+    val settings = koinInject<AppSettings>()
+    val firstVisit = remember { !settings.hintSeen("m1") }
+    LaunchedEffect(Unit) { if (firstVisit) settings.markHintSeen("m1") }
+
     GlassScaffold(
         background = c.systemBackground,
         topBar = {
-            val (label, tone) = m1HealthCapsule(ui.health, ui.voiceOut, live)
+            val (label, tone) = m1StatusCapsule(ui.state, ui.health, ui.voiceOut)
             SceneNavBar(
-                title = "M1 耳听·面屏",
-                onBack = { vm.switchMode("M0") }, backContentDescription = "回 M0",   // 返回 = 回仅听；结束只留红钮（14 篇：Alert 只给不可撤销动作）
+                title = "面屏",
+                onBack = { vm.switchMode("M0") }, backContentDescription = "回仅听",   // 返回 = 回仅听；结束只留红钮
                 trailing = { SceneCapsule(label, tone = tone) },
             )
         },
     ) {
         Column(Modifier.fillMaxSize()) {
-            // 原型几何：我方区 0–356 / 说明行 360 / 对方半屏 382–836（844 高），按比例分配，不写死像素
             MySection(
-                ui = ui, live = live, onOpenModels = onOpenModels,
+                ui = ui, firstVisit = firstVisit, onOpenModels = onOpenModels,
                 onM0 = { vm.switchMode("M0") }, onM3 = { vm.switchMode("M3") }, onEnd = finish,
                 modifier = Modifier.weight(0.42f),
             )
-            SeparatorNote()
             FacingPanel(ui = ui, onNoThanks = { vm.politeExit() }, modifier = Modifier.weight(0.58f))
         }
     }
 }
 
-// ---------- 上 1/3：我这半屏（私听，字小）----------
+// ---------- 上半区：我看的部分 ----------
 
-/** 状态行 → 两句小字（可滚，不把控制条挤出去）→ 玻璃控制条 → 无耳机提示。 */
+/** 两块文字（可滚，不把控制条挤出去）→ 玻璃控制条 → 没耳机提示 / 首次引导。 */
 @Composable
 private fun MySection(
-    ui: LiveUiState, live: Boolean, onOpenModels: () -> Unit,
+    ui: LiveUiState, firstVisit: Boolean, onOpenModels: () -> Unit,
     onM0: () -> Unit, onM3: () -> Unit, onEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -126,59 +129,45 @@ private fun MySection(
         modifier.fillMaxWidth().padding(top = 104.dp, start = SceneSpacing.page, end = SceneSpacing.page, bottom = 6.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // 状态行：脉冲点 + 「我这半屏 · 私听，字小」（非进行中时改显示状态机提示）+ 语言对
-        val stateLabel = m1StateLabel(ui.state)
-        val stateHint = ui.hint.takeIf { it.isNotBlank() && it != stateLabel }?.let { " · $it" } ?: ""
-        Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
-            BreathDot(active = live, size = 8.dp, halo = false)
-            SceneText(
-                if (live) "我这半屏 · 私听，字小" else stateLabel + stateHint,
-                Modifier.weight(1f), style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            SceneText("${Lang.displayName(ui.myLang)} ⇄ ${Lang.displayName(ui.otherLang)}", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
-        }
-
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            OtherToMe(ui.lastOther, voiceOut = ui.voiceOut, headset = !noHeadset && output != null && output != AudioRoute.None)
-            MeToOther(ui.lastMe)
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OtherSaid(ui.lastOther)
+            YouSaid(ui.lastMe)
             EngineNotice(ui.engine, ui.error, onOpenModels)
         }
 
         ControlBar(onM0 = onM0, onM3 = onM3, onEnd = onEnd)
 
-        // 原型「摘下耳机 → M3」是自动降级；这里改为手动：没有耳机时提示改用双屏对话（点提示直接切）
-        if (noHeadset) {
-            Row(
-                Modifier.fillMaxWidth().clip(CircleShape).clickable(role = Role.Button, onClick = onM3).padding(horizontal = 6.dp, vertical = 2.dp),
+        // 没有耳机时提示改用双屏（点提示直接切）；否则首次进入提示一次「下半屏给对方看」
+        when {
+            noHeadset -> Row(
+                Modifier.fillMaxWidth().height(44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onM3).padding(horizontal = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
             ) {
                 SceneIcon(SceneIcons.Headphones, contentDescription = null, size = 14.dp, tint = c.onWarningSoft)
                 SceneText("没有耳机：改用双屏对话", style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), color = c.onWarningSoft, maxLines = 1)
             }
+            firstVisit -> Row(
+                Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SceneIcon(SceneIcons.Rotate, contentDescription = null, size = 14.dp, tint = c.secondaryLabel)
+                SceneText("下半屏给对方看", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
+            }
         }
     }
 }
 
-/** 「对方 → 我 · 已进耳机」：译文 17 pt 粗 + 原文 13 pt 次要色；还没有句子时占位灰字。 */
+/** 「对方说」：译文 17 pt 粗 + 原文 13 pt 次要色；还没有句子时占位灰字。 */
 @Composable
-private fun OtherToMe(line: LiveLine?, voiceOut: Boolean, headset: Boolean) {
+private fun OtherSaid(line: LiveLine?) {
     val c = SceneTheme.colors
-    val delivery = when {
-        !voiceOut -> "仅上屏"
-        line?.tts == PlaybackStatus.PLAYING -> "正在播"
-        line?.tts == PlaybackStatus.QUEUED -> "待播"
-        line?.tts == PlaybackStatus.SHOWN_ON_SCREEN || line?.tts == PlaybackStatus.SKIPPED -> "已上屏"
-        line?.tts == PlaybackStatus.MERGED -> "已合并"
-        headset -> "已进耳机"
-        else -> "已外放"
-    }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            SceneText("对方 → 我 · $delivery", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
-            if (line != null) MtCapsule(line)
+            SceneText("对方说", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
+            if (line != null) LineCapsules(line)
         }
         if (line == null) {
-            SceneText("等对方开口，译文会进耳机、也在这里出现", style = SceneTheme.type.subheadline, color = c.tertiaryLabel, maxLines = 2)
+            SceneText("等对方开口，译文出现在这里", style = SceneTheme.type.subheadline, color = c.tertiaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
         } else {
             SceneText(line.translation ?: line.text, style = SceneTheme.type.headline, color = c.label, maxLines = 3, overflow = TextOverflow.Ellipsis)
             if (line.translation != null) SceneText(line.text, style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -186,49 +175,46 @@ private fun OtherToMe(line: LiveLine?, voiceOut: Boolean, headset: Boolean) {
     }
 }
 
-/** 「我 → 对方 · 已上屏」：我说的原文 13 pt（译文在对方半屏大字显示，这里不重复）。 */
+/** 「你说」：我说的原文 13 pt（译文在对方半屏大字显示，这里不重复）。 */
 @Composable
-private fun MeToOther(line: LiveLine?) {
+private fun YouSaid(line: LiveLine?) {
     val c = SceneTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            SceneText(if (line == null || line.translation != null) "我 → 对方 · 已上屏" else "我 → 对方 · 翻译中", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
-            if (line != null) MtCapsule(line)
-            if (line?.dirTentative == true) SceneCapsule("判向未定 ?", tone = CapsuleTone.Gray)
+            SceneText("你说", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
+            if (line != null) LineCapsules(line)
         }
         SceneText(
-            line?.text ?: "开口说话，译文会以大字出现在对方半屏",
+            line?.text ?: "你开口，译文会大字显示给对方",
             style = SceneTheme.type.footnote, color = if (line == null) c.tertiaryLabel else c.secondaryLabel, maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
-/** 翻译状态胶囊（与 M0 的 LineHeader 同一语义）：未译 / 降级；正常不显示。 */
+/** 一句话的小胶囊：「未翻译」（没译文且已放弃）/「?」（还没分清谁在说）；正常不显示。 */
 @Composable
-private fun MtCapsule(line: LiveLine) {
-    when {
-        line.translation == null && line.mtDegraded -> SceneCapsule("未译", tone = CapsuleTone.Destructive)
-        line.mtDegraded -> SceneCapsule("降级", tone = CapsuleTone.Warning)
-    }
+private fun LineCapsules(line: LiveLine) {
+    if (line.translation == null && line.mtDegraded) SceneCapsule("未翻译", tone = CapsuleTone.Destructive)
+    if (line.dirTentative) SceneCapsule("?", tone = CapsuleTone.Gray)
 }
 
-/** 引擎 / 采集状态的行内提示（不弹窗）：Error → 红字 + 「去下载模型」；Loading → 灰字；采集错误红字。 */
+/** 本机识别的行内提示（不弹窗）：不可用 → 红字 + 「去下载语音包」；加载中 → 灰字；录音出错 → 红字（原因只进诊断页）。 */
 @Composable
 private fun EngineNotice(engine: LocalEngineState, error: String?, onOpenModels: () -> Unit) {
     val c = SceneTheme.colors
     when (engine) {
         is LocalEngineState.Error -> Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneText("端侧引擎错误：${engine.reason}", style = SceneTheme.type.footnote, color = c.destructive)
-            SceneButton("去下载模型", onClick = onOpenModels, style = ButtonStyle.Tinted, height = 44.dp)
+            SceneText("本机识别不可用", style = SceneTheme.type.footnote, color = c.destructive)
+            SceneButton("去下载语音包", onClick = onOpenModels, style = ButtonStyle.Tinted, height = 44.dp)
         }
-        LocalEngineState.Loading -> SceneText("端侧模型装载中…", style = SceneTheme.type.footnote, color = c.secondaryLabel)
+        LocalEngineState.Loading -> SceneText("语音包加载中…", style = SceneTheme.type.footnote, color = c.secondaryLabel)
         else -> {}
     }
-    if (error != null) SceneText(error, style = SceneTheme.type.footnote, color = c.destructive)
+    if (error != null) SceneText("录音出错", style = SceneTheme.type.footnote, color = c.destructive)
 }
 
 /**
- * 玻璃控制条（原型 `.glass` 52 pt 胶囊）：「回 M0」/「双屏 M3」/ 结束（红圆 44）。
+ * 玻璃控制条（原型 `.glass` 52 pt 胶囊）：仅听 / 双屏 / 结束（红圆 44）。
  * 它在内容层里，不能取样正在录制的 backdrop（会自己画自己），所以 `backdrop = null` → 高填充材质回退。
  */
 @Composable
@@ -237,9 +223,9 @@ private fun ControlBar(onM0: () -> Unit, onM3: () -> Unit, onEnd: () -> Unit) {
         Modifier.fillMaxWidth().glass(CircleShape, backdrop = null, elevation = 6.dp).height(52.dp).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
     ) {
-        BarButton("回 M0", onClick = onM0, filled = true, modifier = Modifier.weight(1f))
-        BarButton("双屏 M3", onClick = onM3, filled = false, modifier = Modifier.weight(1f))
-        SceneIconButton(SceneIcons.Stop, contentDescription = "结束会话", onClick = onEnd, size = 44.dp, style = ButtonStyle.Destructive)
+        BarButton("仅听", onClick = onM0, filled = true, modifier = Modifier.weight(1f))
+        BarButton("双屏", onClick = onM3, filled = false, modifier = Modifier.weight(1f))
+        SceneIconButton(SceneIcons.Stop, contentDescription = "结束", onClick = onEnd, size = 44.dp, style = ButtonStyle.Destructive)
     }
 }
 
@@ -261,25 +247,12 @@ private fun BarButton(text: String, onClick: () -> Unit, filled: Boolean, modifi
     }
 }
 
-/** 分隔说明：旋转图标 + 「下半屏朝向对方 · 已旋转 180°」。 */
-@Composable
-private fun SeparatorNote() {
-    val c = SceneTheme.colors
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SceneIcon(SceneIcons.Rotate, contentDescription = null, size = 14.dp, tint = c.secondaryLabel)
-        SceneText("下半屏朝向对方 · 已旋转 180°", style = SceneTheme.type.caption2, color = c.secondaryLabel, maxLines = 1)
-    }
-}
-
-// ---------- 下 2/3：对方半屏（旋转 180°，常驻浅色底）----------
+// ---------- 下半区：对方半屏（旋转 180°，常驻浅色底）----------
 
 /**
  * 对方半屏：整块 `rotate(180f)`（触控随层变换，按钮照常可点）。
- * 无论系统深浅色都用浅色令牌（沉浸式深色只给 M3 / S4）；边缘 1 dp 描边在对方说话时作呼吸灯。
- * 布局：礼貌卡 / 字幕区（占满）→ 常驻「No thanks, I'm fine」（Gray，50 pt）。
+ * 无论系统深浅色都用浅色令牌（沉浸式深色只给双屏）；边缘 1 dp 描边在对方说话时作呼吸灯。
+ * 布局：礼貌卡 / 字幕区（占满）→ 常驻「No thanks, I'm fine」（Gray，50 pt）。文案是给对方看的，按对方语言取。
  */
 @Composable
 private fun FacingPanel(ui: LiveUiState, onNoThanks: () -> Unit, modifier: Modifier = Modifier) {
@@ -290,7 +263,7 @@ private fun FacingPanel(ui: LiveUiState, onNoThanks: () -> Unit, modifier: Modif
         Column(
             modifier
                 .fillMaxWidth()
-                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())   // 旋转后顶行落在 Home 指示条上，留 inset
+                .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())   // 旋转后顶行落在 Home 指示条上，留 inset
                 .rotate(180f)
                 .clip(RoundedCornerShape(radius))
                 .background(c.secondarySystemBackground)
@@ -306,7 +279,7 @@ private fun FacingPanel(ui: LiveUiState, onNoThanks: () -> Unit, modifier: Modif
     }
 }
 
-/** 礼貌卡（进入 M1 后 3 s）：录音点 + 麦克风 + 「Recording · text only, no audio is kept」→ 28 pt 礼貌语（按对方语言）。 */
+/** 礼貌卡（进入后 3 s）：录音点 + 麦克风 + 录音告知 → 28 pt 礼貌语（按对方语言）。 */
 @Composable
 private fun PoliteCard(lang: String) {
     val c = SceneTheme.colors
@@ -322,7 +295,7 @@ private fun PoliteCard(lang: String) {
 
 /**
  * 字幕区（礼貌卡淡出后）：
- * - 头行：对方说话中 → 呼吸灯 + Listening…（灰字）；最新一句我说的有译文 → 对勾 + Received；译文未到 → 「…」灰胶囊；还没说 → 静止点 + Listening…
+ * - 头行：对方说话中 → 呼吸灯 + Listening…；最新一句我说的有译文 → 对勾 + Received；译文未到 → 「…」灰胶囊；还没说 → 静止点 + Listening…
  * - 正文：32 pt final（`lastMe.translation ?: lastMe.text`）；partial 到达（speaking 且非空）时灰字 20 pt 跟在后面，final 不消失。
  */
 @Composable
@@ -335,10 +308,7 @@ private fun Subtitles(ui: LiveUiState, lang: String) {
         when {
             ui.speaking || me == null -> ListeningRow(lang, active = ui.speaking)
             me.translation != null -> ReceivedRow(lang)
-            else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                SceneCapsule("…", tone = CapsuleTone.Gray)
-                if (me.mtDegraded && me.mtReason != null) SceneCapsule(me.mtReason, tone = CapsuleTone.Warning)
-            }
+            else -> SceneCapsule("…", tone = CapsuleTone.Gray)
         }
         // 大字区：短句从上排，长句可滚
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -358,7 +328,7 @@ private fun ListeningRow(lang: String, active: Boolean) {
     }
 }
 
-/** 「Received」头行：对勾 = 「已收到」，消解「听到了吗？」的反复确认（规格 §3.5）。 */
+/** 「Received」头行：对勾 = 「已收到」，消解「听到了吗？」的反复确认。 */
 @Composable
 private fun ReceivedRow(lang: String) {
     val c = SceneTheme.colors
@@ -385,7 +355,7 @@ private fun BreathDot(active: Boolean, size: Dp, halo: Boolean) {
     )
 }
 
-/** 对方半屏边缘的呼吸灯（规格 §3.5「半屏边缘有呼吸灯 = 我在听」）：说话中青绿 1 dp 描边 alpha 脉冲，Reduce Motion 静止；否则分隔线色。 */
+/** 对方半屏边缘的呼吸灯（「半屏边缘有呼吸灯 = 我在听」）：说话中青绿 1 dp 描边 alpha 脉冲，Reduce Motion 静止；否则分隔线色。 */
 @Composable
 private fun Modifier.breathingEdge(active: Boolean, radius: Dp): Modifier {
     val c = SceneTheme.colors
@@ -418,26 +388,20 @@ private fun recordingNotice(lang: String): String = when (lang.substringBefore('
     else -> "Recording · text only, no audio is kept"
 }
 
-/** 导航栏健康胶囊：与 M0 同一做法（翻译健康为主；语音异常时并入并缩短文案）。两页各自私有，待抽到共享处。 */
-private fun m1HealthCapsule(h: PipelineHealth, voiceOut: Boolean, live: Boolean): Pair<String, CapsuleTone> {
-    val (mt, tone) = when (h.mt) {
-        "ok" -> (if (live) "混合档 · 正常" else "混合档") to CapsuleTone.Tint
-        "slow" -> "云端慢" to CapsuleTone.Gray
-        "fallback" -> "已降级" to CapsuleTone.Warning
-        "unavailable" -> "无翻译" to CapsuleTone.Destructive
-        else -> h.mt to CapsuleTone.Gray
+/**
+ * 右上状态胶囊：一个词 + 颜色（docs/15 §2）。
+ * 进行中：无翻译 > 无语音 > 离线 > 已连接；未进行时显示会话状态词（准备中 / 已暂停 / 点一下继续 / 结束中）。
+ */
+private fun m1StatusCapsule(state: LiveState, h: PipelineHealth, voiceOut: Boolean): Pair<String, CapsuleTone> = when (state) {
+    LiveState.Idle -> "待机" to CapsuleTone.Gray
+    LiveState.Arming -> "准备中" to CapsuleTone.Gray
+    is LiveState.Paused -> "已暂停" to CapsuleTone.Gray
+    LiveState.NeedForeground -> "点一下继续" to CapsuleTone.Warning
+    LiveState.Ending -> "结束中" to CapsuleTone.Gray
+    is LiveState.Live, LiveState.Degraded -> when {
+        h.mt == "unavailable" -> "无翻译" to CapsuleTone.Destructive
+        voiceOut && (h.tts == "无" || h.tts == "失败") -> "无语音" to CapsuleTone.Warning
+        h.mt == "fallback" -> "离线" to CapsuleTone.Warning
+        else -> "已连接" to CapsuleTone.Tint
     }
-    val tts = when {
-        !voiceOut -> null
-        h.tts == "无" -> "无语音"
-        h.tts == "失败" -> "语音失败"
-        else -> null
-    }
-    return if (tts == null) mt to tone
-    else "${mt.substringAfterLast(" · ")} · $tts" to (if (tone == CapsuleTone.Tint) CapsuleTone.Warning else tone)
-}
-
-private fun m1StateLabel(s: LiveState): String = when (s) {
-    LiveState.Idle -> "待机"; LiveState.Arming -> "准备中"; is LiveState.Live -> "进行中"; is LiveState.Paused -> "已暂停"
-    LiveState.NeedForeground -> "需要前台"; LiveState.Degraded -> "降级"; LiveState.Ending -> "结束中"
 }

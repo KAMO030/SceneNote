@@ -3,6 +3,7 @@
 agp = "9.1.1"
 kotlin = "2.4.10"
 compose-multiplatform = "1.12.0"
+haze = "1.7.3"   # 玻璃模糊；1.7.3 对应 CMP 1.12.0 / Kotlin 2.3.20（2.0.0-rc 需 Kotlin 2.4.20，暂不用）
 android-compileSdk = "37"
 android-minSdk = "26"
 android-targetSdk = "37"
@@ -28,6 +29,8 @@ compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-mu
 compose-uiTooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "compose-multiplatform" }
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
+haze-materials = { module = "dev.chrisbanes.haze:haze-materials", version.ref = "haze" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
 androidx-lifecycle-runtimeCompose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }

@@ -1,6 +1,5 @@
 package dev.scenenote.core.designsystem
 
-import android.os.Build
 import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -20,5 +19,3 @@ actual fun rememberSystemAccessibilityPrefs(): AccessibilityPrefs {
         )
     }
 }
-
-actual fun platformSupportsBackdropBlur(): Boolean = Build.VERSION.SDK_INT >= 31
