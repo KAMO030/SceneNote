@@ -50,7 +50,8 @@ class RulesMinutesTest {
         assertEquals("rules", m.backend)
     }
     @Test fun markdownHasSections() {
-        val md = Markdown.minutes(MeetingMinutes("周会", topics = listOf("预算"), todos = listOf(TodoItem("交方案", "小王", "周三"))), dev.scenenote.core.db.SessionRow("s", dev.scenenote.core.db.SessionKind.RECORD, "meeting", null, 0, 1000, "zh-CN", null, null, "周会", null, null))
+        val labels = MarkdownLabels("议题", "结论", "待办", "承诺", "时间轴要点", "要点", "对话", "新词", "我", "对方", "（%1\$s）", "场记 · 本机整理", "场记 · 云端成稿", "场记", "数字对不上", "云端没成功")
+        val md = Markdown.minutes(MeetingMinutes("周会", topics = listOf("预算"), todos = listOf(TodoItem("交方案", "小王", "周三"))), dev.scenenote.core.db.SessionRow("s", dev.scenenote.core.db.SessionKind.RECORD, "meeting", null, 0, 1000, "zh-CN", null, null, "周会", null, null), labels)
         assertTrue(md.contains("# 周会")); assertTrue(md.contains("- [ ] 交方案 @小王（周三）"))
     }
 }

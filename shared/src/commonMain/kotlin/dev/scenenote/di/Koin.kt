@@ -90,7 +90,7 @@ val commonModule: Module = module {
     // I5：资料库 / 会议 / 慢路径 / 导出
     single { dev.scenenote.core.db.SessionRepository(get()) }
     single { dev.scenenote.polish.BailianLlm(get(), get(), get()) }
-    single { dev.scenenote.polish.SlowPath(get(), get()) }
+    single { dev.scenenote.polish.SlowPath(get(), get(), dev.scenenote.translate.FallbackTranslator(get<BailianMtTranslator>(), get<dev.scenenote.nmt.OnnxNmtTranslator>()), get()) }
     single { dev.scenenote.polish.Exports(get(), get<AppPaths>()) }
     single { dev.scenenote.meeting.MeetingRecorder(get<AudioFactory>(), get(), get(), get<AppPaths>(), get()) }
     viewModel { dev.scenenote.ui.meeting.MeetingViewModel(get(), get(), get()) }

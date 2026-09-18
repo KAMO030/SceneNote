@@ -23,5 +23,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 updateSlowPath:
 UPDATE utterance SET polished = ?, final_translation_json = ?, glossary_hits_json = ? WHERE id = ?;
 
+updateFinalTranslation:
+UPDATE utterance SET final_translation_json = ? WHERE id = ?;
+
 selectBySession:
 SELECT * FROM utterance WHERE session_id = ? ORDER BY capture_ts_ms;

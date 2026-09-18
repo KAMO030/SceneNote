@@ -58,7 +58,8 @@ class SessionRepository(private val db: SceneNoteDb) {
     suspend fun addUtterances(sessionId: String, lines: List<LiveLine>) = withContext(Dispatchers.Default) {
         db.transaction {
             for (l in lines) {
-                val fast = l.translation?.let { json.encodeToString(mapOf("text" to it, "targetLang" to l.tgtLang, "engine" to (l.mtEngine ?: ""))) }
+                // 没译出来也记下目标语言，慢路径回填时才知道往哪个方向译
+                val fast = json.encodeToString(mapOf("text" to l.translation.orEmpty(), "targetLang" to l.tgtLang, "engine" to (l.mtEngine ?: "")))
                 db.utterancesQueries.insertUtterance(l.id, sessionId, l.speaker.name, l.srcLang, l.text, fast, null, "{}", l.tts.name, "LOCAL_MIC", l.startMs, "[]")
             }
         }
@@ -94,11 +95,19 @@ class SessionRepository(private val db: SceneNoteDb) {
             Segment(s.id, s.start_ms, s.end_ms, s.lang, s.raw_text, s.text, s.confidence?.toFloat(), s.speaker, emptyList(), s.is_final, Source.valueOf(s.source), s.revision.toInt(), EngineInfo(s.engine_provider, s.engine_model, s.engine_version), s.pending_cloud)
         }
     }
+    /** 译文取定稿（慢路径回填）优先，没有再取快路径；空串按没有算。 */
     suspend fun utterances(sessionId: String): List<StoredUtterance> = withContext(Dispatchers.Default) {
         db.utterancesQueries.selectBySession(sessionId).executeAsList().map { u ->
             val fast = u.fast_translation_json?.let { runCatching { json.decodeFromString<Map<String, String>>(it) }.getOrNull() }
-            StoredUtterance(u.id, u.speaker, u.lang, u.raw, fast?.get("text"), fast?.get("targetLang"), u.polished, u.capture_ts_ms)
+            val final = runCatching { json.decodeFromString<Map<String, String>>(u.final_translation_json) }.getOrNull()
+            val text = final?.get("text")?.takeIf { it.isNotBlank() } ?: fast?.get("text")?.takeIf { it.isNotBlank() }
+            val target = (if (final?.get("text").isNullOrBlank()) fast?.get("targetLang") else final?.get("targetLang")) ?: fast?.get("targetLang")
+            StoredUtterance(u.id, u.speaker, u.lang, u.raw, text, target, u.polished, u.capture_ts_ms)
         }
+    }
+    /** 慢路径回填一条话语的定稿译文（不动快路径那份，也不改已经播过的内容）。 */
+    suspend fun setFinalTranslation(utteranceId: String, text: String, targetLang: String, engine: String) = withContext(Dispatchers.Default) {
+        db.utterancesQueries.updateFinalTranslation(json.encodeToString(mapOf("text" to text, "targetLang" to targetLang, "engine" to engine)), utteranceId)
     }
     suspend fun delete(id: String) = withContext(Dispatchers.Default) {
         db.transaction {   // 显式删子表（驱动未必开启外键级联）

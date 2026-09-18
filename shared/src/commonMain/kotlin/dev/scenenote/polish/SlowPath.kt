@@ -5,8 +5,14 @@ import dev.scenenote.core.db.SessionKind
 import dev.scenenote.core.db.SessionRepository
 import dev.scenenote.core.db.SessionRow
 import dev.scenenote.core.db.StoredUtterance
+import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.Segment
 import dev.scenenote.core.model.Style
+import dev.scenenote.core.settings.AppSettings
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.getString
+import dev.scenenote.translate.MtRequest
+import dev.scenenote.translate.Translator
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -127,8 +133,9 @@ object RulesMinutes {
 // ---------- 模板（S2 提示词）----------
 
 object Templates {
-    fun minutesSystem(style: Style) = """
+    fun minutesSystem(style: Style, outLang: String) = """
 你是会议纪要助手。只根据给定的转写整理，不添加转写中没有的事实；数字、日期、金额、人名一律照抄；不确定的写进 flags。
+纪要全部用$outLang 写：转写是别的语言也翻成$outLang，专有名词可在括号里保留原文。
 风格：${styleWord(style)}。输出 JSON：{"title":"...","topics":["..."],"conclusions":["..."],"todos":[{"text":"...","owner":"人名，没有就 null","due":"时间，没有就 null"}],"commitments":["谁承诺了什么"],"flags":["模型不确定的地方"]}
 转写里以 [要点] 开头的行是用户当场标记的重点，优先写进结论。
 """.trimIndent()
@@ -137,6 +144,11 @@ object Templates {
 {"title":"一句话概括这次对话","keyPoints":["最多 5 条要点，用我的语言"],"newWords":[{"term":"对方语言里我可能不熟的词","translation":"我的语言","lang":"$otherLang"}],"flags":[]}
 只用对话里出现的内容，不编造。
 """.trimIndent()
+    /** 提示词是中文写的，语言名也用中文（不跟界面语言走）。 */
+    fun langName(tag: String): String = when (tag) {
+        Lang.ZH_CN -> "普通话"; Lang.YUE_HK -> "粤语"; Lang.ZH_SICHUAN -> "四川话"; Lang.WUU -> "上海话"; Lang.NAN -> "闽南语"
+        Lang.EN -> "英语"; Lang.JA -> "日语"; Lang.KO -> "韩语"; else -> tag
+    }
     private fun styleWord(s: Style) = when (s) { Style.BUSINESS -> "商务、正式全称、条目化"; Style.FORMAL -> "正式"; Style.ACADEMIC -> "学术、保留术语"; Style.CASUAL -> "口语、简短"; else -> "中性、简洁" }
 }
 
@@ -149,7 +161,7 @@ data class SlowPathOutcome(val backend: String, val markdown: String, val json: 
  * 慢路径（02 篇 §2.4 S0–S4）：会话结束后整段一次性执行；有 Key 走云端 LLM（脱敏 → 模板 → 事实守恒），无 Key / 出错降到规则层。
  * 产物写入 session_note，永不改动已显示的原文；重跑追加新版本（换风格 / 换后端）。
  */
-class SlowPath(private val repo: SessionRepository, private val llm: BailianLlm?) {
+class SlowPath(private val repo: SessionRepository, private val llm: BailianLlm?, private val mt: Translator? = null, private val settings: AppSettings? = null) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false; encodeDefaults = true; isLenient = true; coerceInputValues = true }
     private val redactor = Redactor()
 
@@ -165,29 +177,31 @@ class SlowPath(private val repo: SessionRepository, private val llm: BailianLlm?
         if (llm != null && llm.available() && segments.isNotEmpty()) {
             try {
                 val red = redactor.redact(prompt)
-                val r = llm.complete(Templates.minutesSystem(style), red.text, session.id)
+                // 整理稿用设置里「我的语言」写（不跟会话的识别语言 / 字幕目标语言走），重新整理时按当时的设置
+                val r = llm.complete(Templates.minutesSystem(style, Templates.langName(settings?.myLang ?: session.myLang ?: Lang.ZH_CN)), red.text, session.id)
                 val parsed = parse<MeetingMinutes>(r.text)
                 val restored = restore(parsed, red.map)
                 val verdict = FactCheck.check(plain, restored.markdownBody(), style, summary = true)
-                if (!verdict.passed) flags += "有数字对不上原文，请核对"
+                if (!verdict.passed) flags += FLAG_NUMBERS
                 val backend = "cloud:bailian:${r.model}"
                 minutes = restored.copy(title = restored.title.ifBlank { title }, flags = restored.flags + flags, factCheckPassed = verdict.passed, backend = backend)
                 if (!verdict.passed || minutes.topics.isEmpty() && minutes.conclusions.isEmpty()) minutes = minutes.copy(timeline = RulesMinutes.minutes(segments, title, bookmarks).timeline)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (e: Exception) {
-                flags += "云端整理没成功，这次用本机整理"
+                flags += FLAG_CLOUD_FAILED
                 minutes = RulesMinutes.minutes(segments, title, bookmarks).copy(flags = flags)
             }
         } else minutes = RulesMinutes.minutes(segments, title, bookmarks)
-        val md = Markdown.minutes(minutes, session)
+        val md = Markdown.minutes(minutes, session, MarkdownLabels.load())
         val js = json.encodeToString(minutes)
         if (segments.isNotEmpty()) repo.saveNote(session.id, "minutes", minutes.backend, style.name, js, md)   // 空内容不缓存
         return SlowPathOutcome(minutes.backend, md, js, minutes.flags, minutes.factCheckPassed)
     }
 
     suspend fun card(session: SessionRow, force: Boolean = false): SlowPathOutcome {
+        // 先把实时那会儿没译出来的句子补上（02 篇 §2.2：会话结束后整段再译一遍，只补字段不改已播内容），再决定用不用缓存
+        val utts = backfillTranslations(session, repo.utterances(session.id))
         if (!force) repo.note(session.id, "card")?.let { return SlowPathOutcome(it.backend, it.markdown, it.json, emptyList(), true) }
-        val utts = repo.utterances(session.id)
         val title = session.title ?: defaultTitle(session)
         var card: ConversationCard
         if (llm != null && llm.available() && utts.isNotEmpty()) {
@@ -199,13 +213,36 @@ class SlowPath(private val repo: SessionRepository, private val llm: BailianLlm?
                 card = parsed.copy(title = redactor.restore(parsed.title.ifBlank { title }, red.map), keyPoints = parsed.keyPoints.map { redactor.restore(it, red.map) },
                     newWords = parsed.newWords.map { it.copy(term = redactor.restore(it.term, red.map), translation = redactor.restore(it.translation, red.map)) }, backend = "cloud:bailian:${r.model}")
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { card = RulesMinutes.card(utts, title).copy(flags = listOf("云端整理没成功，这次用本机整理")) }
+            catch (e: Exception) { card = RulesMinutes.card(utts, title).copy(flags = listOf(FLAG_CLOUD_FAILED)) }
         } else card = RulesMinutes.card(utts, title)
         repo.saveCandidates(session.id, card.newWords.filter { it.term.isNotBlank() }.map { GlossaryCandidate(it.term, it.translation, it.lang, "pending") })
-        val md = Markdown.card(card, utts, session)
+        val md = Markdown.card(card, utts, session, MarkdownLabels.load())
         val js = json.encodeToString(card)
         if (utts.isNotEmpty()) repo.saveNote(session.id, "card", card.backend, "", js, md)
         return SlowPathOutcome(card.backend, md, js, card.flags, true)
+    }
+
+    /**
+     * 回填缺译文的话语：目标语言取落库时记的 targetLang，没有就按说话人推（我 → 对方语言，对方 → 我的语言）。
+     * 逐句走 [mt]（经出站闸门：隐私档不允许或没 Key 就整体跳过）；单句失败不影响其他句。
+     */
+    private suspend fun backfillTranslations(session: SessionRow, utts: List<StoredUtterance>): List<StoredUtterance> {
+        val t = mt ?: return utts
+        val missing = utts.filter { it.translation.isNullOrBlank() && it.raw.isNotBlank() }
+        if (missing.isEmpty()) return utts
+        val filled = mutableMapOf<String, StoredUtterance>()
+        for (u in missing) {
+            val tgt = u.targetLang?.takeIf { it.isNotBlank() } ?: (if (u.speaker == "ME") session.otherLang else session.myLang) ?: continue
+            if (tgt == u.lang || !t.supports(u.lang, tgt)) continue
+            try {
+                val r = t.translate(MtRequest(text = u.raw, src = u.lang, tgt = tgt, segmentId = u.id, sessionId = session.id))
+                if (r.text.isBlank()) continue
+                repo.setFinalTranslation(u.id, r.text, tgt, "${r.providerId}:${r.model}")
+                filled[u.id] = u.copy(translation = r.text, targetLang = tgt)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { dev.scenenote.core.Diag.log("slow", "backfill ${u.id} failed: ${e.message}"); if (e is dev.scenenote.translate.MtFailed && !e.retryable) break }
+        }
+        return if (filled.isEmpty()) utts else utts.map { filled[it.id] ?: it }
     }
 
     private inline fun <reified T> parse(text: String): T {
@@ -218,31 +255,55 @@ class SlowPath(private val repo: SessionRepository, private val llm: BailianLlm?
         todos = m.todos.map { it.copy(text = redactor.restore(it.text, map)) }, commitments = m.commitments.map { redactor.restore(it, map) },
     )
     private fun MeetingMinutes.markdownBody() = (topics + conclusions + todos.map { it.text } + commitments).joinToString("\n")
-    private fun defaultTitle(s: SessionRow) = when (s.kind) { SessionKind.RECORD -> "会议"; SessionKind.LIVE -> "对话"; SessionKind.SCREEN -> "字幕" }
+    private suspend fun defaultTitle(s: SessionRow) = getString(when (s.kind) { SessionKind.RECORD -> Res.string.scene_meeting; SessionKind.LIVE -> Res.string.library_kind_talk; SessionKind.SCREEN -> Res.string.library_kind_subtitles })
 
     companion object {
         fun mmss(ms: Long): String { val s = ms / 1000; return "${(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}" }
+        /** 我们自己加的 flag 用代码，UI / Markdown 再按界面语言取文案；模型给的 flag 是自由文本，原样显示。 */
+        const val FLAG_NUMBERS = "fact:numbers"
+        const val FLAG_CLOUD_FAILED = "cloud:failed"
+        fun isCloudFailedFlag(f: String) = f == FLAG_CLOUD_FAILED || f.startsWith("云端")   // 旧缓存里是中文句子
+    }
+}
+
+/** Markdown 里的固定文案（按界面语言取一次，纯函数渲染便于测试）。 */
+data class MarkdownLabels(
+    val topics: String, val conclusions: String, val todos: String, val commitments: String, val timeline: String,
+    val keyPoints: String, val conversation: String, val newWords: String, val me: String, val other: String,
+    /** 待办期限的括注，含 %1$s。 */ val todoDue: String,
+    val footerLocal: String, val footerCloud: String, val footerCard: String,
+    val flagNumbers: String, val flagCloudFailed: String,
+) {
+    fun flag(f: String): String = when (f) { SlowPath.FLAG_NUMBERS -> flagNumbers; SlowPath.FLAG_CLOUD_FAILED -> flagCloudFailed; else -> f }
+    companion object {
+        suspend fun load() = MarkdownLabels(
+            topics = getString(Res.string.md_topics), conclusions = getString(Res.string.md_conclusions), todos = getString(Res.string.md_todos),
+            commitments = getString(Res.string.md_commitments), timeline = getString(Res.string.md_timeline), keyPoints = getString(Res.string.note_key_points),
+            conversation = getString(Res.string.md_conversation), newWords = getString(Res.string.md_new_words), me = getString(Res.string.common_me), other = getString(Res.string.common_other),
+            todoDue = getString(Res.string.md_todo_due, "%1\$s"), footerLocal = getString(Res.string.md_footer_minutes_local), footerCloud = getString(Res.string.md_footer_minutes_cloud),
+            footerCard = getString(Res.string.md_footer_card), flagNumbers = getString(Res.string.note_flag_numbers), flagCloudFailed = getString(Res.string.note_flag_cloud_failed),
+        )
     }
 }
 
 /** 产物 Markdown（分享 / 导出用）。 */
 object Markdown {
-    fun minutes(m: MeetingMinutes, s: SessionRow): String = buildString {
+    fun minutes(m: MeetingMinutes, s: SessionRow, l: MarkdownLabels): String = buildString {
         appendLine("# ${m.title}"); appendLine()
-        if (m.topics.isNotEmpty()) { appendLine("## 议题"); m.topics.forEach { appendLine("- $it") }; appendLine() }
-        if (m.conclusions.isNotEmpty()) { appendLine("## 结论"); m.conclusions.forEach { appendLine("- $it") }; appendLine() }
-        if (m.todos.isNotEmpty()) { appendLine("## 待办"); m.todos.forEach { appendLine("- [ ] ${it.text}${it.owner?.let { o -> " @$o" } ?: ""}${it.due?.let { d -> "（$d）" } ?: ""}") }; appendLine() }
-        if (m.commitments.isNotEmpty()) { appendLine("## 承诺"); m.commitments.forEach { appendLine("- $it") }; appendLine() }
-        if (m.timeline.isNotEmpty()) { appendLine("## 时间轴要点"); m.timeline.forEach { appendLine("- ${SlowPath.mmss(it.atMs)} ${it.text}${if (it.highlights.isNotEmpty()) "  ·  " + it.highlights.joinToString(" ") else ""}") }; appendLine() }
-        if (m.flags.isNotEmpty()) { appendLine("> " + m.flags.joinToString("；")); appendLine() }
-        appendLine("---"); appendLine("场记 · ${if (m.backend == "rules") "本机整理" else "云端成稿"} · 录音不出手机")
+        if (m.topics.isNotEmpty()) { appendLine("## ${l.topics}"); m.topics.forEach { appendLine("- $it") }; appendLine() }
+        if (m.conclusions.isNotEmpty()) { appendLine("## ${l.conclusions}"); m.conclusions.forEach { appendLine("- $it") }; appendLine() }
+        if (m.todos.isNotEmpty()) { appendLine("## ${l.todos}"); m.todos.forEach { appendLine("- [ ] ${it.text}${it.owner?.let { o -> " @$o" } ?: ""}${it.due?.let { d -> l.todoDue.replace("%1\$s", d) } ?: ""}") }; appendLine() }
+        if (m.commitments.isNotEmpty()) { appendLine("## ${l.commitments}"); m.commitments.forEach { appendLine("- $it") }; appendLine() }
+        if (m.timeline.isNotEmpty()) { appendLine("## ${l.timeline}"); m.timeline.forEach { appendLine("- ${SlowPath.mmss(it.atMs)} ${it.text}${if (it.highlights.isNotEmpty()) "  ·  " + it.highlights.joinToString(" ") else ""}") }; appendLine() }
+        if (m.flags.isNotEmpty()) { appendLine("> " + m.flags.joinToString("; ") { l.flag(it) }); appendLine() }
+        appendLine("---"); appendLine(if (m.backend == "rules") l.footerLocal else l.footerCloud)
     }
-    fun card(c: ConversationCard, utts: List<StoredUtterance>, s: SessionRow): String = buildString {
+    fun card(c: ConversationCard, utts: List<StoredUtterance>, s: SessionRow, l: MarkdownLabels): String = buildString {
         appendLine("# ${c.title}"); appendLine()
-        if (c.keyPoints.isNotEmpty()) { appendLine("## 要点"); c.keyPoints.forEach { appendLine("- $it") }; appendLine() }
-        appendLine("## 对话"); utts.forEach { appendLine("- ${if (it.speaker == "ME") "我" else "对方"}：${it.raw}${it.translation?.let { t -> "\n  > $t" } ?: ""}") }; appendLine()
-        if (c.newWords.isNotEmpty()) { appendLine("## 新词"); c.newWords.forEach { appendLine("- ${it.term} → ${it.translation}") }; appendLine() }
-        appendLine("---"); appendLine("场记 · 对方的声音没有保存")
+        if (c.keyPoints.isNotEmpty()) { appendLine("## ${l.keyPoints}"); c.keyPoints.forEach { appendLine("- $it") }; appendLine() }
+        appendLine("## ${l.conversation}"); utts.forEach { appendLine("- ${if (it.speaker == "ME") l.me else l.other}: ${it.raw}${it.translation?.let { t -> "\n  > $t" } ?: ""}") }; appendLine()
+        if (c.newWords.isNotEmpty()) { appendLine("## ${l.newWords}"); c.newWords.forEach { appendLine("- ${it.term} → ${it.translation}") }; appendLine() }
+        appendLine("---"); appendLine(l.footerCard)
     }
     fun transcript(segments: List<Segment>): String = segments.joinToString("\n") { "[${SlowPath.mmss(it.startMs)}] ${it.text}" }
 }
