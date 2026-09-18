@@ -95,7 +95,7 @@ val commonModule: Module = module {
     single { dev.scenenote.meeting.MeetingRecorder(get<AudioFactory>(), get(), get(), get<AppPaths>(), get()) }
     viewModel { dev.scenenote.ui.meeting.MeetingViewModel(get(), get(), get()) }
     viewModel { dev.scenenote.ui.note.NoteViewModel(get(), get(), get(), get(), get(), get()) }
-    viewModel { dev.scenenote.ui.library.LibraryViewModel(get()) }
+    viewModel { dev.scenenote.ui.library.LibraryViewModel(get(), get<AppPaths>()) }
     // I6：屏内字幕
     single { dev.scenenote.screen.SubtitleJob(get(), get(), get(), get(), get<AppPaths>(), get(), get()) }
     viewModel { dev.scenenote.ui.screen.ScreenViewModel(get(), get(), get(), get(), get(), get(), get()) }
