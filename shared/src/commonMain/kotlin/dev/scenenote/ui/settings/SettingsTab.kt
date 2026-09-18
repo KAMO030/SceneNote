@@ -140,7 +140,7 @@ fun SettingsTab(onOpenModels: () -> Unit, onOpenSelfTest: () -> Unit, onOpenGall
     val walletState = remember { mutableStateOf(openKeyOnEnter) }   // 新手引导「去填 Key」直接打开 sheet
     var wallet by walletState
     var keyHint by remember { mutableStateOf(!settings.hintSeen(HINT_KEY)) }
-    // 界面语言：Android 设完立即重建生效；iOS 下次启动生效，弹一次说明
+    // 界面语言：两端都是设完就地换（AppLocale.set 里 bump 一次重组）；哪天有平台做不到就靠 appliesImmediately 弹说明
     val appLocale = koinInject<AppLocale>()
     var uiLang by remember { mutableStateOf(appLocale.override) }
     var restartNotice by remember { mutableStateOf(false) }

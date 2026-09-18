@@ -7,7 +7,7 @@ docs/介绍页/
   index.html        页面本体，双击即可打开（字体从 Google Fonts 加载，离线时回退系统字体）
   i18n.js           英 / 日 / 韩译文（中文底稿写在 index.html 里）；页面按浏览器语言自动选，右上角可切换，也可用 ?lang=en|ja|ko|zh 指定
   img/*.png         13 张截图（除 live.png 是 vivo 外均为 iPhone 17 Pro 模拟器，高 1200）
-  video/demo.mp4    演示视频（100 s，588×1278，H.264；面对面 / 速译 / 视频字幕 / 会议纪要 / 主题色 / 界面语言，录制方法见 演示脚本.md）
+  video/demo.mp4    演示视频（106 s，588×1278，H.264；面对面 / 速译 / 视频字幕 / 会议纪要 / 主题色 / 界面语言，录制方法见 演示脚本.md）
   video/poster.jpg  演示视频封面
 ```
 
