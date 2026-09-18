@@ -115,6 +115,8 @@
     <string name="settings_mt_speed">균형</string>
     <string name="settings_mt_quality">품질</string>
     <string name="settings_mt_fastest">최고 속도</string>
+    <string name="settings_mt_local">기기 내</string>
+    <string name="settings_mt_local_footer">기기 내 번역에는 이 언어의 번역 팩이 필요합니다. 음성 팩에서 받으세요</string>
     <string name="settings_glyph_mt">T</string>
     <string name="settings_key_hint">더 정확한 번역과 더 많은 언어가 필요하면 위 행을 눌러 3단계로 연결</string>
     <string name="settings_net_header">인터넷 접근</string>

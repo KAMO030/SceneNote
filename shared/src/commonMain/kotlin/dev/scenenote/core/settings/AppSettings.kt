@@ -57,6 +57,14 @@ class AppSettings(private val settings: Settings) {
         get() = settings.getString(KEY_MT_MODEL, "qwen-mt-flash")
         set(v) = settings.putString(KEY_MT_MODEL, v)
 
+    /**
+     * 翻译只走端侧（设置 → 翻译模型 → 本机）：连着云端也不出网，密钥留在原处，换回任一云端档即恢复。
+     * 判定落在 [dev.scenenote.translate.BailianMtTranslator.supports]，快路径 / 屏内字幕 / 慢路径都按它选路。
+     */
+    var mtLocalOnly: Boolean
+        get() = settings.getBoolean(KEY_MT_LOCAL_ONLY, false)
+        set(v) = settings.putBoolean(KEY_MT_LOCAL_ONLY, v)
+
     /** M0 → M1 姿态自动进入（03 篇 §3.3；待决策：默认自动）。 */
     var autoPosture: Boolean
         get() = settings.getBoolean(KEY_AUTO_POSTURE, true)
@@ -97,6 +105,7 @@ class AppSettings(private val settings: Settings) {
         const val KEY_ONBOARDING = "onboarding_done"
         const val KEY_TTS_PREF = "tts_pref"
         const val KEY_MT_MODEL = "mt_model"
+        const val KEY_MT_LOCAL_ONLY = "mt_local_only"
         const val KEY_LLM_MODEL = "llm_model"
         const val KEY_AUTO_POSTURE = "auto_posture"
         const val KEY_DIRECTION_AUTO = "direction_auto"

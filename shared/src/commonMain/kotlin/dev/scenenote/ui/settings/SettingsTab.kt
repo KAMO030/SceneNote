@@ -118,12 +118,21 @@ private fun ttsLabel(p: TtsPreference): String = stringResource(when (p) {
     TtsPreference.OFF -> Res.string.settings_tts_off
 })
 
-/** 翻译模型三档（用户只看到中文档名，不看模型名与价格）：速度 = qwen-mt-flash（默认）/ 质量 = qwen-mt-plus / 最快 = qwen-mt-lite。 */
-private data class MtTier(val label: StringResource, val model: String)
+/**
+ * 翻译四档（用户只看到档名，不看模型名与价格）：速度 = qwen-mt-flash（默认）/ 质量 = qwen-mt-plus / 最快 = qwen-mt-lite；
+ * 本机 = [model] 为 null，只走端侧 NMT，连着云端也不出网，密钥留在原处，换回任一云端档即恢复。
+ */
+private data class MtTier(val label: StringResource, val model: String?)
 
-private val MT_TIERS = listOf(MtTier(Res.string.settings_mt_speed, "qwen-mt-flash"), MtTier(Res.string.settings_mt_quality, "qwen-mt-plus"), MtTier(Res.string.settings_mt_fastest, "qwen-mt-lite"))
+private val MT_TIERS = listOf(
+    MtTier(Res.string.settings_mt_speed, "qwen-mt-flash"),
+    MtTier(Res.string.settings_mt_quality, "qwen-mt-plus"),
+    MtTier(Res.string.settings_mt_fastest, "qwen-mt-lite"),
+    MtTier(Res.string.settings_mt_local, null),
+)
 
-private fun mtTierOf(model: String): MtTier = MT_TIERS.firstOrNull { it.model == model } ?: MT_TIERS.first()
+private fun mtTierOf(model: String, localOnly: Boolean): MtTier =
+    if (localOnly) MT_TIERS.last() else MT_TIERS.firstOrNull { it.model == model } ?: MT_TIERS.first()
 
 /**
  * 设置 Tab：inset grouped 分组列表 + 翻译 Key sheet。
@@ -177,13 +186,16 @@ fun SettingsTab(onOpenModels: () -> Unit, onOpenSelfTest: () -> Unit, onOpenGall
                         leading = { SceneRowIcon(SceneIcons.Key, c.tint) }, onClick = ::openWallet,
                     )
                     SceneDivider(inset = 57.dp)
+                    val mtTier = mtTierOf(ui.mtModel, ui.mtLocalOnly)
                     SceneRow(
-                        stringResource(Res.string.settings_mt_model), value = stringResource(mtTierOf(ui.mtModel).label), chevron = true,
+                        stringResource(Res.string.settings_mt_model), value = stringResource(mtTier.label), chevron = true,
                         leading = { RowGlyph(stringResource(Res.string.settings_glyph_mt), RowIconColor.Indigo) }, onClick = { toggle("mt") },
                     )
-                    InlineOptions(expanded == "mt", MT_TIERS, mtTierOf(ui.mtModel), label = { stringResource(it.label) }) { vm.setMtModel(it.model); expanded = null }
+                    InlineOptions(expanded == "mt", MT_TIERS, mtTier, label = { stringResource(it.label) }) { vm.setMtTier(it.model); expanded = null }
                 }
-                if (!configured && keyHint) SceneSectionFooter(stringResource(Res.string.settings_key_hint))
+                // 一组只留一个页脚（docs/15）：选了本机却还缺翻译包最要紧，其次才是还没连云端的引导
+                if (ui.mtLocalOnly && !ui.mtLocalReady) SceneSectionFooter(stringResource(Res.string.settings_mt_local_footer))
+                else if (!configured && keyHint) SceneSectionFooter(stringResource(Res.string.settings_key_hint))
             }
 
             // ---- 联网权限 ----

@@ -115,6 +115,8 @@
     <string name="settings_mt_speed">Balanced</string>
     <string name="settings_mt_quality">Quality</string>
     <string name="settings_mt_fastest">Fastest</string>
+    <string name="settings_mt_local">On-device</string>
+    <string name="settings_mt_local_footer">On-device translation needs this language pair’s translation pack — get it under Speech packs</string>
     <string name="settings_glyph_mt">T</string>
     <string name="settings_key_hint">Want better translation and more languages? Tap the row above — three steps</string>
     <string name="settings_net_header">Internet access</string>

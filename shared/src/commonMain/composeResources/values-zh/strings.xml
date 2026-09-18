@@ -115,6 +115,8 @@
     <string name="settings_mt_speed">速度</string>
     <string name="settings_mt_quality">质量</string>
     <string name="settings_mt_fastest">最快</string>
+    <string name="settings_mt_local">本机</string>
+    <string name="settings_mt_local_footer">本机翻译要用对应语言的翻译包，去语音包里下载</string>
     <string name="settings_glyph_mt">文</string>
     <string name="settings_key_hint">想要更准的翻译、更多语言？点上面一行，三步连上</string>
     <string name="settings_net_header">联网权限</string>

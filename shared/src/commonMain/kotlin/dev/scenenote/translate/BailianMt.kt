@@ -73,7 +73,11 @@ class BailianMtTranslator(
     val model: String get() = settings.mtModel
     fun hasKey(): Boolean = wallet.hasKey(provider.id)
 
-    override fun supports(src: String, tgt: String): Boolean = hasKey() && src != tgt
+    /**
+     * 翻译档切到「本机」就当云端不存在：FastTranslator 与 FallbackTranslator 都按 supports 选路，
+     * 于是快路径、屏内字幕、慢路径一起落到端侧 NMT。设置页的「测试连接」直连 [translate]，不受这里影响。
+     */
+    override fun supports(src: String, tgt: String): Boolean = hasKey() && !settings.mtLocalOnly && src != tgt
 
     override suspend fun translate(req: MtRequest): MtResult {
         val key = wallet.key(provider.id) ?: throw MtFailed("Bailian API key not set", retryable = false)

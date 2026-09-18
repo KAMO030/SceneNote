@@ -115,6 +115,8 @@
     <string name="settings_mt_speed">バランス</string>
     <string name="settings_mt_quality">品質</string>
     <string name="settings_mt_fastest">最速</string>
+    <string name="settings_mt_local">端末内</string>
+    <string name="settings_mt_local_footer">端末内翻訳にはこの言語の翻訳パックが必要です。音声パックから入手してください</string>
     <string name="settings_glyph_mt">文</string>
     <string name="settings_key_hint">もっと正確な翻訳と多言語は？上の行をタップ、3 ステップで接続</string>
     <string name="settings_net_header">ネット接続</string>

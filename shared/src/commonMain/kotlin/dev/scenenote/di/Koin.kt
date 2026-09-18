@@ -109,7 +109,7 @@ val commonModule: Module = module {
     single { dev.scenenote.screen.SystemCaption(get(), get(), get(), get()) }
     viewModel { dev.scenenote.ui.screen.SystemCaptionViewModel(get(), get()) }
     viewModel { ModelsViewModel(get()) }
-    viewModel { SettingsViewModel(get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get()) }
     viewModel { AudioSelfTestViewModel(get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get(), get()) }
 }
 
