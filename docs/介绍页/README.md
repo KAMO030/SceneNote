@@ -15,7 +15,10 @@ docs/介绍页/
 
 - 中文直接改 `index.html` 里带 `data-i18n="键名"` 的元素；其它语言改 `i18n.js` 里同名的键（图片 alt 用 `alt:` 前缀，aria-label 用 `aria:` 前缀，记记酱台词在 `lines`）。
 - 新增一段文字时，给元素加 `data-i18n` 并在 `i18n.js` 三种语言里都补上；漏掉的键会回退显示中文。
-- 记记酱是 `<symbol id="jiji">`（猫耳 + 圆框眼镜 + 异色瞳 + 天蓝开衫），表情用 CSS 变量切换：`--eo/--eh/--ew` 睁眼 / 眯眼笑 / 眨眼，`--mw/--mo` ω 嘴 / 张嘴，`--note` 音符。小头像用 `viewBox="56 40 208 208"` 裁到脸部。
+- 记记酱是 `<symbol id="jiji" viewBox="0 0 640 800">`（猫耳 + 黑框眼镜 + 异色瞳 + 落肩天蓝开衫，Q 版站姿）。
+  **`JIJI:BEGIN` / `JIJI:END` 之间的内容由 `scripts/brand/jiji_logo.py` 生成，不要手改**——改造型改那个脚本再重跑，桌面图标、开屏和这里会一起变（见 `docs/品牌/README.md`）。
+  表情用 CSS 变量切换：`--eo/--eh/--ew` 睁眼 / 眯眼笑 / 眨眼，`--mw/--mo` ω 嘴 / 张嘴，`--note` 音符；`.ear` `.tail` `.eyes` `.iris` 四个 class 挂着抖耳、摇尾、眨眼、眼珠跟指针的动画。
+  小头像用 `viewBox="120 56 400 400"` + `<use href="#jiji" width="640" height="800"/>` 裁到脸部。
 
 ## 更换演示视频
 

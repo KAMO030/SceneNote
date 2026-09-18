@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 冷启动窗口的系统栏图标：浅底配深色图标。Compose 起来以后由 enableEdgeToEdge() 接管 -->
+    <bool name="brand_light_system_bars">true</bool>
+</resources>

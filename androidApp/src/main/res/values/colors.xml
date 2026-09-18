@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 开屏底色：取品牌渐变（docs/品牌/应用图标-浅色.svg）的中段，Compose 开屏首帧同色，衔接不跳 -->
-    <color name="brand_splash">#FBB3DA</color>
+    <!-- 开屏底色 = App 的页面底色（core/designsystem/Palette.kt 的 LightGroupedBackground）。
+         系统开屏 → Compose 开屏 → 首页三段同一支色，不换底；scripts/brand/jiji_logo.py 会核对它和 iOS 的 LaunchBackground 是否一致 -->
+    <color name="brand_splash">#F2F2F7</color>
 </resources>

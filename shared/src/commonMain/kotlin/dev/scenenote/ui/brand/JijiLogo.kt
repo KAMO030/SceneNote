@@ -57,12 +57,12 @@ fun JijiLogo(
     }
 }
 
-// 动效支点，都在 512 坐标系里：耳根、两只眼心、呆毛根
-private val EAR_L = Offset(176f, 204f)
-private val EAR_R = Offset(336f, 204f)
-private val EYE_L = Offset(195f, 320f)
-private val EYE_R = Offset(317f, 320f)
-private val AHOGE_ROOT = Offset(262f, 80f)
+// 动效支点跟着造型走，和 path 一起由 scripts/brand/jiji_logo.py 生成（512 坐标系）：耳根、两只眼心、呆毛根
+private val EAR_L = JijiArt.pivots.getValue("earL")
+private val EAR_R = JijiArt.pivots.getValue("earR")
+private val EYE_L = JijiArt.pivots.getValue("eyeL")
+private val EYE_R = JijiArt.pivots.getValue("eyeR")
+private val AHOGE_ROOT = JijiArt.pivots.getValue("ahoge")
 
 /** 解析好的一条形状：path 与 brush 都在 512 坐标系里，进程内解析一次。 */
 private class Ready(
