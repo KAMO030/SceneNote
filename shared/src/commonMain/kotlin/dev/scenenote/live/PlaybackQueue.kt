@@ -1,6 +1,7 @@
 package dev.scenenote.live
 
 import dev.scenenote.audio.AudioSink
+import dev.scenenote.core.Diag
 import dev.scenenote.tts.TtsEngine
 import dev.scenenote.tts.TtsRequest
 import dev.scenenote.tts.TtsStats
@@ -59,6 +60,7 @@ class PlaybackQueue(private val sink: AudioSink, private val scope: CoroutineSco
 
     private suspend fun playOne(item: Item) {
         val id = item.req.utteranceId
+        val backlog = _pending.value
         try {
             if (primedIdle) { sink.prime(); primedIdle = false }
             var first = true
@@ -70,15 +72,27 @@ class PlaybackQueue(private val sink: AudioSink, private val scope: CoroutineSco
                 sink.play(chunk)
                 item.generation == generation
             }
-            if (first) _events.tryEmit(PlaybackEvent.Skipped(id, "empty"))
-            else _events.tryEmit(PlaybackEvent.Done(id, stats))
+            if (first) { Diag.log("tts", "empty utt=${id.take(8)} engine=${item.engine.id}"); _events.tryEmit(PlaybackEvent.Skipped(id, "empty")) }
+            else { logPlayed(id, stats, backlog); _events.tryEmit(PlaybackEvent.Done(id, stats)) }
         } catch (e: CancellationException) {
+            Diag.log("tts", "cancelled utt=${id.take(8)} backlog=$backlog")
             _events.tryEmit(PlaybackEvent.Skipped(id, "cancelled")); throw e
         } catch (t: Throwable) {
+            Diag.log("tts", "FAILED utt=${id.take(8)} engine=${item.engine.id}: ${t.message}")
             _events.tryEmit(PlaybackEvent.Failed(id, t.message ?: t.toString()))
         } finally {
             if (_playing.value == id) _playing.value = null
         }
+    }
+
+    /**
+     * 每句一行：首音延迟 / 合成 + 播放总耗时 / 这句音频本身多长 / 进队时还排着几句。
+     * `first` 大而 `audio` 不长，或 `backlog` 一路往上涨 → 合成追不上说话；这时队列串行等的是算力，
+     * 不是播放通道——采集与播放是两条独立的路（Android MODE_NORMAL 的 MIC + MEDIA，iOS playAndRecord），本来就能同时跑。
+     */
+    private fun logPlayed(id: String, stats: TtsStats, backlog: Int) {
+        val audioMs = if (stats.sampleRate > 0) stats.samples * 1000L / stats.sampleRate else 0L
+        Diag.log("tts", "played utt=${id.take(8)} engine=${stats.engineId} first=${stats.firstChunkMs}ms total=${stats.totalMs}ms audio=${audioMs}ms backlog=$backlog→${_pending.value}")
     }
 
     /** 丢弃未播的并停掉正在播的；下一句会重新 prime。 */
