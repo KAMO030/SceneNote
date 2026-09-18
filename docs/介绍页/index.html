@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>场记 SceneNote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=M+PLUS+Rounded+1c:wght@500;700;900&family=Nunito:wght@400;600;700;900&family=Jua&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --font-display:"ZCOOL KuaiLe","M PLUS Rounded 1c","Noto Sans SC",sans-serif; --fw-display:400;
+    --font-body:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    --font-round:"M PLUS Rounded 1c","ZCOOL KuaiLe","Noto Sans SC",sans-serif;
+    --sky1:#CDEBFF; --sky2:#FFE3EE; --cloud:#FFFFFF; --cloud-shade:#DCEBFF; --ray:rgba(255,255,255,.55);
+    --bg:#FFF7F4; --card:#FFFFFF; --card2:#FFF9FC;
+    --ink:#2F2A4A; --ink2:#6E6A8A; --line:#2F2A4A; --line-soft:#E9DDE8;
+    --pink:#FF8FB8; --pink-deep:#E8467F; --pink-soft:#FFE0EC; --on-pink:#FFFFFF;
+    --mint:#7ADCD8; --mint-deep:#178C8A; --mint-soft:#DDF6F4;
+    --lav:#C2B0FF; --lav-deep:#6B47C9; --lav-soft:#EDE6FF;
+    --lemon:#FFE27A; --on-lemon:#6B4A00; --sakura:#FFC2D8;
+    --tone:rgba(232,70,127,.32); --stripe:rgba(232,70,127,.10);
+    --frame:#FFFFFF; --shadow:0 22px 44px -20px rgba(232,70,127,.35);
+    --sec-pink:rgba(255,224,236,.7); --sec-mint:rgba(221,246,244,.7); --sec-lav:rgba(237,230,255,.7); --sec-card:rgba(255,249,252,.8);
+    --star:#FFD86B; --petal:#FFB3D1; --moon:transparent;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --sky1:#121036; --sky2:#3B2264; --cloud:#3A3268; --cloud-shade:#2A2450; --ray:rgba(199,178,255,.18);
+      --bg:#1A1735; --card:#272352; --card2:#2D2858;
+      --ink:#F4EFFB; --ink2:#B7B0CC; --line:#CDBFF6; --line-soft:#3F3866;
+      --pink:#FF9CC3; --pink-deep:#FF8FBE; --pink-soft:#4A2A4A; --on-pink:#3B1230;
+      --mint:#7EE3E0; --mint-deep:#8FE6EC; --mint-soft:#1F3F4B;
+      --lav:#C7B2FF; --lav-deep:#C7B2FF; --lav-soft:#352C60;
+      --lemon:#FFE38F; --on-lemon:#4A3200; --sakura:#8A5C8C;
+      --tone:rgba(199,178,255,.22); --stripe:rgba(199,178,255,.08);
+      --frame:#3A3160; --shadow:0 22px 44px -18px rgba(0,0,0,.7);
+      --sec-pink:rgba(74,42,74,.7); --sec-mint:rgba(31,63,75,.7); --sec-lav:rgba(53,44,96,.7); --sec-card:rgba(45,40,88,.8);
+      --star:#FFE38F; --petal:#C7B2FF; --moon:#FFF1C2;
+    }
+  }
+  :root[data-theme="dark"]{
+    --sky1:#121036; --sky2:#3B2264; --cloud:#3A3268; --cloud-shade:#2A2450; --ray:rgba(199,178,255,.18);
+    --bg:#1A1735; --card:#272352; --card2:#2D2858;
+    --ink:#F4EFFB; --ink2:#B7B0CC; --line:#CDBFF6; --line-soft:#3F3866;
+    --pink:#FF9CC3; --pink-deep:#FF8FBE; --pink-soft:#4A2A4A; --on-pink:#3B1230;
+    --mint:#7EE3E0; --mint-deep:#8FE6EC; --mint-soft:#1F3F4B;
+    --lav:#C7B2FF; --lav-deep:#C7B2FF; --lav-soft:#352C60;
+    --lemon:#FFE38F; --on-lemon:#4A3200; --sakura:#8A5C8C;
+    --tone:rgba(199,178,255,.22); --stripe:rgba(199,178,255,.08);
+    --frame:#3A3160; --shadow:0 22px 44px -18px rgba(0,0,0,.7);
+    --sec-pink:rgba(74,42,74,.7); --sec-mint:rgba(31,63,75,.7); --sec-lav:rgba(53,44,96,.7); --sec-card:rgba(45,40,88,.8);
+    --star:#FFE38F; --petal:#C7B2FF; --moon:#FFF1C2;
+  }
+
+  html[lang="en"]{ --font-display:"M PLUS Rounded 1c","Nunito",sans-serif; --fw-display:900; --font-body:"Nunito",system-ui,-apple-system,sans-serif; --font-round:"M PLUS Rounded 1c","Nunito",sans-serif; }
+  html[lang="ja"]{ --font-display:"M PLUS Rounded 1c","Noto Sans JP","Hiragino Maru Gothic ProN",sans-serif; --fw-display:900; --font-body:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif; --font-round:"M PLUS Rounded 1c","Noto Sans JP",sans-serif; }
+  html[lang="ko"]{ --font-display:"Jua","Noto Sans KR","Apple SD Gothic Neo",sans-serif; --fw-display:400; --font-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif; --font-round:"Jua","M PLUS Rounded 1c","Noto Sans KR",sans-serif; }
+  *,*::before,*::after{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-body); font-size:16px; line-height:1.75; overflow-x:hidden; }
+  .wrap{ max-width:1080px; margin:0 auto; padding-inline:20px; }
+  h1,h2,h3{ font-family:var(--font-display); font-weight:var(--fw-display); line-height:1.2; margin:0; text-wrap:balance; }
+  .latin{ font-family:"M PLUS Rounded 1c","Nunito",sans-serif; font-weight:900; }
+  p{ margin:0; }
+  a{ color:var(--pink-deep); }
+  a:focus-visible,button:focus-visible,[tabindex]:focus-visible{ outline:3px solid var(--mint); outline-offset:3px; border-radius:999px; }
+  img{ max-width:100%; }
+  header,nav,section,footer{ position:relative; z-index:1; }
+  #petals{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+  [hidden]{ display:none !important; }
+  .ico{ width:1em; height:1em; vertical-align:-.15em; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+
+  /* ---- 漫画元素：网点 / 斜条纹 / 描边字 ---- */
+  .tone{ position:absolute; inset:0; pointer-events:none; background:radial-gradient(var(--tone) 1.1px, transparent 1.6px) 0 0/9px 9px; -webkit-mask-image:linear-gradient(135deg,#000 0%,transparent 42%); mask-image:linear-gradient(135deg,#000 0%,transparent 42%); opacity:.55; }
+  .tone.br{ -webkit-mask-image:linear-gradient(-45deg,#000 0%,transparent 42%); mask-image:linear-gradient(-45deg,#000 0%,transparent 42%); }
+  .stripes{ display:block; height:18px; background:repeating-linear-gradient(-45deg, var(--stripe) 0 10px, transparent 10px 20px); border-top:2px solid var(--line-soft); border-bottom:2px solid var(--line-soft); }
+  .outlined{ -webkit-text-stroke:7px var(--card); paint-order:stroke fill; text-shadow:5px 5px 0 var(--pink-soft); }
+
+  /* ---- 装饰：星星 / 光斑 ---- */
+  .stars{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .star{ position:absolute; width:18px; height:18px; color:var(--star); opacity:.9; animation:twinkle 3.2s ease-in-out infinite; }
+  .star.s{ width:11px; height:11px; } .star.l{ width:26px; height:26px; }
+  .star.p{ color:var(--pink); } .star.m{ color:var(--mint); } .star.v{ color:var(--lav); }
+  @keyframes twinkle{ 0%,100%{ transform:scale(.7) rotate(0deg); opacity:.35 } 50%{ transform:scale(1.15) rotate(20deg); opacity:1 } }
+  @keyframes bob{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-10px) } }
+  @keyframes blink{ 0%,92%,100%{ transform:scaleY(1) } 96%{ transform:scaleY(.08) } }
+  @keyframes hop{ 0%,100%{ translate:0 0 } 40%{ translate:0 -26px; rotate:-6deg } 70%{ translate:0 0; rotate:3deg } }
+  @keyframes sway{ 0%,100%{ transform:rotate(-3deg) } 50%{ transform:rotate(3deg) } }
+  @keyframes drift{ from{ transform:translateX(0) } to{ transform:translateX(60px) } }
+  @keyframes raySpin{ from{ transform:rotate(-4deg) } to{ transform:rotate(4deg) } }
+  @keyframes bokeh{ 0%,100%{ transform:translateY(0) scale(1); opacity:.5 } 50%{ transform:translateY(-18px) scale(1.15); opacity:.9 } }
+
+  /* ---- 开场序列 ---- */
+  @keyframes rise{ from{ opacity:0; translate:0 26px } to{ opacity:1; translate:0 0 } }
+  @keyframes slideL{ from{ opacity:0; translate:-40px 0 } to{ opacity:1; translate:0 0 } }
+  @keyframes bounceIn{ from{ opacity:0; translate:0 -60px; scale:.4; rotate:-14deg } 60%{ scale:1.12; rotate:4deg } to{ opacity:1; translate:0 0; scale:1; rotate:0deg } }
+  @keyframes flyIn{ from{ opacity:0; translate:0 160px; scale:.6 } to{ opacity:1; translate:0 0; scale:1 } }
+  @keyframes popIn{ from{ opacity:0; scale:.3 } 70%{ scale:1.18 } to{ opacity:1; scale:1 } }
+  @keyframes hopIn{ from{ opacity:0; translate:-80px 30px; rotate:-20deg } 60%{ translate:6px -14px; rotate:4deg } to{ opacity:1; translate:0 0; rotate:0deg } }
+  .js .intro{ animation:rise .8s cubic-bezier(.2,.9,.3,1.15) backwards; animation-delay:calc(var(--d,0) * 1s); }
+  .js .intro.bounce{ animation-name:bounceIn; animation-duration:.9s; animation-timing-function:cubic-bezier(.2,.9,.3,1.3); }
+  .js .intro.slide{ animation-name:slideL; }
+  .js .intro.fly{ animation-name:flyIn; animation-duration:1s; animation-timing-function:cubic-bezier(.2,.9,.25,1.12); }
+  .js .intro.pop{ animation-name:popIn; animation-duration:.55s; animation-timing-function:cubic-bezier(.2,.9,.3,1.3); }
+  .js .intro.hopin{ animation-name:hopIn; animation-duration:1s; }
+
+  /* ---- 滚动进场 ---- */
+  .js .reveal{ opacity:0; translate:0 32px; transition:opacity .7s ease, translate .85s cubic-bezier(.2,.8,.2,1), scale .85s cubic-bezier(.2,.8,.2,1); transition-delay:calc(var(--i,0) * 90ms); }
+  .js .reveal.from-l{ translate:-48px 0; } .js .reveal.from-r{ translate:48px 0; } .js .reveal.pop{ scale:.8; translate:0 12px; }
+  .js .reveal.in{ opacity:1; translate:0 0; scale:1; }
+
+  /* ---- 通用组件 ---- */
+  .pill{ display:inline-flex; align-items:center; gap:.4em; padding:.35em .95em; border-radius:999px; font-size:14px; font-weight:500; line-height:1.4; white-space:nowrap; max-width:100%; transition:transform .25s ease; border:1.5px solid transparent; }
+  .pill:hover{ transform:translateY(-2px); }
+  .pill.pink{ background:var(--pink-soft); color:var(--pink-deep); }
+  .pill.mint{ background:var(--mint-soft); color:var(--mint-deep); }
+  .pill.lav{ background:var(--lav-soft); color:var(--lav-deep); }
+  .pill.lemon{ background:var(--lemon); color:var(--on-lemon); }
+  .pill.outline{ background:var(--card); border:2px solid var(--line); color:var(--ink); box-shadow:3px 3px 0 var(--line); }
+  .sticker{ display:inline-flex; align-items:center; gap:.35em; font-family:var(--font-round); font-weight:900; font-size:14px; letter-spacing:.02em; padding:.3em .9em; border-radius:999px; background:var(--lemon); color:var(--on-lemon); border:2px solid var(--line); box-shadow:3px 3px 0 var(--line); transform:rotate(-6deg); }
+  .sticker.pink{ background:var(--pink); color:#4A0E27; transform:rotate(5deg); }
+  .sticker.mint{ background:var(--mint); color:#04343A; transform:rotate(-4deg); }
+  .sticker:hover{ animation:wobble .6s ease; }
+  @keyframes wobble{ 0%,100%{ rotate:0deg } 25%{ rotate:8deg; scale:1.08 } 75%{ rotate:-8deg; scale:1.08 } }
+  /* 爆炸气泡（旗舰） */
+  .burst-tag{ display:inline-grid; place-items:center; width:118px; height:118px; padding:10px; clip-path:polygon(50% 0%,61% 12%,78% 5%,79% 22%,96% 26%,87% 40%,100% 50%,87% 60%,96% 74%,79% 78%,78% 95%,61% 88%,50% 100%,39% 88%,22% 95%,21% 78%,4% 74%,13% 60%,0% 50%,13% 40%,4% 26%,21% 22%,22% 5%,39% 12%); background:var(--pink-deep); color:#fff; font-family:var(--font-display); font-weight:var(--fw-display); font-size:20px; line-height:1.1; text-align:center; rotate:-8deg; animation:burstPulse 2.2s ease-in-out infinite; }
+  .burst-tag small{ display:block; font-family:"M PLUS Rounded 1c",sans-serif; font-weight:900; font-size:11px; letter-spacing:.12em; opacity:.9; }
+  @keyframes burstPulse{ 0%,100%{ scale:1 } 50%{ scale:1.06 } }
+  .btn{ position:relative; overflow:hidden; display:inline-flex; align-items:center; gap:.5em; padding:.8em 1.6em; border-radius:999px; font-family:var(--font-display); font-weight:var(--fw-display); font-size:19px; text-decoration:none; border:2.5px solid var(--line); box-shadow:4px 4px 0 var(--line); transition:transform .2s cubic-bezier(.2,.9,.3,1.4), box-shadow .2s ease; }
+  .btn.primary{ background:var(--pink-deep); color:#fff; }
+  .btn.ghost{ background:var(--card); color:var(--ink); }
+  .btn::after{ content:""; position:absolute; top:-10%; left:-70%; width:45%; height:120%; background:linear-gradient(100deg, transparent, rgba(255,255,255,.6), transparent); transform:skewX(-20deg); transition:left .55s ease; }
+  .btn:hover{ transform:translate(-2px,-2px); box-shadow:6px 6px 0 var(--line); }
+  .btn:hover::after{ left:130%; }
+  .btn:active{ transform:translate(2px,2px); box-shadow:2px 2px 0 var(--line); }
+  .eyebrow{ font-family:var(--font-round); font-weight:900; font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--mint-deep); line-height:1.5; }
+  .ribbon{ position:relative; display:inline-block; padding:.25em 1.3em; background:var(--pink-deep); color:#fff; font-family:var(--font-round); font-weight:900; font-size:13px; letter-spacing:.12em; }
+  .ribbon::before,.ribbon::after{ content:""; position:absolute; top:0; bottom:0; width:12px; background:var(--pink-deep); }
+  .ribbon::before{ left:-10px; clip-path:polygon(0 0,100% 0,100% 100%,0 100%,45% 50%); }
+  .ribbon::after{ right:-10px; clip-path:polygon(0 0,100% 0,55% 50%,100% 100%,0 100%); }
+  html[lang="en"] .vtag{ text-orientation:mixed; letter-spacing:.08em; }
+  .vtag{ writing-mode:vertical-rl; text-orientation:upright; font-family:var(--font-display); font-weight:var(--fw-display); font-size:18px; letter-spacing:.2em; padding:14px 6px; background:var(--card); border:2px solid var(--line); border-radius:6px; color:var(--pink-deep); box-shadow:3px 3px 0 var(--line); align-self:flex-start; }
+
+  /* 手机框：白边 + 藏青线稿 */
+  .phone{ --pw:250px; width:var(--pw); max-width:100%; flex:none; padding:9px; border-radius:38px; background:var(--frame); border:2.5px solid var(--line); box-shadow:var(--shadow), 6px 6px 0 var(--line); transition:transform .4s cubic-bezier(.2,.8,.2,1), box-shadow .4s ease; }
+  .phone img{ display:block; width:100%; height:auto; border-radius:28px; }
+  .phone:hover{ transform:translateY(-12px) scale(1.03); }
+  .phone.tilt-l{ rotate:-5deg; } .phone.tilt-r{ rotate:5deg; }
+  .phone.sm{ --pw:200px; border-radius:32px; padding:7px; } .phone.sm img{ border-radius:24px; }
+
+  /* 漫画气泡 */
+  .bubble{ position:relative; background:var(--card); border-radius:26px; padding:20px 24px; border:2.5px solid var(--line); box-shadow:5px 5px 0 var(--line); }
+  .bubble::after{ content:""; position:absolute; width:22px; height:22px; background:var(--card); border-left:2.5px solid var(--line); border-bottom:2.5px solid var(--line); transform:rotate(45deg); left:-13px; top:34px; border-radius:0 0 0 6px; }
+  .bubble.right::after{ left:auto; right:-13px; transform:rotate(-135deg); }
+  .bubble.top::after{ left:36px; top:-13px; transform:rotate(135deg); }
+  .bubble .who{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .bubble .who svg{ width:42px; height:42px; }
+  .bubble .who b{ font-family:var(--font-display); font-weight:var(--fw-display); color:var(--pink-deep); font-size:17px; }
+  .bubble p + p{ margin-top:.5em; }
+  .bubble.say{ animation:popIn .45s cubic-bezier(.2,.9,.3,1.3); }
+
+  /* ---- Hero：动画天空 ---- */
+  .hero{ position:relative; padding-block:36px 40px; overflow:hidden; border-bottom:3px solid var(--line); }
+  .sky{ position:absolute; inset:0; width:100%; height:100%; z-index:0; }
+  .sky .rays{ transform-origin:1200px 0; animation:raySpin 12s ease-in-out infinite alternate; }
+  .sky .cloud-row{ animation:drift 40s linear infinite alternate; }
+  .sky .bokeh circle{ animation:bokeh 6s ease-in-out infinite; }
+  .hero .grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.12fr); gap:28px; align-items:center; position:relative; z-index:1; }
+  .hero .brand{ display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; margin-top:10px; }
+  .hero h1{ position:relative; font-size:clamp(64px, 9vw, 108px); line-height:1; color:var(--pink-deep); }
+  .hero h1 .ch{ display:inline-block; }
+  html:not([lang^="zh"]) .hero h1{ font-size:clamp(40px,6.2vw,72px); letter-spacing:-.01em; }
+  .hero .brand .latin{ font-size:clamp(26px,3.4vw,38px); color:var(--mint-deep); padding-bottom:12px; -webkit-text-stroke:5px var(--card); paint-order:stroke fill; }
+  .hero .tag{ font-family:var(--font-display); font-weight:var(--fw-display); font-size:clamp(24px,3.2vw,34px); margin-top:14px; line-height:1.35; -webkit-text-stroke:4px var(--card); paint-order:stroke fill; }
+  .hero .sub{ color:var(--ink2); margin-top:12px; max-width:34em; font-size:17px; background:color-mix(in srgb, var(--card) 70%, transparent); border-radius:14px; padding:8px 12px; }
+  .hero .badges{ display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+  .hero .badges .pill{ border-color:var(--line); box-shadow:2px 2px 0 var(--line); background:var(--card); color:var(--ink); }
+  .hero .cta{ display:flex; flex-wrap:wrap; gap:14px; margin-top:26px; }
+  /* 舞台分两行：上行是记记酱的气泡，下行是手机扇；记记酱站在左侧留出的空当里，只压住最左那台的边缘。
+     气泡走文档流，换成英日韩变长也只会把手机往下推，不会压到屏幕内容。 */
+  .hero .stage{ --mascot-w:clamp(128px,16vw,184px); --mascot-gap:calc(var(--mascot-w) * .6); position:relative; min-height:520px; display:grid; grid-template-rows:auto minmax(0,1fr); align-content:end; }
+  .hero .fan{ grid-row:2; position:relative; display:flex; align-items:flex-end; justify-content:center; padding:18px 6px 54px var(--mascot-gap); width:100%; }
+  .hero .fan-row{ position:relative; display:flex; align-items:flex-end; width:max-content; max-width:100%; margin-inline:auto; }
+  .hero .fan .phone{ --pw:clamp(114px,13.8vw,152px); position:relative; margin-inline:-20px; }
+  .hero .fan .phone:nth-of-type(1){ rotate:-10deg; left:18px; top:20px; z-index:1; }
+  .hero .fan .phone:nth-of-type(2){ top:-12px; z-index:3; --pw:clamp(124px,15vw,166px); }
+  .hero .fan .phone:nth-of-type(3){ rotate:10deg; left:-18px; top:20px; z-index:2; }
+  .hero .fan .phone:hover{ z-index:4; }
+  .hero .fan .sticker{ position:absolute; z-index:5; white-space:nowrap; }
+  .hero .fan .sticker.a{ left:-8%; top:-14px; } .hero .fan .sticker.b{ right:-6%; top:8%; } .hero .fan .sticker.c{ right:-2%; bottom:12%; }
+  .hero .mascot-big{ position:absolute; left:0; bottom:-4px; width:var(--mascot-w); height:auto; z-index:6; cursor:pointer; filter:drop-shadow(6px 8px 0 rgba(47,42,74,.18)); animation:bob 4s ease-in-out infinite; }
+  .js .hero .mascot-big.intro.hopin{ animation:hopIn 1s cubic-bezier(.2,.9,.3,1.15) calc(var(--d,0) * 1s) backwards, bob 4s calc(var(--d,0) * 1s + 1s) ease-in-out infinite; }
+  .js .hero .mascot-big.hopin.hop{ animation:hop .6s cubic-bezier(.2,.9,.3,1.2), bob 4s .6s ease-in-out infinite; }
+  .hero .speech{ grid-row:1; position:relative; justify-self:start; width:min(330px,100%); margin:0 0 14px; padding:13px 17px; z-index:7; }
+  .hero .speech::after{ left:calc(var(--mascot-w) * .34); right:auto; top:auto; bottom:-13px; transform:rotate(-45deg); }
+  .hero .speech .who{ margin-bottom:4px; gap:8px; }
+  .hero .speech .face{ width:34px; height:34px; flex:none; border-radius:50%; background:var(--pink-soft); border:2px solid var(--line); }
+  .hero .speech p{ font-size:14.5px; line-height:1.6; }
+  .speedlines{ position:absolute; left:50%; top:50%; width:140%; height:140%; translate:-50% -50%; z-index:0; pointer-events:none; opacity:.5; color:var(--line); }
+  .sakura-branch{ position:absolute; right:-30px; top:-20px; width:min(46vw,380px); z-index:0; pointer-events:none; }
+  .moon{ position:absolute; left:8%; top:8%; width:70px; height:70px; border-radius:50%; background:var(--moon); box-shadow:0 0 40px var(--moon); z-index:0; pointer-events:none; }
+  .eyes{ transform-box:fill-box; transform-origin:center; animation:blink 5s ease-in-out infinite; }
+  .iris{ translate:var(--ex,0px) var(--ey,0px); transition:translate .15s ease; }
+  .tail{ transform-box:fill-box; transform-origin:8% 88%; animation:wag 3.2s ease-in-out infinite; }
+  .ear{ transform-box:fill-box; transform-origin:50% 100%; animation:twitch 6s ease-in-out infinite; }
+  .ear.r{ animation-delay:-3.1s; }
+  @keyframes wag{ 0%,100%{ transform:rotate(-6deg) } 50%{ transform:rotate(7deg) } }
+  @keyframes twitch{ 0%,88%,100%{ transform:rotate(0deg) } 92%{ transform:rotate(-9deg) } 96%{ transform:rotate(5deg) } }
+  .mascot{ animation:bob 4s ease-in-out infinite; }
+
+  /* 语言切换 */
+  .topbar{ position:relative; z-index:8; display:flex; justify-content:flex-end; margin-bottom:8px; }
+  .lang{ display:inline-flex; gap:4px; padding:4px; background:var(--card); border:2px solid var(--line); border-radius:999px; box-shadow:3px 3px 0 var(--line); }
+  .lang button{ appearance:none; border:0; background:transparent; color:var(--ink2); font:700 13px/1.4 "M PLUS Rounded 1c","Nunito",var(--font-body),sans-serif; padding:.25em .8em; border-radius:999px; cursor:pointer; transition:background .2s ease, color .2s ease, transform .2s ease; }
+  .lang button:hover{ transform:translateY(-1px); color:var(--ink); }
+  .lang button[aria-pressed="true"]{ background:var(--pink-deep); color:#fff; }
+  .lang button:focus-visible{ outline:3px solid var(--mint); outline-offset:2px; }
+
+  /* 章节导航 */
+  .chips{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; padding-block:22px 40px; }
+  .chips a{ text-decoration:none; }
+
+  /* ---- 章节 ---- */
+  section.block{ position:relative; padding-block:56px; }
+  .sec-head{ position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; margin-bottom:36px; }
+  .sec-head h2{ font-size:clamp(34px,5vw,52px); color:var(--ink); -webkit-text-stroke:6px var(--card); paint-order:stroke fill; padding-bottom:.12em; }
+  .sec-head h2 em{ font-style:normal; color:var(--pink-deep); position:relative; z-index:0; }
+  .sec-head h2 em::after{ content:""; position:absolute; left:-.04em; right:-.04em; bottom:-.16em; height:.2em; background:var(--lemon); border-radius:999px; rotate:-.6deg; z-index:-1; transform:scaleX(0); transform-origin:left; transition:transform .6s .35s cubic-bezier(.2,.8,.2,1); }
+  .sec-head.in h2 em::after{ transform:scaleX(1); }
+  .sec-head .lead{ color:var(--ink2); max-width:36em; font-size:17px; }
+
+  /* 五个决定 */
+  .formula{ display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px 8px; margin-bottom:28px; }
+  .formula .op{ font-family:"M PLUS Rounded 1c",sans-serif; font-weight:900; font-size:26px; color:var(--lav-deep); padding-inline:2px; }
+  .formula .pill{ font-size:16px; padding:.5em 1.1em; border-color:var(--line); box-shadow:2px 2px 0 var(--line); }
+  .formula .result{ display:inline-flex; align-items:center; gap:.5em; padding:.55em 1.3em; border-radius:20px; background:var(--pink-deep); color:#fff; font-family:var(--font-display); font-weight:var(--fw-display); font-size:20px; border:2.5px solid var(--line); box-shadow:4px 4px 0 var(--line); }
+  .cards5{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; }
+  .scene{ background:var(--card); border:2.5px solid var(--line); border-radius:18px; padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px; box-shadow:5px 5px 0 var(--line); transition:transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease; }
+  .scene:hover{ transform:translate(-3px,-6px) rotate(-1deg); box-shadow:8px 10px 0 var(--line); }
+  .scene .t{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .scene h3{ font-size:21px; min-width:0; overflow-wrap:anywhere; }
+  html:not([lang^="zh"]) .scene h3{ font-size:19px; }
+  .scene .d{ color:var(--ink2); font-size:14px; line-height:1.6; }
+  .scene .tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:auto; }
+  .scene .tags .pill{ font-size:12px; padding:.25em .75em; white-space:normal; text-align:center; }
+  .scene.top{ background:linear-gradient(180deg, var(--pink-soft), var(--card) 60%); }
+
+  /* 对页 */
+  .spread{ display:grid; grid-template-columns:auto minmax(0,1fr) minmax(0,1.15fr); gap:28px; align-items:center; }
+  .spread.flip{ grid-template-columns:auto minmax(0,1.15fr) minmax(0,1fr); }
+  .spread .media{ display:flex; justify-content:center; align-items:center; gap:14px; flex-wrap:wrap; }
+  .spread.flip .media{ order:3; }
+  .spread .copy h3{ font-size:clamp(28px,3.6vw,36px); margin-bottom:10px; }
+  .spread .copy h3 .sticker{ margin-left:10px; vertical-align:middle; }
+  .spread .copy .lead{ font-size:17px; margin-bottom:16px; }
+  .spread ul{ margin:14px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:10px; }
+  .spread li{ display:flex; gap:10px; align-items:flex-start; }
+  .spread li .dot{ flex:none; width:26px; height:26px; border-radius:50%; display:inline-grid; place-items:center; font-size:13px; font-family:"M PLUS Rounded 1c",sans-serif; font-weight:900; background:var(--mint-soft); color:var(--mint-deep); margin-top:3px; border:2px solid var(--line); }
+  .spread li .dot.p{ background:var(--pink-soft); color:var(--pink-deep); }
+  .spread li .dot.v{ background:var(--lav-soft); color:var(--lav-deep); }
+  .spread .note{ margin-top:16px; }
+
+  /* 四种玩法：漫画分格 */
+  .modes{ display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:22px 18px; }
+  .mode{ position:relative; display:flex; flex-direction:column; align-items:center; gap:14px; padding:18px 14px 16px; background:var(--card); border:3px solid var(--line); box-shadow:6px 6px 0 var(--line); }
+  .mode:nth-child(odd){ rotate:-1deg; } .mode:nth-child(even){ rotate:1deg; }
+  .mode .num{ position:absolute; left:-12px; top:-14px; width:38px; height:38px; display:grid; place-items:center; background:var(--ink); color:var(--card); font-family:"M PLUS Rounded 1c",sans-serif; font-weight:900; font-size:18px; border-radius:6px; rotate:-6deg; }
+  .mode .phone{ --pw:200px; box-shadow:var(--shadow); }
+  .mode .bubble{ width:100%; padding:16px 18px; box-shadow:none; border-width:2px; }
+  .mode .bubble::after{ left:calc(50% - 11px); top:-13px; transform:rotate(135deg); border-width:2px; }
+  .mode h4{ margin:0 0 4px; font-family:var(--font-display); font-weight:var(--fw-display); font-size:22px; color:var(--pink-deep); display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px 8px; text-align:center; }
+  .mode h4 .pill{ font-size:12px; padding:.2em .7em; white-space:normal; }
+  html:not([lang^="zh"]) .mode h4{ font-size:19px; }
+  .mode p{ font-size:14.5px; color:var(--ink); line-height:1.65; }
+  .modes-foot{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:32px; }
+  .modes-foot .pill{ white-space:normal; text-align:center; max-width:100%; }
+
+  /* 诚实清单 */
+  .honest{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; }
+  .honest .col{ background:var(--card); border-radius:20px; border:2.5px solid var(--line); box-shadow:5px 5px 0 var(--line); padding:22px 24px; transition:transform .35s cubic-bezier(.2,.8,.2,1); }
+  .honest .col:hover{ transform:translate(-2px,-6px); }
+  .honest .col h3{ font-size:24px; display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .honest .col.yes h3{ color:var(--mint-deep); } .honest .col.key h3{ color:var(--lav-deep); }
+  .honest ul{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+  .honest li{ display:flex; gap:10px; align-items:flex-start; font-size:15px; }
+  .honest li::before{ content:"♪"; flex:none; color:var(--mint-deep); font-weight:700; }
+  .honest .key li::before{ content:"✦"; color:var(--lav-deep); }
+
+  /* 入口 */
+  .entries{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .entry{ background:var(--card); border:2.5px solid var(--line); border-radius:16px; padding:18px 20px; box-shadow:4px 4px 0 var(--line); transition:transform .35s cubic-bezier(.2,.8,.2,1); }
+  .entry:hover{ transform:translate(-2px,-5px); }
+  .entry .plat{ display:inline-flex; align-items:center; gap:6px; font-family:var(--font-round); font-weight:900; font-size:14px; letter-spacing:.06em; margin-bottom:10px; }
+  .entry.ios .plat{ color:var(--lav-deep); } .entry.and .plat{ color:var(--mint-deep); } .entry.both .plat{ color:var(--pink-deep); }
+  .entry ul{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px; }
+  .entry li{ font-size:15px; display:flex; flex-direction:column; gap:0; line-height:1.5; }
+  .entry li b{ font-weight:600; } .entry li span{ color:var(--ink2); font-size:13.5px; }
+
+  /* 演示视频 */
+  .video-wrap{ display:flex; justify-content:center; }
+  .video-stage{ display:inline-block; max-width:100%; padding:10px; border-radius:30px; background:var(--frame); border:2.5px solid var(--line); box-shadow:var(--shadow), 6px 6px 0 var(--line); }
+  .video-stage video{ display:block; width:auto; height:auto; max-width:100%; max-height:min(72vh,640px); border-radius:22px; background:#000; }
+  .video-placeholder{ position:relative; width:min(100vw - 60px, 860px); aspect-ratio:16/9; border-radius:22px; border:3px dashed var(--pink); overflow:hidden; background:var(--card) repeating-linear-gradient(-45deg, transparent 0 22px, var(--pink-soft) 22px 26px); display:grid; place-items:center; text-align:center; }
+  .video-placeholder .inner{ display:flex; flex-direction:column; align-items:center; gap:8px; padding:24px; background:var(--card); border-radius:22px; border:2px solid var(--line); }
+  .video-placeholder .clap{ width:72px; height:72px; color:var(--pink-deep); animation:clap 2.4s ease-in-out infinite; transform-origin:12% 40%; }
+  @keyframes clap{ 0%,70%,100%{ rotate:0deg } 78%{ rotate:-10deg } 86%{ rotate:0deg } }
+  .video-placeholder b{ font-family:var(--font-display); font-weight:var(--fw-display); font-size:24px; color:var(--pink-deep); }
+  .video-placeholder span{ color:var(--ink2); font-size:14px; }
+  .video-placeholder .corner{ position:absolute; width:22px; height:22px; border:3px solid var(--mint); }
+  .video-placeholder .corner.tl{ left:12px; top:12px; border-right:0; border-bottom:0; border-radius:8px 0 0 0; }
+  .video-placeholder .corner.tr{ right:12px; top:12px; border-left:0; border-bottom:0; border-radius:0 8px 0 0; }
+  .video-placeholder .corner.bl{ left:12px; bottom:12px; border-right:0; border-top:0; border-radius:0 0 0 8px; }
+  .video-placeholder .corner.br{ right:12px; bottom:12px; border-left:0; border-top:0; border-radius:0 0 8px 0; }
+  @media (max-width:440px){ .video-placeholder{ aspect-ratio:4/3; } .video-placeholder .clap{ width:56px; height:56px; } .video-placeholder b{ font-size:20px; } }
+
+  /* 点击迸星 */
+  .burst{ position:fixed; left:0; top:0; width:14px; height:14px; margin:-7px 0 0 -7px; pointer-events:none; z-index:50; color:var(--star); animation:burst .75s cubic-bezier(.1,.8,.3,1) forwards; }
+  .burst.p{ color:var(--pink); } .burst.m{ color:var(--mint); } .burst.v{ color:var(--lav); }
+  @keyframes burst{ from{ opacity:1; translate:var(--x) var(--y); scale:.3; rotate:0deg } to{ opacity:0; translate:calc(var(--x) + var(--dx)) calc(var(--y) + var(--dy)); scale:1.2; rotate:200deg } }
+
+  /* 角色档案 + Footer */
+  .profile{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:20px; align-items:center; max-width:720px; margin:0 auto 36px; background:var(--card); border:3px solid var(--line); box-shadow:8px 8px 0 var(--line); padding:20px 24px; border-radius:6px; text-align:left; position:relative; }
+  .profile .mascot{ width:140px; height:auto; }
+  .profile .tag-name{ position:absolute; left:-10px; top:-14px; }
+  .profile h3{ font-size:26px; color:var(--pink-deep); margin-bottom:4px; }
+  .profile h3 .latin{ font-size:15px; color:var(--mint-deep); margin-left:8px; }
+  .profile dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 12px; font-size:14px; }
+  .profile dt{ color:var(--ink2); white-space:nowrap; } .profile dd{ margin:0; color:var(--ink); }
+  footer{ text-align:center; padding-block:48px 64px; color:var(--ink2); font-size:14px; border-top:3px solid var(--line); background:var(--sec-card); }
+  footer .logo{ font-family:var(--font-display); font-weight:var(--fw-display); font-size:30px; color:var(--pink-deep); }
+  footer .logo .latin{ color:var(--mint-deep); font-size:20px; margin-left:8px; }
+  footer p + p{ margin-top:6px; }
+
+  @media (max-width:820px){
+    .hero .grid{ grid-template-columns:1fr; }
+    .hero .stage{ min-height:0; --mascot-w:clamp(124px,21vw,164px); --mascot-gap:calc(var(--mascot-w) * .58); }
+    .hero .fan{ padding:26px 6px 36px var(--mascot-gap); }
+    .hero .fan .phone{ --pw:clamp(112px,18.5vw,150px); margin-inline:-16px; }
+    .hero .fan .phone:nth-of-type(2){ --pw:clamp(122px,20vw,164px); }
+    .hero .mascot-big{ bottom:-10px; }
+    .spread,.spread.flip{ grid-template-columns:1fr; gap:26px; }
+    .spread.flip .media{ order:0; }
+    .vtag{ writing-mode:horizontal-tb; text-orientation:mixed; padding:4px 14px; letter-spacing:.1em; }
+    .phone.tilt-l,.phone.tilt-r{ rotate:0deg; }
+    .phone{ --pw:230px; } .phone.sm{ --pw:190px; }
+    .js .reveal.from-l,.js .reveal.from-r{ translate:0 32px; } .js .reveal.in{ translate:0 0; }
+    .profile{ grid-template-columns:1fr; text-align:center; justify-items:center; }
+    .profile dl{ text-align:left; }
+    .sakura-branch{ width:220px; right:-40px; top:-30px; }
+  }
+  @media (max-width:440px){
+    .hero .stage{ --mascot-w:116px; --mascot-gap:calc(var(--mascot-w) * .58); }
+    .hero .fan{ padding-bottom:28px; }
+    .hero .fan .phone{ --pw:104px; padding:5px; border-radius:24px; margin-inline:-13px; } .hero .fan .phone img{ border-radius:18px; }
+    .hero .fan .phone:nth-of-type(2){ --pw:114px; }
+    .hero .fan .sticker{ font-size:11.5px; padding:.28em .7em; }
+    .hero .fan .sticker.a{ left:-4%; } .hero .fan .sticker.b{ right:-2%; } .hero .fan .sticker.c{ right:0; }
+    .formula .op{ font-size:20px; }
+    .outlined,.sec-head h2,.hero .tag,.hero .brand .latin{ -webkit-text-stroke-width:3px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{ animation:none !important; transition:none !important; }
+    .js .reveal{ opacity:1; translate:0 0; scale:1; }
+    .sec-head h2 em::after{ transform:scaleX(1); }
+    html{ scroll-behavior:auto; }
+    #petals{ display:none; }
+  }
+</style>
+</head>
+<body>
+<script>document.documentElement.classList.add('js');</script>
+<canvas id="petals" aria-hidden="true"></canvas>
+
+<!-- 记记酱：猫耳 + 圆框眼镜 + 异色瞳 + 天蓝开衫，Q 版坐姿；表情由 CSS 变量切换 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="hairG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD0E2"/><stop offset="1" stop-color="#F49AC0"/></linearGradient>
+    <linearGradient id="hairD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2A4C6"/><stop offset="1" stop-color="#D8749F"/></linearGradient>
+    <linearGradient id="irisL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C2410C"/><stop offset=".55" stop-color="#F59E0B"/><stop offset="1" stop-color="#FDE68A"/></linearGradient>
+    <linearGradient id="irisR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4C1D95"/><stop offset=".55" stop-color="#8B5CF6"/><stop offset="1" stop-color="#DDD6FE"/></linearGradient>
+    <linearGradient id="skinG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3EA"/><stop offset="1" stop-color="#FFE3D3"/></linearGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.5"/></filter>
+    <symbol id="jiji" viewBox="0 0 320 400">
+      <!-- 猫尾（最底层） -->
+      <g class="tail">
+        <path d="M228 334 C272 336 306 318 302 284 C300 268 286 262 278 274" stroke="#3B2B48" stroke-width="27" fill="none" stroke-linecap="round"/>
+        <path d="M228 334 C272 336 306 318 302 284 C300 268 286 262 278 274" stroke="#F5A8C6" stroke-width="21" fill="none" stroke-linecap="round"/>
+        <path d="M258 328 C282 320 296 306 296 288" stroke="#FFD6E4" stroke-width="5" fill="none" stroke-linecap="round" opacity=".9"/>
+      </g>
+      <!-- 缎带尾（藏在鬓发后） -->
+      <g fill="#C9B6F2" stroke="#3B2B48" stroke-width="2" stroke-linejoin="round">
+        <path d="M52 214 C40 244 42 276 50 302 L62 298 C58 272 60 246 68 220 Z"/><path d="M74 214 C80 246 78 274 70 300 L58 300 C64 274 64 246 60 220 Z"/>
+        <path d="M268 214 C280 244 278 276 270 302 L258 298 C262 272 260 246 252 220 Z"/><path d="M246 214 C240 246 242 274 250 300 L262 300 C256 274 256 246 260 220 Z"/>
+      </g>
+      <!-- 后发 -->
+      <path d="M50 176 C46 92 96 44 160 44 C224 44 274 92 270 176 C268 216 256 246 244 262 L76 262 C64 246 52 216 50 176 Z" fill="#F6ABC7" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M66 150 C70 118 84 96 104 82 C88 106 80 132 82 164 Z M254 150 C250 118 236 96 216 82 C232 106 240 132 238 164 Z" fill="#CDBAF5" opacity=".9"/>
+      <!-- 猫耳 -->
+      <g class="ear l"><path d="M74 128 C62 92 74 54 96 36 C118 52 134 84 138 118 Z" fill="#F6ABC7" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round"/><path d="M86 118 C82 92 88 70 98 56 C110 70 122 92 126 114 Z" fill="#CDBAF5"/><path d="M92 120 C94 108 100 100 108 96 C104 106 106 114 112 120 Z" fill="#FFF7F2"/></g>
+      <g class="ear r"><path d="M246 128 C258 92 246 54 224 36 C202 52 186 84 182 118 Z" fill="#F6ABC7" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round"/><path d="M234 118 C238 92 232 70 222 56 C210 70 198 92 194 114 Z" fill="#CDBAF5"/><path d="M228 120 C226 108 220 100 212 96 C216 106 214 114 208 120 Z" fill="#FFF7F2"/></g>
+      <!-- 腿 / 袜 / 鞋 -->
+      <g stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round">
+        <rect x="104" y="318" width="44" height="52" rx="16" fill="#FFFFFF"/><rect x="172" y="318" width="44" height="52" rx="16" fill="#FFFFFF"/>
+        <path d="M104 350 h44 M172 350 h44" stroke="#EDE6FF" stroke-width="3"/>
+        <ellipse cx="126" cy="378" rx="30" ry="15" fill="#2B2436"/><ellipse cx="194" cy="378" rx="30" ry="15" fill="#2B2436"/>
+        <path d="M108 372 C114 364 138 364 144 372" stroke="#4B4360" stroke-width="2" fill="none"/><path d="M176 372 C182 364 206 364 212 372" stroke="#4B4360" stroke-width="2" fill="none"/>
+      </g>
+      <rect x="112" y="330" width="26" height="9" rx="3" fill="#F7B6CC" stroke="#3B2B48" stroke-width="1.4" transform="rotate(-22 125 334)"/><circle cx="125" cy="334" r="2.4" fill="#FFE4EE"/>
+      <g fill="#F7B6CC" stroke="#3B2B48" stroke-width="1.2"><circle cx="196" cy="342" r="5"/><circle cx="189" cy="334" r="2.6"/><circle cx="196" cy="331" r="2.6"/><circle cx="203" cy="334" r="2.6"/></g>
+      <!-- 裙子 -->
+      <path d="M100 300 L220 300 L232 348 L88 348 Z" fill="#9EC5EF" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M118 302 L112 346 M140 302 L138 346 M160 302 L160 346 M180 302 L182 346 M202 302 L208 346" stroke="#6E9BD0" stroke-width="2" fill="none" opacity=".8"/>
+      <path d="M88 348 C96 340 104 356 112 348 C120 340 128 356 136 348 C144 340 152 356 160 348 C168 340 176 356 184 348 C192 340 200 356 208 348 C216 340 224 356 232 348 L234 356 C226 364 218 348 210 356 C202 364 194 348 186 356 C178 364 170 348 162 356 C154 364 146 348 138 356 C130 364 122 348 114 356 C106 364 98 348 90 356 Z" fill="#FFFFFF" stroke="#3B2B48" stroke-width="2" stroke-linejoin="round"/>
+      <!-- 脖子 + 上衣 -->
+      <rect x="148" y="244" width="24" height="20" fill="#FFE6D8"/>
+      <path d="M118 262 C130 254 150 252 160 262 C170 252 190 254 202 262 L206 306 L114 306 Z" fill="#FFFFFF" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round"/>
+      <!-- 水手领 -->
+      <path d="M118 262 L160 300 L202 262 L212 274 L160 322 L108 274 Z" fill="#A9CCF2" stroke="#3B2B48" stroke-width="2.2" stroke-linejoin="round"/>
+      <path d="M113 275 L160 316 L207 275" stroke="#FFFFFF" stroke-width="2.4" fill="none"/>
+      <path d="M144 258 C150 266 156 270 160 272 C164 270 170 266 176 258" fill="#FFF1E8" stroke="#3B2B48" stroke-width="1.6"/>
+      <!-- 蝴蝶结 -->
+      <path d="M160 296 C144 284 132 294 140 308 C146 316 156 310 160 296 Z M160 296 C176 284 188 294 180 308 C174 316 164 310 160 296 Z" fill="#F7A6C3" stroke="#3B2B48" stroke-width="1.8"/>
+      <path d="M157 300 L150 324 L158 320 Z M163 300 L170 324 L162 320 Z" fill="#F08DB1" stroke="#3B2B48" stroke-width="1.4"/>
+      <circle cx="160" cy="298" r="4.5" fill="#FFC2D8" stroke="#3B2B48" stroke-width="1.6"/>
+      <!-- 徽章 -->
+      <path d="M190 300 L200 300 L200 309 L195 314 L190 309 Z" fill="#2E2A4A" stroke="#3B2B48" stroke-width="1.2"/><path d="M193 303 L197 303 L197 308 L195 310 L193 308 Z" fill="#F2C94C"/>
+      <!-- 开衫（两侧大袖子） -->
+      <g fill="#BBDAF6" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round">
+        <path d="M118 262 C96 266 76 284 70 314 C66 336 78 354 100 356 C114 358 120 350 118 336 L114 306 Z"/>
+        <path d="M202 262 C224 266 244 284 250 314 C254 336 242 354 220 356 C206 358 200 350 202 336 L206 306 Z"/>
+      </g>
+      <path d="M92 350 C96 352 104 352 110 350 M210 350 C216 352 224 352 228 350" stroke="#3B2B48" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M84 300 l16 16 M100 300 l-16 16 M220 300 l16 16 M236 300 l-16 16" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+      <g fill="#E9F3FF" stroke="#3B2B48" stroke-width="1.4"><circle cx="212" cy="290" r="3"/><circle cx="214" cy="312" r="3"/></g>
+      <!-- 脸 -->
+      <path d="M66 176 C66 120 104 92 160 92 C216 92 254 120 254 176 C254 226 216 262 160 266 C104 262 66 226 66 176 Z" fill="#FFF1E8" stroke="#3B2B48" stroke-width="2.4"/>
+      <!-- 腮红（柔化） -->
+      <ellipse cx="98" cy="226" rx="18" ry="10" fill="#FF9EC0" opacity=".6" filter="url(#soft)"/><ellipse cx="222" cy="226" rx="18" ry="10" fill="#FF9EC0" opacity=".6" filter="url(#soft)"/>
+      <!-- 眼：睁（左橙右紫） -->
+      <g class="eyes" style="display:var(--eo,inline)">
+        <ellipse cx="118" cy="200" rx="22" ry="27" fill="#FFFFFF"/><ellipse cx="202" cy="200" rx="22" ry="27" fill="#FFFFFF"/>
+        <g class="iris">
+          <ellipse cx="118" cy="202" rx="17" ry="23" fill="url(#irisL)"/><ellipse cx="118" cy="202" rx="17" ry="23" fill="none" stroke="#8A3A10" stroke-width="2" opacity=".55"/><ellipse cx="118" cy="204" rx="8" ry="13" fill="#3A1A10"/><ellipse cx="118" cy="216" rx="9" ry="5" fill="#FFFFFF" opacity=".55"/><circle cx="109" cy="188" r="7" fill="#FFFFFF"/><circle cx="126" cy="214" r="3" fill="#FFFFFF"/>
+          <ellipse cx="202" cy="202" rx="17" ry="23" fill="url(#irisR)"/><ellipse cx="202" cy="202" rx="17" ry="23" fill="none" stroke="#3B2384" stroke-width="2" opacity=".55"/><ellipse cx="202" cy="204" rx="8" ry="13" fill="#1E1440"/><ellipse cx="202" cy="216" rx="9" ry="5" fill="#FFFFFF" opacity=".55"/><circle cx="193" cy="188" r="7" fill="#FFFFFF"/><circle cx="210" cy="214" r="3" fill="#FFFFFF"/>
+        </g>
+        <path d="M94 196 C96 168 136 162 144 186 L142 196 C134 176 104 178 98 200 Z" fill="#2B2440"/><path d="M143 184 l8 -9" stroke="#2B2440" stroke-width="4" stroke-linecap="round"/>
+        <path d="M226 196 C224 168 184 162 176 186 L178 196 C186 176 216 178 222 200 Z" fill="#2B2440"/><path d="M177 184 l-8 -9" stroke="#2B2440" stroke-width="4" stroke-linecap="round"/>
+        <path d="M100 226 Q118 232 136 226 M220 226 Q202 232 184 226" stroke="#2B2440" stroke-width="2" fill="none" opacity=".5" stroke-linecap="round"/>
+      </g>
+      <!-- 眼：眯眼笑 -->
+      <g style="display:var(--eh,none)"><path d="M98 206 C104 186 132 186 138 206 M182 206 C188 186 216 186 222 206" stroke="#2B2440" stroke-width="5" fill="none" stroke-linecap="round"/></g>
+      <!-- 眼：眨眼（左睁右闭） -->
+      <g style="display:var(--ew,none)">
+        <ellipse cx="118" cy="200" rx="22" ry="27" fill="#FFFFFF"/>
+        <ellipse cx="118" cy="202" rx="17" ry="23" fill="url(#irisL)"/><ellipse cx="118" cy="204" rx="8" ry="13" fill="#3A1A10"/><ellipse cx="118" cy="216" rx="9" ry="5" fill="#FFFFFF" opacity=".55"/><circle cx="109" cy="188" r="7" fill="#FFFFFF"/><circle cx="126" cy="214" r="3" fill="#FFFFFF"/>
+        <path d="M94 196 C96 168 136 162 144 186 L142 196 C134 176 104 178 98 200 Z" fill="#2B2440"/><path d="M143 184 l8 -9" stroke="#2B2440" stroke-width="4" stroke-linecap="round"/>
+        <path d="M184 208 C190 194 214 194 220 208" stroke="#2B2440" stroke-width="5" fill="none" stroke-linecap="round"/>
+      </g>
+      <!-- 鼻 / 嘴 -->
+      <path d="M159 228 l2 2" stroke="#E5A2B4" stroke-width="2.4" stroke-linecap="round"/>
+      <g style="display:var(--mw,inline)"><path d="M148 240 q6 8 12 0 q6 8 12 0" stroke="#D4507A" stroke-width="2.6" fill="none" stroke-linecap="round"/></g>
+      <g style="display:var(--mo,none)"><path d="M146 238 Q160 260 174 238 Q160 246 146 238 Z" fill="#E2506E" stroke="#3B2B48" stroke-width="1.4"/><ellipse cx="160" cy="250" rx="5" ry="3" fill="#FF8AA6"/></g>
+      <!-- 刘海 -->
+      <path d="M62 178 C58 112 100 70 160 70 C220 70 262 112 258 178 C248 168 240 174 232 184 C222 170 214 176 208 190 C198 176 190 178 184 192 C174 178 166 180 160 194 C152 180 144 178 136 192 C128 176 120 178 112 190 C104 174 96 172 88 186 C80 172 72 168 62 178 Z" fill="#F8B4CD" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M128 76 C122 108 122 146 126 184 L140 190 C136 150 138 110 146 74 Z" fill="#CDBAF5" opacity=".95"/>
+      <path d="M196 78 C204 108 206 144 202 184 L188 190 C192 152 190 112 182 76 Z" fill="#CDBAF5" opacity=".95"/>
+      <path d="M100 96 C118 80 140 74 160 74 C180 74 202 80 220 96" stroke="#FFFFFF" stroke-width="4" fill="none" stroke-linecap="round" opacity=".55" stroke-dasharray="14 10"/>
+      <!-- 鬓发（前） -->
+      <path d="M62 176 C50 200 46 236 52 280 C54 296 68 300 74 288 C78 252 76 216 84 184 Z" fill="#F8B4CD" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M258 176 C270 200 274 236 268 280 C266 296 252 300 246 288 C242 252 244 216 236 184 Z" fill="#F8B4CD" stroke="#3B2B48" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M62 200 C56 224 56 250 60 276 M258 200 C264 224 264 250 260 276" stroke="#CDBAF5" stroke-width="5" fill="none" stroke-linecap="round" opacity=".95"/>
+      <!-- 呆毛 -->
+      <path d="M160 70 C154 46 168 28 184 36 C176 40 170 50 174 62" stroke="#3B2B48" stroke-width="11" fill="none" stroke-linecap="round"/>
+      <path d="M160 70 C154 46 168 28 184 36 C176 40 170 50 174 62" stroke="#F8B4CD" stroke-width="6.5" fill="none" stroke-linecap="round"/>
+      <!-- 缎带蝴蝶结（淡紫） -->
+      <g fill="#C9B6F2" stroke="#3B2B48" stroke-width="1.8" stroke-linejoin="round">
+        <path d="M66 204 c-12 -12 -26 -4 -20 8 c-6 12 8 20 20 8 c12 12 26 4 20 -8 c6 -12 -8 -20 -20 -8 z"/><circle cx="66" cy="208" r="4" fill="#EDE6FF"/>
+        <path d="M254 204 c-12 -12 -26 -4 -20 8 c-6 12 8 20 20 8 c12 12 26 4 20 -8 c6 -12 -8 -20 -20 -8 z"/><circle cx="254" cy="208" r="4" fill="#EDE6FF"/>
+      </g>
+      <!-- 发夹：左两条 + 右小鱼 + 肉球 -->
+      <g fill="#C9B6F2" stroke="#3B2B48" stroke-width="1.6"><rect x="94" y="140" width="28" height="7" rx="3.5" transform="rotate(-10 108 143)"/><rect x="96" y="152" width="28" height="7" rx="3.5" transform="rotate(-10 110 155)"/></g>
+      <path d="M208 154 C216 144 230 144 236 152 L244 146 L244 162 L236 156 C230 164 216 164 208 154 Z" fill="#C9B6F2" stroke="#3B2B48" stroke-width="1.6" stroke-linejoin="round"/><circle cx="216" cy="153" r="1.8" fill="#3B2B48"/>
+      <g fill="#F7B6CC" stroke="#3B2B48" stroke-width="1.2"><circle cx="90" cy="180" r="6"/><circle cx="82" cy="171" r="3"/><circle cx="90" cy="168" r="3"/><circle cx="98" cy="171" r="3"/></g>
+      <!-- 圆框眼镜 -->
+      <g fill="none" stroke="#1F1B2E" stroke-width="5.5" stroke-linecap="round">
+        <circle cx="118" cy="200" r="37" fill="rgba(255,255,255,.08)"/><circle cx="202" cy="200" r="37" fill="rgba(255,255,255,.08)"/>
+        <path d="M155 194 Q160 186 165 194 M81 196 L64 190 M239 196 L256 190"/>
+      </g>
+      <path d="M92 182 C98 172 108 168 118 168" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round" opacity=".6"/><path d="M176 182 C182 172 192 168 202 168" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round" opacity=".6"/>
+      <!-- 音符 -->
+      <text x="272" y="128" font-size="28" fill="#E8467F" font-family="sans-serif" style="display:var(--note,inline)">♪</text>
+    </symbol>
+    <symbol id="spark" viewBox="0 0 24 24"><path d="M12 0 C13 7 17 11 24 12 C17 13 13 17 12 24 C11 17 7 13 0 12 C7 11 11 7 12 0 Z" fill="currentColor"/></symbol>
+    <symbol id="cloud" viewBox="0 0 200 90"><ellipse cx="100" cy="70" rx="96" ry="18" fill="var(--cloud-shade)"/><circle cx="50" cy="56" r="30" fill="var(--cloud)"/><circle cx="90" cy="40" r="40" fill="var(--cloud)"/><circle cx="135" cy="48" r="34" fill="var(--cloud)"/><circle cx="165" cy="62" r="24" fill="var(--cloud)"/><rect x="28" y="56" width="150" height="24" rx="12" fill="var(--cloud)"/></symbol>
+    <symbol id="blossom" viewBox="0 0 40 40"><g fill="var(--sakura)" stroke="#2F2A4A" stroke-width="1.2"><ellipse cx="20" cy="9" rx="6" ry="9"/><ellipse cx="30" cy="16" rx="6" ry="9" transform="rotate(72 30 16)"/><ellipse cx="26" cy="28" rx="6" ry="9" transform="rotate(144 26 28)"/><ellipse cx="14" cy="28" rx="6" ry="9" transform="rotate(216 14 28)"/><ellipse cx="10" cy="16" rx="6" ry="9" transform="rotate(288 10 16)"/></g><circle cx="20" cy="20" r="3.5" fill="#FFE27A" stroke="#2F2A4A" stroke-width="1"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-headset" viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="7" rx="2"/><rect x="17" y="13" width="4" height="7" rx="2"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h6M7 14h10"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H9l-5 4z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ================= HERO ================= -->
+<header class="hero">
+  <svg class="sky" viewBox="0 0 1440 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs><linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--sky1)"/><stop offset="1" style="stop-color:var(--sky2)"/></linearGradient></defs>
+    <rect width="1440" height="700" fill="url(#skyG)"/>
+    <g class="rays" fill="var(--ray)">
+      <polygon points="1200,0 1120,0 300,700 520,700"/><polygon points="1200,0 1240,0 900,700 760,700"/><polygon points="1200,0 1300,0 1200,700 1100,700"/><polygon points="1200,0 1400,0 1440,300 1440,120"/>
+    </g>
+    <g class="cloud-row">
+      <use href="#cloud" x="-40" y="80" width="260" height="117"/><use href="#cloud" x="380" y="30" width="180" height="81"/><use href="#cloud" x="900" y="120" width="300" height="135"/><use href="#cloud" x="1250" y="40" width="200" height="90"/>
+    </g>
+    <g class="bokeh" fill="var(--cloud)" opacity=".7">
+      <circle cx="200" cy="300" r="10"/><circle cx="640" cy="180" r="6" style="animation-delay:-2s"/><circle cx="1000" cy="420" r="14" style="animation-delay:-4s"/><circle cx="1300" cy="360" r="8" style="animation-delay:-1s"/><circle cx="420" cy="520" r="7" style="animation-delay:-3s"/>
+    </g>
+  </svg>
+  <div class="moon" aria-hidden="true"></div>
+  <svg class="sakura-branch" viewBox="0 0 380 260" aria-hidden="true">
+    <path d="M380 20 C320 40 270 70 230 120 C200 160 170 190 120 230" stroke="#7A4E3A" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <path d="M290 62 C300 90 296 120 280 150 M230 120 C250 130 262 150 262 176 M170 190 C190 196 204 210 210 232" stroke="#7A4E3A" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <use href="#blossom" x="262" y="34" width="44" height="44"/><use href="#blossom" x="262" y="130" width="38" height="38"/><use href="#blossom" x="212" y="96" width="36" height="36"/><use href="#blossom" x="150" y="170" width="42" height="42"/><use href="#blossom" x="196" y="214" width="30" height="30"/><use href="#blossom" x="330" y="8" width="30" height="30"/><use href="#blossom" x="104" y="206" width="30" height="30"/>
+  </svg>
+  <div class="stars" aria-hidden="true">
+    <svg class="star l" style="left:4%;top:8%"><use href="#spark"/></svg>
+    <svg class="star s p" style="left:14%;top:40%;animation-delay:.6s"><use href="#spark"/></svg>
+    <svg class="star m" style="left:46%;top:6%;animation-delay:1.1s"><use href="#spark"/></svg>
+    <svg class="star s v" style="left:60%;top:70%;animation-delay:1.8s"><use href="#spark"/></svg>
+    <svg class="star s" style="left:80%;top:86%;animation-delay:2.2s"><use href="#spark"/></svg>
+    <svg class="star s p" style="left:30%;top:88%;animation-delay:1.4s"><use href="#spark"/></svg>
+  </div>
+  <div class="wrap topbar">
+    <div class="lang" role="group" aria-label="Language" id="lang">
+      <button type="button" data-lang="zh" lang="zh-CN">中文</button>
+      <button type="button" data-lang="en" lang="en">EN</button>
+      <button type="button" data-lang="ja" lang="ja">日本語</button>
+      <button type="button" data-lang="ko" lang="ko">한국어</button>
+    </div>
+  </div>
+  <div class="wrap grid">
+    <div>
+      <div class="eyebrow intro" style="--d:0" data-i18n="hero.eyebrow">iPhone · Android · 不用注册 · 不联网也能用</div>
+      <div class="brand">
+        <h1 class="outlined" data-i18n="hero.h1"><span class="ch intro bounce" style="--d:.1">场</span><span class="ch intro bounce" style="--d:.24">记</span></h1>
+        <span class="latin intro slide" style="--d:.45" data-i18n="hero.latin">SceneNote</span>
+      </div>
+      <p class="tag intro" style="--d:.55" data-i18n="hero.tag">戴上耳机，<br>全世界都在说你听得懂的话 ♪</p>
+      <p class="sub intro" style="--d:.65" data-i18n="hero.sub">对方说什么语言、要不要翻译、翻成什么、语气正式还是随意……这些提前存成一张「场景卡」。出门按一下耳机，剩下的交给记记酱。</p>
+      <div class="badges">
+        <span class="pill intro pop" style="--d:.8"><svg class="ico"><use href="#i-heart"/></svg><span data-i18n="hero.badge1">不联网也能用</span></span>
+        <span class="pill intro pop" style="--d:.9"><svg class="ico"><use href="#i-lock"/></svg><span data-i18n="hero.badge2">录音留在手机里</span></span>
+        <span class="pill intro pop" style="--d:1"><svg class="ico"><use href="#i-headset"/></svg><span data-i18n="hero.badge3">什么耳机都行</span></span>
+      </div>
+      <div class="cta">
+        <a class="btn primary intro" style="--d:1.05" href="#demo" data-i18n="hero.cta1">看一分钟演示</a>
+        <a class="btn ghost intro" style="--d:1.15" href="#privacy" data-i18n="hero.cta2">我的数据安全吗？</a>
+      </div>
+    </div>
+    <div class="stage">
+      <svg class="speedlines" id="speedlines" viewBox="0 0 400 400" aria-hidden="true"></svg>
+      <div class="fan" data-i18n-aria="hero.fan" aria-label="真机截图：实时页、首页、速译大字卡">
+        <div class="fan-row">
+          <span class="sticker a intro pop" style="--d:1.3" data-i18n="hero.st2">安卓真机</span>
+          <span class="sticker pink b intro pop" style="--d:1.45" data-i18n="hero.st1">iPhone 真机</span>
+          <span class="sticker mint c intro pop" style="--d:1.6" data-i18n="hero.st3">真的能用哦</span>
+          <div class="phone intro fly" style="--d:.7"><img src="img/live.png" data-i18n-alt="alt.live" alt="安卓真机的实时页：面对面 / 视频两个分段，我说普通话、对方说日语，列出仅听、面屏、双屏、速译四种用法，底部「开始仅听」"></div>
+          <div class="phone intro fly" style="--d:.5"><img src="img/home.png" data-i18n-alt="alt.home" alt="首页：置顶的面对面对话卡（我·普通话 ⇄ 对方·英语），下面是视频字幕、会议两张卡和「复制一张再改」"></div>
+          <div class="phone intro fly" style="--d:.9"><img src="img/quick.png" data-i18n-alt="alt.quick" alt="速译：深色大字卡显示「星期三。」朝向对方，底部有「再说一句」和「朗读」按钮"></div>
+        </div>
+      </div>
+      <svg class="mascot-big intro hopin" style="--d:1.1" id="jiji-hero" viewBox="0 0 320 400" role="button" tabindex="0" data-i18n-aria="hero.mascot" aria-label="吉祥物记记酱：戴圆框眼镜的粉发猫耳女孩，穿天蓝色开衫。点一下换台词"><use href="#jiji"/></svg>
+      <div class="bubble speech intro pop" style="--d:1.5" id="jiji-bubble">
+        <div class="who"><svg class="face" viewBox="56 40 208 208" aria-hidden="true"><use href="#jiji"/></svg><b data-i18n="jiji.name">记记酱</b><span class="pill lemon" style="font-size:12px" data-i18n="hero.tapme">点我一下</span></div>
+        <p id="jiji-line" data-i18n="jiji.line0">我是场记的小场记！对方说什么，我小声告诉你；你想说什么，我写成大字给 Ta 看～</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="wrap chips" data-i18n-aria="nav.label" aria-label="章节">
+  <a class="pill outline reveal pop" style="--i:0" href="#demo" data-i18n="nav.demo">演示</a>
+  <a class="pill outline reveal pop" style="--i:1" href="#scene" data-i18n="nav.scene">场景卡</a>
+  <a class="pill outline reveal pop" style="--i:2" href="#live" data-i18n="nav.live">面对面</a>
+  <a class="pill outline reveal pop" style="--i:3" href="#subtitle" data-i18n="nav.subtitle">视频字幕</a>
+  <a class="pill outline reveal pop" style="--i:4" href="#meeting" data-i18n="nav.meeting">会议</a>
+  <a class="pill outline reveal pop" style="--i:5" href="#learn" data-i18n="nav.learn">越用越懂你</a>
+  <a class="pill outline reveal pop" style="--i:6" href="#privacy" data-i18n="nav.privacy">隐私</a>
+  <a class="pill outline reveal pop" style="--i:7" href="#entry" data-i18n="nav.entry">快捷入口</a>
+  <a class="pill outline reveal pop" style="--i:8" href="#honest" data-i18n="nav.honest">能与不能</a>
+</nav>
+
+<!-- ================= 演示视频 ================= -->
+<section class="block" id="demo" style="padding-top:8px">
+  <div class="tone" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="ribbon" data-i18n="demo.ribbon">SCENE 00 · 演示</span>
+      <h2 data-i18n="demo.h2">一分钟，<em>看它怎么用</em></h2>
+      <p class="lead" data-i18n="demo.lead">在国外问路：对方说英语，你耳机里听到的是普通话；你说普通话，Ta 在屏幕上看到英文。不用联网，不用注册。</p>
+    </div>
+    <div class="video-wrap reveal pop">
+      <div class="video-stage" id="demo-stage">
+        <div class="video-placeholder" id="demo-placeholder">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div class="inner">
+            <svg class="clap" viewBox="0 0 64 64" aria-hidden="true">
+              <rect x="6" y="26" width="52" height="30" rx="5" fill="var(--pink-soft)" stroke="currentColor" stroke-width="3"/>
+              <path d="M6 22 L58 12 L58 24 L6 34 Z" fill="var(--lemon)" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M16 20 L22 31 M28 18 L34 29 M40 15 L46 26" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="24" cy="42" r="3" fill="currentColor"/><circle cx="40" cy="42" r="3" fill="currentColor"/>
+              <path d="M27 49 q5 4 10 0" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            </svg>
+            <b data-i18n="demo.ph1">演示视频准备中</b>
+            <span data-i18n="demo.ph2">记记酱正在录，很快就来</span>
+          </div>
+        </div>
+        <video id="demo-video" controls playsinline preload="metadata" hidden data-i18n-aria="demo.video" aria-label="场记演示视频">
+          <source src="video/demo.mp4" type="video/mp4" id="demo-source">
+        </video>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stripes" aria-hidden="true"></div>
+
+<!-- ================= 场景卡 ================= -->
+<section class="block" id="scene">
+  <div class="tone br" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="ribbon" data-i18n="scene.ribbon">SCENE 01 · 为什么叫「场记」</span>
+      <h2 data-i18n="scene.h2">一张卡，<em>把选择题先替你答好</em></h2>
+      <p class="lead" data-i18n="scene.lead">麻烦的从来不是听不懂，而是每次开始前都要重新选一遍。场景卡把这些选择记住，下次按一下就开始。</p>
+    </div>
+    <div class="formula" data-i18n-aria="scene.formula" aria-label="场景卡公式">
+      <span class="pill pink reveal pop" style="--i:0" data-i18n="scene.f1">什么语言</span><span class="op reveal pop" style="--i:1">+</span>
+      <span class="pill mint reveal pop" style="--i:2" data-i18n="scene.f2">翻不翻</span><span class="op reveal pop" style="--i:3">+</span>
+      <span class="pill lav reveal pop" style="--i:4" data-i18n="scene.f3">翻成什么</span><span class="op reveal pop" style="--i:5">+</span>
+      <span class="pill pink reveal pop" style="--i:6" data-i18n="scene.f4">什么语气</span><span class="op reveal pop" style="--i:7">+</span>
+      <span class="pill mint reveal pop" style="--i:8" data-i18n="scene.f5">要什么结果</span><span class="op reveal pop" style="--i:9">=</span>
+      <span class="result reveal pop" style="--i:11"><svg class="ico"><use href="#i-card"/></svg><span data-i18n="scene.result">一张场景卡</span></span>
+    </div>
+    <div class="cards5">
+      <article class="scene top reveal" style="--i:0">
+        <div class="t"><h3 data-i18n="scene.c1.h">面对面对话</h3><span class="pill pink" data-i18n="tag.flagship">最常用</span></div>
+        <p class="d" data-i18n="scene.c1.d">戴上耳机就能听懂对方；举起手机，对方也能看懂你。</p>
+        <div class="tags"><span class="pill mint" data-i18n="scene.c1.t1">普通话 ⇄ 英语</span><span class="pill lav" data-i18n="scene.c1.t2">自动分辨谁在说</span></div>
+      </article>
+      <article class="scene reveal" style="--i:1">
+        <div class="t"><h3 data-i18n="scene.c2.h">视频字幕</h3><span class="pill pink" data-i18n="tag.flagship">最常用</span></div>
+        <p class="d" data-i18n="scene.c2.d">相册里没字幕的视频，边看边出字幕，还能把字幕文件存下来。</p>
+        <div class="tags"><span class="pill mint" data-i18n="scene.c2.t1">英语 → 普通话</span><span class="pill lav" data-i18n="scene.c2.t2">安卓可浮在任意视频上</span></div>
+      </article>
+      <article class="scene reveal" style="--i:2">
+        <div class="t"><h3 data-i18n="scene.c3.h">会议</h3></div>
+        <p class="d" data-i18n="scene.c3.d">一按开录，结束后几分钟就有能直接发群的纪要。</p>
+        <div class="tags"><span class="pill mint" data-i18n="scene.c3.t1">正式语气</span><span class="pill lav" data-i18n="scene.c3.t2">录音留在手机里</span></div>
+      </article>
+      <article class="scene reveal" style="--i:3">
+        <div class="t"><h3 data-i18n="scene.c4.h">口述成稿</h3><span class="pill lemon" data-i18n="tag.soon">即将推出</span></div>
+        <p class="d" data-i18n="scene.c4.d">说比打字快。发微信、写邮件、发动态，语气各不一样。</p>
+        <div class="tags"><span class="pill mint" data-i18n="scene.c4.t1">口语 / 正式 / 短句</span></div>
+      </article>
+      <article class="scene reveal" style="--i:4">
+        <div class="t"><h3 data-i18n="scene.c5.h">方言家庭</h3><span class="pill lemon" data-i18n="tag.soon">即将推出</span></div>
+        <p class="d" data-i18n="scene.c5.d">长辈说方言，你听到普通话；语音条转成文字卡，发回家庭群。</p>
+        <div class="tags"><span class="pill mint" data-i18n="scene.c5.t1">粤语 / 四川话</span><span class="pill lav" data-i18n="scene.c5.t2">长辈不用装 App</span></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<div class="stripes" aria-hidden="true"></div>
+
+<!-- ================= 面对面对话 ================= -->
+<section class="block" id="live" style="background:var(--sec-pink)">
+  <div class="tone" aria-hidden="true"></div>
+  <div class="stars" aria-hidden="true">
+    <svg class="star s" style="left:6%;top:12%"><use href="#spark"/></svg>
+    <svg class="star v" style="left:94%;top:20%;animation-delay:.9s"><use href="#spark"/></svg>
+    <svg class="star s m" style="left:50%;top:94%;animation-delay:1.6s"><use href="#spark"/></svg>
+  </div>
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="burst-tag"><span data-i18n="live.burst">主打<small>STAR</small></span></span>
+      <h2 data-i18n="live.h2">面对面对话，<em>四种用法</em></h2>
+      <p class="lead" data-i18n="live.lead">问路、点餐、饭桌闲聊、小型会议都用得上。不用外放，两个人都自在。先从「仅听」开始，需要时再换。</p>
+    </div>
+    <div class="modes">
+      <div class="mode reveal" style="--i:0">
+        <span class="num">1</span>
+        <div class="phone"><img src="img/listen.png" data-i18n-alt="alt.listen" alt="仅听：正在听对方说话，逐句列出译文，最新一句「星期三。」放大显示，底部有麦克风、暂停、扬声器、停止"></div>
+        <div class="bubble">
+          <h4><span data-i18n="live.m1.h">仅听</span> <span class="pill mint" data-i18n="live.m1.tag">只按一下</span></h4>
+          <p data-i18n="live.m1.d">手机放口袋里就好。对方一开口，翻译就轻轻传进你的耳机。震动两下，就是我开始听啦。</p>
+        </div>
+      </div>
+      <div class="mode reveal" style="--i:1">
+        <span class="num">2</span>
+        <div class="phone"><img src="img/face.png" data-i18n-alt="alt.face" alt="面屏：上半屏是我看的小字，下半屏旋转 180 度朝向对方，显示「我不用了，谢谢」礼貌卡"></div>
+        <div class="bubble">
+          <h4><span data-i18n="live.m2.h">面屏</span> <span class="pill lav" data-i18n="live.m2.tag">举起手机自动切换</span></h4>
+          <p data-i18n="live.m2.d">把手机竖起来，下半屏自动转向对方。Ta 看大字，你听耳机，谁也不用凑过来。</p>
+        </div>
+      </div>
+      <div class="mode reveal" style="--i:2">
+        <span class="num">3</span>
+        <div class="phone"><img src="img/dual.png" data-i18n-alt="alt.dual" alt="双屏：深色界面，上半屏是我这边的气泡，下半屏旋转朝向对方；中间一条「自动分辨谁在说」工具栏"></div>
+        <div class="bubble">
+          <h4><span data-i18n="live.m3.h">双屏</span> <span class="pill pink" data-i18n="live.m3.tag">耳机没电也行</span></h4>
+          <p data-i18n="live.m3.d">屏幕一人一半，轮流说，各看各的语言。谁在说话自动分辨，不用手动切换。</p>
+        </div>
+      </div>
+      <div class="mode reveal" style="--i:3">
+        <span class="num">4</span>
+        <div class="phone"><img src="img/quick.png" data-i18n-alt="alt.quick2" alt="速译：深色大字卡显示「星期三。」，底部「再说一句」「朗读」"></div>
+        <div class="bubble">
+          <h4><span data-i18n="live.m4.h">速译</span> <span class="pill lemon" data-i18n="live.m4.tag">说完就出</span></h4>
+          <p data-i18n="live.m4.d">只想说一句？按住说话，松手就变成一张大字卡，举给对方看。屏幕会自动调到最亮。</p>
+        </div>
+      </div>
+    </div>
+    <div class="modes-foot">
+      <span class="pill mint reveal pop" style="--i:0"><svg class="ico"><use href="#i-headset"/></svg><span data-i18n="live.f1">耳机按键、手机侧键、通知栏都能一键开始</span></span>
+      <span class="pill lav reveal pop" style="--i:1"><svg class="ico"><use href="#i-mic"/></svg><span data-i18n="live.f2">粤语、四川话不联网也能听懂</span></span>
+      <span class="pill pink reveal pop" style="--i:2"><svg class="ico"><use href="#i-chat"/></svg><span data-i18n="live.f3">聊完自动整理成一张对话卡，还会帮你记下新词</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 视频字幕 ================= -->
+<section class="block" id="subtitle">
+  <div class="tone br" aria-hidden="true"></div>
+  <div class="wrap spread">
+    <span class="vtag reveal" data-i18n="sub.vtag">视频字幕</span>
+    <div class="media reveal from-l">
+      <div class="phone tilt-l"><img src="img/subtitle.png" data-i18n-alt="alt.subtitle" alt="视频字幕播放器：竖版视频带播放键，进度条 00:00 到 00:15，字幕列表四句英文各带中文译文，底部有导出按钮"></div>
+    </div>
+    <div class="copy reveal from-r">
+      <span class="sticker pink" data-i18n="sub.sticker">★ 主打功能</span>
+      <h3 style="margin-top:12px" data-i18n="sub.h3">视频字幕：<br>没字幕的视频，丢给我就好</h3>
+      <p class="lead" data-i18n="sub.lead">相册里的视频、微信收到的视频、一条链接，分享给场记就行。自动认出语言，边看边出字幕。</p>
+      <ul>
+        <li><span class="dot">1</span><span data-i18n="sub.l1">开始几秒后字幕就出来；字幕没跟上时，画面会自动等一等。</span></li>
+        <li><span class="dot">2</span><span data-i18n="sub.l2">看完可以把字幕文件存下来；遇到的新词会自动记住，下次翻得更准。</span></li>
+        <li><span class="dot p">A</span><span data-i18n="sub.l3"><b>安卓专属：</b>在别的 App 看视频时，下拉通知栏点一下「屏内翻译」，字幕条就浮在画面上。</span></li>
+      </ul>
+      <div class="bubble note top" style="margin-top:22px">
+        <div class="who"><svg aria-hidden="true" viewBox="56 40 208 208" style="--note:none"><use href="#jiji" width="320" height="400"/></svg><b data-i18n="jiji.name">记记酱</b></div>
+        <p data-i18n="sub.bubble">Netflix 这类有版权保护的视频，还有 iPhone 网页里正在播的视频，我听不到声音，就不装懂啦。这种可以先保存到相册，再交给我。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stripes" aria-hidden="true"></div>
+
+<!-- ================= 会议 ================= -->
+<section class="block" id="meeting" style="background:var(--sec-mint)">
+  <div class="tone" aria-hidden="true"></div>
+  <div class="wrap spread flip">
+    <span class="vtag reveal" data-i18n="meet.vtag">会议纪要</span>
+    <div class="media reveal from-r">
+      <div class="phone sm tilt-l"><img src="img/meeting.png" data-i18n-alt="alt.meeting" alt="会议录音中：计时 00:13，粉色波形，标签「录音留在手机里」，下面按时间边说边出字，底部书签、暂停、停止"></div>
+      <div class="phone sm tilt-r"><img src="img/minutes.png" data-i18n-alt="alt.minutes" alt="纪要页：整理稿 / 原文分段，时间轴要点，页脚提示连接云端翻译后可用云端整理，底部分享按钮"></div>
+    </div>
+    <div class="copy reveal from-l">
+      <span class="sticker mint" data-i18n="meet.sticker">一按开录</span>
+      <h3 style="margin-top:12px" data-i18n="meet.h3">会议纪要：<br>会开完，纪要也差不多好了</h3>
+      <p class="lead" data-i18n="meet.lead">开会前收到提醒，一键开录，边说边出文字。结束后自动整理成能直接发群的纪要：说了什么、定了什么、谁来做。</p>
+      <ul>
+        <li><span class="dot">✓</span><span data-i18n="meet.l1">录音一直留在手机里；只有文字会交给云端整理，而且要先问过你。</span></li>
+        <li><span class="dot">✓</span><span data-i18n="meet.l2">不联网也行，照样能出按时间排好的要点和待办，一样能分享。</span></li>
+        <li><span class="dot">✓</span><span data-i18n="meet.l3">整理稿和原话随时切换看，不满意可以换个风格重新整理。</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 越用越懂你 ================= -->
+<section class="block" id="learn">
+  <div class="tone br" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="ribbon" data-i18n="learn.ribbon">SCENE 04 · 越用越懂你</span>
+      <h2 data-i18n="learn.h2">教它一次，<em>以后都记得</em></h2>
+      <p class="lead" data-i18n="learn.lead">每次聊完、每个视频看完，遇到的新词都会问你一声要不要记下来。以后翻译时，优先用你定的说法。</p>
+    </div>
+    <div class="spread">
+      <span class="vtag reveal" data-i18n="learn.vtag">术语表</span>
+      <div class="media reveal from-l">
+        <div class="phone sm tilt-l"><img src="img/glossary.png" data-i18n-alt="alt.glossary" alt="术语表：通用 / 出行 / 工作三组，译名区有场记 → SceneNote、Kubernetes → K8s，听错纠正区有小黄 → 小王"></div>
+        <div class="phone sm tilt-r"><img src="img/sceneedit.png" data-i18n-alt="alt.sceneedit" alt="复制一张再改：编辑面板，名字「面对面对话 副本」，我的普通话 / 对方英语，语气随意、术语出行、联网权限只发文字"></div>
+      </div>
+      <div class="copy reveal from-r">
+        <h3><span data-i18n="learn.g.h">术语表</span> <span class="sticker mint" data-i18n="learn.g.tag">译名 + 听错纠正</span></h3>
+        <p class="lead" data-i18n="learn.g.d">希望某个词固定翻成你习惯的说法？总把「小王」听成「小黄」？告诉它一次，以后就自动改。分成通用、出行、工作几组，每张场景卡各用各的。</p>
+        <h3 style="margin-top:22px"><span data-i18n="learn.c.h">复制一张再改</span> <span class="sticker pink" data-i18n="learn.c.tag">自定义场景</span></h3>
+        <p class="lead" data-i18n="learn.c.d">想要自己的场景？不用从头设置。复制一张现成的，改改名字、语言和语气就好。选到不能搭配的组合，会当场提醒你。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stripes" aria-hidden="true"></div>
+
+<!-- ================= 数据去向 ================= -->
+<section class="block" id="privacy" style="background:var(--sec-lav)">
+  <div class="tone" aria-hidden="true"></div>
+  <div class="stars" aria-hidden="true">
+    <svg class="star v" style="left:8%;top:18%"><use href="#spark"/></svg>
+    <svg class="star s p" style="left:90%;top:70%;animation-delay:1.2s"><use href="#spark"/></svg>
+  </div>
+  <div class="wrap spread flip">
+    <span class="vtag reveal" data-i18n="priv.vtag">数据去向</span>
+    <div class="media reveal from-r">
+      <div class="phone tilt-r"><img src="img/ledger.png" data-i18n-alt="alt.ledger" alt="数据去向：今天 / 7 天分段，三个数字块文字 0、录音 0、局域网 0，联网权限每次询问，估算花费 0 元，逐条只有一笔语音包下载"></div>
+    </div>
+    <div class="copy reveal from-l">
+      <span class="sticker"><svg class="ico"><use href="#i-lock"/></svg><span data-i18n="priv.sticker">没有服务器 · 不偷偷联网</span></span>
+      <h3 style="margin-top:12px" data-i18n="priv.h3">我的数据去哪了？<br>每一笔都清清楚楚</h3>
+      <p class="lead" data-i18n="priv.lead">场记没有自己的服务器，也不需要你注册账号。听和转文字都在手机上完成；只有翻译用的文字，和你亲手选择上传的录音，才会离开手机。</p>
+      <ul>
+        <li><span class="dot v">0</span><span data-i18n="priv.l1">今天离开手机的有几条文字、几条录音，页面上一目了然。不是口号，是实际记录。</span></li>
+        <li><span class="dot v">¥</span><span data-i18n="priv.l2">连接了云端翻译的话，花了多少钱也写在同一页。</span></li>
+        <li><span class="dot v">4</span><span data-i18n="priv.l3">联网权限分四档，每张场景卡可以单独选：</span></li>
+      </ul>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+        <span class="pill mint" data-i18n="priv.p1">不联网</span><span class="pill mint" data-i18n="priv.p2">每次询问</span><span class="pill lav" data-i18n="priv.p3">只发文字</span><span class="pill pink" data-i18n="priv.p4">文字和录音</span>
+      </div>
+      <div class="bubble note top" style="margin-top:22px">
+        <div class="who"><svg aria-hidden="true" viewBox="56 40 208 208" style="--eo:none;--ew:inline;--note:none"><use href="#jiji" width="320" height="400"/></svg><b data-i18n="jiji.name">记记酱</b></div>
+        <p data-i18n="priv.bubble">嘘，对方的声音默认不存，只存文字。你不点头，什么都不出手机。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 入口 ================= -->
+<section class="block" id="entry">
+  <div class="tone br" aria-hidden="true"></div>
+  <div class="wrap spread">
+    <span class="vtag reveal" data-i18n="entry.vtag">快捷入口</span>
+    <div class="media reveal from-l">
+      <div class="phone tilt-l"><img src="img/settings.png" data-i18n-alt="alt.settings" alt="iOS 设置页：语言、入口（快捷指令 / 操作按钮、耳机按键：单击暂停 · 双击跳过 · 三击重播）、外观主题色六种"></div>
+    </div>
+    <div class="copy">
+      <div class="reveal from-r">
+        <span class="sticker mint" data-i18n="entry.sticker">不用打开 App</span>
+        <h3 style="margin-top:12px" data-i18n="entry.h3">按一下，就开始</h3>
+        <p class="lead" data-i18n="entry.lead">场景卡可以绑到你已经顺手的按钮上，出门不用翻手机找 App。</p>
+      </div>
+      <div class="entries" style="margin-top:16px">
+        <div class="entry ios reveal" style="--i:0">
+          <div class="plat" data-i18n="entry.ios">iOS 17 起</div>
+          <ul>
+            <li><b data-i18n="entry.ios1.b">操作按钮</b><span data-i18n="entry.ios1.s">按住就能速译一句</span></li>
+            <li><b data-i18n="entry.ios2.b">快捷指令</b><span data-i18n="entry.ios2.s">一句 Siri 直接打开某张场景卡</span></li>
+            <li><b data-i18n="entry.ios3.b">耳机按键</b><span data-i18n="entry.ios3.s">单击暂停 · 双击跳过 · 三击重播</span></li>
+          </ul>
+        </div>
+        <div class="entry and reveal" style="--i:1">
+          <div class="plat" data-i18n="entry.and">Android 8.0 起</div>
+          <ul>
+            <li><b data-i18n="entry.and1.b">通知栏快捷开关</b><span data-i18n="entry.and1.s">「仅听」和「屏内翻译」两个</span></li>
+            <li><b data-i18n="entry.and2.b">桌面小组件</b><span data-i18n="entry.and2.s">一格就是一张场景卡</span></li>
+            <li><b data-i18n="entry.and3.b">分享菜单</b><span data-i18n="entry.and3.s">视频、语音条「用场记翻译」</span></li>
+          </ul>
+        </div>
+        <div class="entry both reveal" style="--i:2">
+          <div class="plat"><svg class="ico"><use href="#i-heart"/></svg><span data-i18n="entry.both">两端都有</span></div>
+          <ul>
+            <li><b data-i18n="entry.both1.b">耳机按一下</b><span data-i18n="entry.both1.s">马上开始听</span></li>
+            <li><b data-i18n="entry.both2.b">会前提醒</b><span data-i18n="entry.both2.s">点一下通知就开录</span></li>
+            <li><b data-i18n="entry.both3.b">链接直达</b><span data-i18n="entry.both3.s">一条链接跳到任意页面</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stripes" aria-hidden="true"></div>
+
+<!-- ================= 能与不能 ================= -->
+<section class="block" id="honest" style="background:var(--sec-card)">
+  <div class="tone" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="ribbon" data-i18n="honest.ribbon">SCENE 07 · 记记酱不说大话</span>
+      <h2 data-i18n="honest.h2">不联网能做什么，<em>联网才能做什么</em></h2>
+      <p class="lead" data-i18n="honest.lead">不联网也是完整的产品。想要更准的翻译和更多语言，再连接云端翻译就好：去阿里云这类服务商申请一把密钥，App 里会一步步教你。</p>
+    </div>
+    <div class="honest">
+      <div class="col yes reveal from-l">
+        <h3 data-i18n="honest.yes.h">不联网就能</h3>
+        <ul>
+          <li data-i18n="honest.yes1">听懂并转成文字：普通话、英语、粤语、四川话</li>
+          <li data-i18n="honest.yes2">中英互译（第一次用要下载一个语言包，之后完全离线）</li>
+          <li data-i18n="honest.yes3">四川话直接听成普通话；粤语出粤语字幕</li>
+          <li data-i18n="honest.yes4">视频字幕，导出字幕文件</li>
+          <li data-i18n="honest.yes5">会议要点和待办</li>
+          <li data-i18n="honest.yes6">术语表、对话卡片、分享</li>
+        </ul>
+      </div>
+      <div class="col key reveal from-r">
+        <h3 data-i18n="honest.key.h">连接云端翻译才能</h3>
+        <ul>
+          <li data-i18n="honest.key1">更自然的润色、正式的纪要格式</li>
+          <li data-i18n="honest.key2">日语、韩语、欧洲语言等更多语言</li>
+          <li data-i18n="honest.key3">粤语真正翻成普通话</li>
+          <li data-i18n="honest.key4">听懂上海话、闽南语</li>
+          <li data-i18n="honest.key5">新款 iPhone（15 Pro 起）可以用系统自带的翻译，不用连云端</li>
+        </ul>
+      </div>
+    </div>
+    <div class="modes-foot" style="margin-top:26px">
+      <span class="pill outline reveal pop" data-i18n="honest.foot">我们不做的事：自建服务器 · 账号体系 · 通话录音</span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="profile reveal">
+      <span class="sticker pink tag-name" data-i18n="prof.tag">角色档案</span>
+      <svg class="mascot" viewBox="0 0 320 400" style="--eo:none;--eh:inline;--mw:none;--mo:inline" aria-hidden="true"><use href="#jiji"/></svg>
+      <div>
+        <h3><span data-i18n="jiji.name">记记酱</span><span class="latin">JIJI</span></h3>
+        <dl>
+          <dt data-i18n="prof.k1">身份</dt><dd data-i18n="prof.v1">场记的小场记，负责把对方的话小声告诉你</dd>
+          <dt data-i18n="prof.k2">装备</dt><dd data-i18n="prof.v2">圆框眼镜、猫耳、小鱼发夹、天蓝色开衫</dd>
+          <dt data-i18n="prof.k3">口头禅</dt><dd data-i18n="prof.v3">"录音留在手机里，这是我的原则！"</dd>
+          <dt data-i18n="prof.k4">擅长</dt><dd data-i18n="prof.v4">普通话、英语、粤语、四川话；日语韩语要连云端</dd>
+          <dt data-i18n="prof.k5">不擅长</dt><dd data-i18n="prof.v5">有版权保护的视频（听不到声音）、说大话</dd>
+        </dl>
+      </div>
+    </div>
+    <div class="logo"><span data-i18n="foot.logo">场记</span><span class="latin" data-i18n="hero.latin">SceneNote</span></div>
+    <p data-i18n="foot.p1">Android 8.0 起 · iOS 17 起 · 没有服务器，没有账号</p>
+    <p data-i18n="foot.p2">页面里的截图来自开发中的版本（iPhone / 安卓），界面文字以正式版为准。</p>
+  </div>
+</footer>
+
+<script src="i18n.js"></script>
+<script>
+(function(){
+  var reduce = false;
+  try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+
+  /* ---- 多语言：HTML 里是中文底稿，其余语言来自 i18n.js；切换时只换文字 ---- */
+  var DICT = (window.SCENENOTE_I18N || {}), LANGS = ['zh','en','ja','ko'], HTML_LANG = { zh:'zh-CN', en:'en', ja:'ja', ko:'ko' };
+  var zh = { lines: [
+    '对方说英语，你听普通话；你说普通话，Ta 看英文。谁在说话我自己分辨。',
+    '手机放口袋里就好，不用掏出来。震动两下，就是我开始听啦。',
+    '粤语、四川话不联网我也听得懂哦。',
+    '录音留在手机里，这是我的原则！',
+    '看视频没字幕？分享给我，边看边出字幕。',
+    '我是场记的小场记！对方说什么，我小声告诉你；你想说什么，我写成大字给 Ta 看～'
+  ], title: document.title };
+  document.querySelectorAll('[data-i18n]').forEach(function(el){ var k = el.getAttribute('data-i18n'); if (!(k in zh)) zh[k] = el.innerHTML; });
+  document.querySelectorAll('[data-i18n-alt]').forEach(function(el){ zh['alt:' + el.getAttribute('data-i18n-alt')] = el.getAttribute('alt'); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(function(el){ zh['aria:' + el.getAttribute('data-i18n-aria')] = el.getAttribute('aria-label'); });
+  DICT.zh = zh;
+  var cur = 'zh';
+  function tr(k){ var d = DICT[cur] || {}; return (k in d) ? d[k] : zh[k]; }
+  function applyLang(lang, persist){
+    if (!DICT[lang]) lang = 'zh';
+    cur = lang;
+    document.documentElement.lang = HTML_LANG[lang];
+    document.querySelectorAll('[data-i18n]').forEach(function(el){
+      var v = tr(el.getAttribute('data-i18n'));
+      if (el.innerHTML !== v) el.innerHTML = v;
+      if (el.classList.contains('latin')) el.hidden = !v;
+    });
+    document.querySelectorAll('[data-i18n-alt]').forEach(function(el){ el.setAttribute('alt', tr('alt:' + el.getAttribute('data-i18n-alt'))); });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function(el){ el.setAttribute('aria-label', tr('aria:' + el.getAttribute('data-i18n-aria'))); });
+    document.title = tr('title');
+    document.querySelectorAll('#lang button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-lang') === lang)); });
+    if (persist){ try{ localStorage.setItem('scenenote-lang', lang); }catch(e){} }
+  }
+  function detectLang(){
+    try{ var q = new URLSearchParams(location.search).get('lang'); if (q && DICT[q]) return q; }catch(e){}
+    try{ var st = localStorage.getItem('scenenote-lang'); if (st && DICT[st]) return st; }catch(e){}
+    var navs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || 'zh'];
+    for (var i = 0; i < navs.length; i++){ var code = String(navs[i]).toLowerCase().slice(0, 2); if (DICT[code]) return code; }
+    return 'zh';
+  }
+  applyLang(detectLang(), false);
+  document.querySelectorAll('#lang button').forEach(function(b){ b.addEventListener('click', function(){ applyLang(b.getAttribute('data-lang'), true); }); });
+
+  /* ---- 集中线（生成而不是手画） ---- */
+  var sl = document.getElementById('speedlines');
+  if (sl){
+    var ns = 'http://www.w3.org/2000/svg', N = 64, out = '';
+    for (var i = 0; i < N; i++){
+      var a = (Math.PI*2/N)*i + (Math.random()-.5)*.03, w = .006 + Math.random()*.012, r1 = 150 + Math.random()*60, r2 = 300;
+      var x1 = 200 + Math.cos(a-w)*r2, y1 = 200 + Math.sin(a-w)*r2, x2 = 200 + Math.cos(a+w)*r2, y2 = 200 + Math.sin(a+w)*r2, x3 = 200 + Math.cos(a)*r1, y3 = 200 + Math.sin(a)*r1;
+      out += '<polygon points="'+x1.toFixed(1)+','+y1.toFixed(1)+' '+x2.toFixed(1)+','+y2.toFixed(1)+' '+x3.toFixed(1)+','+y3.toFixed(1)+'" fill="currentColor" opacity="'+(.15+Math.random()*.25).toFixed(2)+'"/>';
+    }
+    sl.innerHTML = out;
+  }
+
+  /* ---- 滚动进场 ---- */
+  var els = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
+  function showAll(){ els.forEach(function(e){ e.classList.add('in'); }); }
+  if (reduce || !('IntersectionObserver' in window)) { showAll(); }
+  else {
+    try{
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){ if (en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+      }, { rootMargin:'0px 0px -8% 0px', threshold:.1 });
+      els.forEach(function(e){ io.observe(e); });
+    }catch(e){ showAll(); }
+  }
+
+  /* ---- 演示视频：video/demo.mp4 能加载就显示播放器，否则保留占位卡 ---- */
+  var dv = document.getElementById('demo-video'), ds = document.getElementById('demo-source'), dp = document.getElementById('demo-placeholder');
+  if (dv && ds && dp){
+    dv.addEventListener('loadedmetadata', function(){ dp.hidden = true; dv.hidden = false; if (!dv.poster){ try{ dv.currentTime = 0.01; }catch(e){} } });
+    ds.addEventListener('error', function(){ dv.hidden = true; dp.hidden = false; });
+    var poster = new Image(); poster.onload = function(){ dv.poster = 'video/poster.jpg'; }; poster.src = 'video/poster.jpg';
+  }
+
+  /* ---- 记记酱：眼睛跟着指针，点一下换台词并跳一下 ---- */
+  var m = document.getElementById('jiji-hero'), bubble = document.getElementById('jiji-bubble'), line = document.getElementById('jiji-line');
+  function lines(){ return (DICT[cur] && DICT[cur].lines) || zh.lines; }
+  var li = 0;
+  function say(){
+    var L = lines(); li = (li + 1) % L.length; line.textContent = L[li];
+    bubble.classList.remove('say'); void bubble.offsetWidth; bubble.classList.add('say');
+    m.classList.remove('hop'); void m.offsetWidth; m.classList.add('hop');
+    m.style.setProperty('--eo','none'); m.style.setProperty('--eh','inline'); m.style.setProperty('--mw','none'); m.style.setProperty('--mo','inline');
+    setTimeout(function(){ m.style.setProperty('--eo','inline'); m.style.setProperty('--eh','none'); m.style.setProperty('--mw','inline'); m.style.setProperty('--mo','none'); }, 1400);
+  }
+  if (m){
+    m.addEventListener('click', say);
+    m.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); say(); } });
+    if (!reduce){
+      addEventListener('pointermove', function(e){
+        var r = m.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) return;
+        var dx = e.clientX - (r.left + r.width/2), dy = e.clientY - (r.top + r.height*.42);
+        var d = Math.hypot(dx, dy) || 1, k = Math.min(1, d/260);
+        m.style.setProperty('--ex', (dx/d*4.5*k).toFixed(2) + 'px');
+        m.style.setProperty('--ey', (dy/d*3.5*k).toFixed(2) + 'px');
+      }, { passive:true });
+    }
+  }
+
+  if (reduce) return;
+
+  /* ---- 点击迸星 ---- */
+  var tints = ['', 'p', 'm', 'v'];
+  addEventListener('pointerdown', function(e){
+    if (e.button !== 0) return;
+    for (var i = 0; i < 7; i++){
+      var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      s.setAttribute('class', 'burst ' + tints[i % 4]);
+      var a = (Math.PI*2/7)*i + Math.random()*.6, r = 34 + Math.random()*36;
+      s.style.setProperty('--x', e.clientX + 'px'); s.style.setProperty('--y', e.clientY + 'px');
+      s.style.setProperty('--dx', (Math.cos(a)*r).toFixed(1) + 'px'); s.style.setProperty('--dy', (Math.sin(a)*r).toFixed(1) + 'px');
+      var u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', '#spark'); s.appendChild(u);
+      s.addEventListener('animationend', function(){ this.remove(); });
+      document.body.appendChild(s);
+    }
+  }, { passive:true });
+
+  /* ---- 樱花瓣（深色模式变淡紫花瓣） ---- */
+  var c = document.getElementById('petals'); if (!c || !c.getContext) return;
+  var ctx = c.getContext('2d'), W, H, P = [], col, t = 0, raf = null;
+  function color(){ try{ return getComputedStyle(document.documentElement).getPropertyValue('--petal').trim() || '#FFB3D1'; }catch(e){ return '#FFB3D1'; } }
+  function size(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+    c.width = W*dpr; c.height = H*dpr; c.style.width = W + 'px'; c.style.height = H + 'px'; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function mk(init){
+    return { x: Math.random()*W, y: init ? Math.random()*H : -24, s: 6 + Math.random()*8, vy: .45 + Math.random()*.9, vx: -.25 + Math.random()*.5,
+             a: Math.random()*Math.PI*2, va: (-.5 + Math.random())*.03, ph: Math.random()*Math.PI*2, o: .45 + Math.random()*.5 };
+  }
+  function petal(p){
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.globalAlpha = p.o; ctx.fillStyle = col;
+    var s = p.s; ctx.beginPath(); ctx.moveTo(0, -s); ctx.bezierCurveTo(s*1.1, -s*.9, s*1.1, s*.5, 0, s); ctx.bezierCurveTo(-s*1.1, s*.5, -s*1.1, -s*.9, 0, -s); ctx.fill(); ctx.restore();
+  }
+  function frame(){
+    t += .016; ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < P.length; i++){
+      var p = P[i]; p.y += p.vy; p.x += p.vx + Math.sin(t*1.3 + p.ph)*.45; p.a += p.va;
+      if (p.y > H + 24 || p.x < -30 || p.x > W + 30) P[i] = p = mk(false);
+      petal(p);
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  size(); col = color();
+  var N = W < 600 ? 16 : 34; for (var i = 0; i < N; i++) P.push(mk(true));
+  frame();
+  addEventListener('resize', size);
+  document.addEventListener('visibilitychange', function(){ if (document.hidden){ cancelAnimationFrame(raf); raf = null; } else if (!raf) frame(); });
+  try{
+    var mq = matchMedia('(prefers-color-scheme: dark)'); (mq.addEventListener ? mq.addEventListener('change', function(){ col = color(); }) : mq.addListener(function(){ col = color(); }));
+    new MutationObserver(function(){ col = color(); }).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+  }catch(e){}
+})();
+</script>
+
+</body>
+</html>
