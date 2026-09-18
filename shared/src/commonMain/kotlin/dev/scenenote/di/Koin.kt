@@ -103,7 +103,7 @@ val commonModule: Module = module {
     single {
         val bailian = get<BailianMtTranslator>()
         val nmt = get<dev.scenenote.nmt.OnnxNmtTranslator>()
-        dev.scenenote.screen.SubtitleJob(get(), get(), FastTranslator(cloud = { bailian.takeIf { it.hasKey() } }, local = { nmt as Translator }, timeoutMs = 20_000), get(), get<AppPaths>(), get(), get())
+        dev.scenenote.screen.SubtitleJob(get(), get(), FastTranslator(cloud = { bailian.takeIf { it.hasKey() } }, local = { nmt as Translator }, timeoutMs = 20_000), get(), get<AppPaths>(), get(), get(), get())
     }
     viewModel { dev.scenenote.ui.screen.ScreenViewModel(get(), get(), get(), get(), get(), get(), get()) }
     single { dev.scenenote.screen.SystemCaption(get(), get(), get(), get()) }

@@ -18,6 +18,7 @@ import dev.scenenote.core.platform.AppPaths
 import dev.scenenote.core.platform.MemoryTier
 import dev.scenenote.polish.Cue
 import dev.scenenote.translate.FastTranslator
+import dev.scenenote.core.settings.AppSettings
 import dev.scenenote.translate.FastMt
 import dev.scenenote.translate.MtRequest
 import dev.scenenote.translate.Script
@@ -104,6 +105,7 @@ class SubtitleJob(
     private val repo: SessionRepository,
     private val paths: AppPaths,
     private val egress: EgressGate,
+    private val settings: AppSettings,
     private val scope: CoroutineScope,
 ) {
     private val _state = MutableStateFlow(SubtitleState())
@@ -227,7 +229,8 @@ class SubtitleJob(
                     repo.saveNote(sessionId, "subtitle", "cloud:bailian", "", json.encodeToString(translations.mapKeys { it.key.toString() }), "")
                     _state.update { it.copy(translate = translations.isNotEmpty()) }
                     if (failed != null) _state.update { it.copy(error = UiText.res(when (failed) {
-                        FastMt.CODE_NO_KEY_NO_PAIR -> Res.string.screen_untranslated_no_pair
+                        // 同一个 code 两种由来：主动选了本机档，和根本没连云端——别对着已连云端的人说「没连云端」
+                        FastMt.CODE_NO_KEY_NO_PAIR -> if (settings.mtLocalOnly) Res.string.screen_untranslated_local_tier else Res.string.screen_untranslated_no_pair
                         FastMt.CODE_CLOUD_DOWN_NO_PAIR -> Res.string.screen_untranslated_cloud_down
                         FastMt.CODE_LOCAL_FAILED -> Res.string.screen_untranslated_local_failed
                         else -> Res.string.screen_untranslated

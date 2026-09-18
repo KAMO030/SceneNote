@@ -489,6 +489,7 @@
     <!-- screen -->
     <string name="screen_untranslated">未翻訳</string>
     <string name="screen_untranslated_no_pair">未翻訳：クラウド翻訳が未接続で、この方向のオフライン翻訳パックも未ダウンロードです（設定 → 音声パック）</string>
+    <string name="screen_untranslated_local_tier">未翻訳：翻訳モデルが端末内ですが、この方向のオフライン翻訳パックが未ダウンロードです（設定 → 音声パック）</string>
     <string name="screen_untranslated_cloud_down">未翻訳：クラウド翻訳が応答せず、この方向のオフライン翻訳パックもありません</string>
     <string name="screen_untranslated_local_failed">未翻訳：オフライン翻訳でエラー。動画を開き直してもう一度</string>
     <!-- syscap -->

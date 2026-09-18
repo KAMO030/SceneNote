@@ -489,6 +489,7 @@
     <!-- screen -->
     <string name="screen_untranslated">未翻译</string>
     <string name="screen_untranslated_no_pair">未翻译：没连云端翻译，也没下载这个方向的离线翻译包（设置 → 语音包）</string>
+    <string name="screen_untranslated_local_tier">未翻译：翻译模型选的是本机，但这个方向还没下载离线翻译包（设置 → 语音包）</string>
     <string name="screen_untranslated_cloud_down">未翻译：云端翻译没回应，也没有这个方向的离线翻译包兜底</string>
     <string name="screen_untranslated_local_failed">未翻译：离线翻译出错，重新打开这个视频再试</string>
     <!-- syscap -->

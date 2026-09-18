@@ -489,6 +489,7 @@
     <!-- screen -->
     <string name="screen_untranslated">번역되지 않음</string>
     <string name="screen_untranslated_no_pair">번역되지 않음: 클라우드 번역이 연결되지 않았고 이 방향의 오프라인 번역 팩도 없어요 (설정 → 음성 팩)</string>
+    <string name="screen_untranslated_local_tier">번역 안 됨: 번역 모델이 기기 내지만 이 방향의 오프라인 번역 팩을 내려받지 않았습니다 (설정 → 음성 팩)</string>
     <string name="screen_untranslated_cloud_down">번역되지 않음: 클라우드 번역이 응답하지 않았고 이 방향의 오프라인 팩도 없어요</string>
     <string name="screen_untranslated_local_failed">번역되지 않음: 오프라인 번역 오류, 영상을 다시 열어 시도하세요</string>
     <!-- syscap -->

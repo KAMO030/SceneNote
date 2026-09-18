@@ -489,6 +489,7 @@
     <!-- screen -->
     <string name="screen_untranslated">Not translated</string>
     <string name="screen_untranslated_no_pair">Not translated: cloud translation isn't connected and the offline pack for this pair isn't downloaded (Settings → Packs)</string>
+    <string name="screen_untranslated_local_tier">Not translated: the translation tier is On-device, but the offline pack for this pair isn’t downloaded (Settings → Speech packs)</string>
     <string name="screen_untranslated_cloud_down">Not translated: cloud translation didn't respond and there's no offline pack for this pair</string>
     <string name="screen_untranslated_local_failed">Not translated: offline translation failed — reopen the video to try again</string>
     <!-- syscap -->
