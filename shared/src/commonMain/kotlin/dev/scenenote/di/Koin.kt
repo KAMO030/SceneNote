@@ -4,6 +4,7 @@ import com.russhwolf.settings.Settings
 import dev.scenenote.asr.DefaultEngineSelector
 import dev.scenenote.asr.EngineSelector
 import dev.scenenote.audio.AudioFactory
+import dev.scenenote.core.platform.ThreadBudget
 import dev.scenenote.core.db.DbDriverFactory
 import dev.scenenote.core.db.SqlLedger
 import dev.scenenote.core.db.createDatabase
@@ -60,7 +61,7 @@ val commonModule: Module = module {
     single<EngineSelector> { DefaultEngineSelector() }
     single { ModelStore(get<AppPaths>(), get()) }
     single { LatencyProbe { line -> val p = get<AppPaths>(); p.ensureDir(p.benchDir); p.appendText(p.join(p.benchDir, "latency.jsonl"), line + "\n") } }
-    single { SherpaAsrEngine(get(), get()) }
+    single { SherpaAsrEngine(get(), get(), numThreads = ThreadBudget.asr) }
     single { AsrBench(get(), get()) }
     single { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
     /** 实时会话唯一的输出通道：状态机（设备切换时 stop/flush）与播放队列共用同一个 sink。 */
@@ -72,14 +73,14 @@ val commonModule: Module = module {
     }
     // I3 快路径：翻译（百炼 BYOK 云端；端侧 opus-mt NMT 为零 Key 默认档与超时降级目标）→ TTS（系统 / sherpa）→ 播放队列
     single { BailianMtTranslator(get(), get(), get()) }
-    single { dev.scenenote.nmt.OnnxNmtTranslator(get()) }
+    single { dev.scenenote.nmt.OnnxNmtTranslator(get(), numThreads = ThreadBudget.nmt) }
     single { KeyTester(get(), get()) }
     single {
         val bailian = get<BailianMtTranslator>()
         val nmt = get<dev.scenenote.nmt.OnnxNmtTranslator>()
         FastTranslator(cloud = { bailian.takeIf { it.hasKey() } }, local = { nmt as Translator })
     }
-    single { SherpaTts(get()) }
+    single { SherpaTts(get(), numThreads = ThreadBudget.tts) }
     single { TtsRouter(system = { get<SystemTtsProvider>().get() }, local = { get<SherpaTts>() }) }
     single { PlaybackQueue(get<AudioSink>(), get()) }
     single { FastPath(get(), get(), get(), get<AudioSink>(), get(), get()) }

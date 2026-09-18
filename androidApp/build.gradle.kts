@@ -33,9 +33,24 @@ android {
         // sherpa-onnx AAR 与 onnxruntime-android AAR 各带一份 libonnxruntime.so（同为 1.28.2、sha256 相同），任取其一
         jniLibs { pickFirsts += "**/libonnxruntime.so" }
     }
+    // release 签名凭据放在仓库外（~/.gradle/gradle.properties），缺失时退回未签名产物
+    val releaseStorePath = providers.gradleProperty("SCENENOTE_RELEASE_STORE_FILE").orNull
+        ?.takeIf { file(it).exists() }
+    signingConfigs {
+        if (releaseStorePath != null) {
+            create("release") {
+                storeFile = file(releaseStorePath)
+                storePassword = providers.gradleProperty("SCENENOTE_RELEASE_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("SCENENOTE_RELEASE_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("SCENENOTE_RELEASE_KEY_PASSWORD").get()
+                enableV3Signing = true   // AGP 默认只开 v2；v3 支持后续密钥轮换
+            }
+        }
+    }
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
     compileOptions {

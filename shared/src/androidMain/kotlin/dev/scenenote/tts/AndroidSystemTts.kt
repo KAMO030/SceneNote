@@ -40,9 +40,17 @@ class AndroidSystemTts private constructor(private val context: Context, private
         tts.setSpeechRate(req.rate)
         val r = tts.synthesizeToFile(req.text, null, file, req.utteranceId)
         if (r != TextToSpeech.SUCCESS) throw TtsFailed("system TTS refused synthesis ($r)")
-        val ok = withTimeoutOrNull(15_000) { done.await() } ?: false
-        if (!ok) { file.delete(); throw TtsFailed("system TTS synthesis failed or timed out") }
-        val pcm = withContext(Dispatchers.IO) { runCatching { WavIo.readPcm16k(file.absolutePath) }.also { file.delete() }.getOrElse { throw TtsFailed("failed to read system TTS output: ${it.message}", it) } }
+        val pcm = try {
+            // 实时会话里一句十几二十个字，正常引擎 1 s 内就写完文件；按长度放宽，上限留给慢路径的长文本。
+            // 不能像原来那样一律等 15 s：合成是串行的，一句卡住后面整条播放队列都跟着停。
+            val timeoutMs = (2_000L + req.text.length * 60L).coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)
+            if (withTimeoutOrNull(timeoutMs) { done.await() } != true) throw TtsFailed("system TTS timed out after ${timeoutMs}ms")
+            withContext(Dispatchers.IO) { runCatching { WavIo.readPcm16k(file.absolutePath) }.getOrElse { throw TtsFailed("failed to read system TTS output: ${it.message}", it) } }
+        } finally {
+            // 超时，或被播放队列的首块看门狗取消：让引擎停手，别把半个文件留在 cacheDir
+            if (!done.isCompleted) runCatching { tts.stop() }
+            runCatching { file.delete() }
+        }
         val firstMs = t0.elapsedNow().inWholeMilliseconds
         var off = 0; var sent = 0
         while (off < pcm.size) {
@@ -56,6 +64,9 @@ class AndroidSystemTts private constructor(private val context: Context, private
     override fun close() { tts.shutdown() }
 
     companion object {
+        private const val MIN_TIMEOUT_MS = 3_000L
+        private const val MAX_TIMEOUT_MS = 15_000L
+
         /** 没有任何引擎（vivo V2054A：tts_default_synth = null）→ null；有引擎则初始化并等待 onInit。 */
         suspend fun create(context: Context): AndroidSystemTts? {
             val probe = TextToSpeech(context) {}

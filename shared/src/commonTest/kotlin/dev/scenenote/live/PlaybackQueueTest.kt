@@ -35,6 +35,16 @@ private class FakeTts(val chunks: Int = 3, val chunkDelayMs: Long = 5) : TtsEngi
     }
 }
 
+/** 永远不回块的引擎：模拟卡住的系统 TTS（合成到文件后回调不来），首块看门狗该把它掐掉。 */
+private class StuckTts : TtsEngine {
+    override val id = "stuck"
+    override fun supports(lang: String) = true
+    override suspend fun synthesize(req: TtsRequest, onChunk: suspend (ShortArray) -> Boolean): TtsStats {
+        delay(Long.MAX_VALUE / 2)
+        return TtsStats(id, 16_000, 0, 0, 0)
+    }
+}
+
 class PlaybackQueueTest {
     @Test fun playsSequentiallyAndPrimesOnce() = runTest {
         val sink = QueueFakeSink(); val q = PlaybackQueue(sink, backgroundScope)
@@ -54,6 +64,35 @@ class PlaybackQueueTest {
         (1..4).forEach { q.enqueue(TtsRequest("s$it", "en", "u$it"), tts) }
         advanceTimeBy(2_000); runCurrent()
         assertEquals(listOf(1.2f, 1.2f, 1f, 1f), tts.rates)   // u1/u2 后面各排着 ≥ 2 句；u3/u4 不加速
+    }
+
+    /** 一句卡住不能堵死整条队列：看门狗超时后它标 Failed，后面的照常播。 */
+    @Test fun stuckUtteranceGivesUpAndLetsTheRestPlay() = runTest {
+        val sink = QueueFakeSink(); val q = PlaybackQueue(sink, backgroundScope)
+        val events = mutableListOf<PlaybackEvent>()
+        backgroundScope.launch { q.events.collect { events += it } }
+        q.enqueue(TtsRequest("stuck", "en", "u1"), StuckTts())
+        q.enqueue(TtsRequest("ok", "en", "u2"), FakeTts())
+        advanceTimeBy(PlaybackQueue.FIRST_CHUNK_TIMEOUT_MS - 100); runCurrent()
+        assertTrue(events.none { it is PlaybackEvent.Failed }, "还没到时限就不该放弃")
+        advanceTimeBy(1_000); runCurrent()
+        assertEquals(listOf("u1"), events.filterIsInstance<PlaybackEvent.Failed>().map { it.utteranceId })
+        assertEquals(listOf("u2"), events.filterIsInstance<PlaybackEvent.Done>().map { it.utteranceId })
+    }
+
+    /**
+     * 合成追不上说话时丢掉过时的：每句 4 s、排 8 句，
+     * u3–u5 排队时已经等了 ≥ 6 s 且后面还压着 ≥ 3 句 → 只上屏不念；u6 之后队列短了，照常播。
+     */
+    @Test fun staleUtterancesAreDroppedWhenSynthesisFallsBehind() = runTest {
+        val sink = QueueFakeSink(); val q = PlaybackQueue(sink, backgroundScope, testScheduler.timeSource)
+        val events = mutableListOf<PlaybackEvent>()
+        backgroundScope.launch { q.events.collect { events += it } }
+        val slow = FakeTts(chunks = 1, chunkDelayMs = 3_990)   // 3990 + sink 的 10 ms = 4 s 一句
+        (1..8).forEach { q.enqueue(TtsRequest("s$it", "en", "u$it"), slow) }
+        advanceTimeBy(60_000); runCurrent()
+        assertEquals(listOf("u3", "u4", "u5"), events.filterIsInstance<PlaybackEvent.Skipped>().filter { it.reason == "stale" }.map { it.utteranceId })
+        assertEquals(listOf("u1", "u2", "u6", "u7", "u8"), events.filterIsInstance<PlaybackEvent.Done>().map { it.utteranceId })
     }
 
     @Test fun flushDropsPendingAndStopsCurrent() = runTest {

@@ -5,6 +5,7 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
+import dev.scenenote.core.Diag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -83,22 +84,33 @@ class IosRouteManager : RouteManager {
     }
     internal fun runLostHandlers() { handlers.value.forEach { h -> runCatching { h() } } }
 
+    /**
+     * 幂等（与 Android 的 `ensure` 对齐：那边也是 `if (mode != NORMAL)` / `if (focusRequest == null)` 才动）。
+     * 每次都重设一遍 category 会发 CategoryChange 路由通知，连锁触发 AVAudioEngine 的 ConfigurationChange
+     * —— 那会停掉正在播的音频并重装采集 tap。而一次会话开始本来就要走两遍 ensure（状态机 arming 一次、采集启动一次），
+     * 正好打在开头的译文上。
+     */
     override suspend fun ensure(): RouteState = withContext(Dispatchers.Main) {
         memScoped {
-            val e1 = alloc<ObjCObjectVar<NSError?>>()
-            if (!session.setCategory(AVAudioSessionCategoryPlayAndRecord, mode = AVAudioSessionModeDefault,
-                    options = AVAudioSessionCategoryOptionDefaultToSpeaker or AVAudioSessionCategoryOptionAllowBluetoothA2DP, error = e1.ptr))
-                error("AVAudioSession.setCategory failed: ${e1.value?.localizedDescription}")
+            val wantOptions = AVAudioSessionCategoryOptionDefaultToSpeaker or AVAudioSessionCategoryOptionAllowBluetoothA2DP
+            if (session.category != AVAudioSessionCategoryPlayAndRecord || session.mode != AVAudioSessionModeDefault || session.categoryOptions != wantOptions) {
+                val e1 = alloc<ObjCObjectVar<NSError?>>()
+                if (!session.setCategory(AVAudioSessionCategoryPlayAndRecord, mode = AVAudioSessionModeDefault, options = wantOptions, error = e1.ptr))
+                    error("AVAudioSession.setCategory failed: ${e1.value?.localizedDescription}")
+                Diag.log("audio", "session category set to playAndRecord (defaultToSpeaker + a2dp)")
+            }
             val builtIn: AVAudioSessionPortDescription? = session.availableInputs
                 ?.filterIsInstance<AVAudioSessionPortDescription>()
                 ?.firstOrNull { port -> port.portType == AVAudioSessionPortBuiltInMic }
-            if (builtIn != null) {
+            if (builtIn != null && session.preferredInput?.portType != AVAudioSessionPortBuiltInMic) {
                 val e2 = alloc<ObjCObjectVar<NSError?>>()
                 if (!session.setPreferredInput(builtIn, error = e2.ptr)) error("setPreferredInput(builtIn) failed: ${e2.value?.localizedDescription}")
             }
-            val e3 = alloc<ObjCObjectVar<NSError?>>()
-            if (!session.setActive(true, error = e3.ptr)) error("AVAudioSession.setActive failed: ${e3.value?.localizedDescription}")
-            sessionActive = true
+            if (!sessionActive) {
+                val e3 = alloc<ObjCObjectVar<NSError?>>()
+                if (!session.setActive(true, error = e3.ptr)) error("AVAudioSession.setActive failed: ${e3.value?.localizedDescription}")
+                sessionActive = true
+            }
         }
         if (observers.isEmpty()) observe()
         refresh()

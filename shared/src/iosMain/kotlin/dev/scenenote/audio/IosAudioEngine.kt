@@ -11,6 +11,7 @@ import kotlinx.cinterop.set
 import kotlinx.cinterop.sizeOf
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
+import dev.scenenote.core.Diag
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -64,6 +65,8 @@ import kotlin.math.pow
 /**
  * 单个 AVAudioEngine 同时承载采集（inputNode tap）与播放（AVAudioPlayerNode → mainMixer）。
  * 会话类别由 [IosRouteManager] 设定；本类只管节点图与启停。
+ * - 节点图在 init 里一次建好（播放节点提前 attach + connect），之后只启停、绝不改图：
+ *   在运行中的引擎上改图会发 ConfigurationChange，把正在播的音频连同采集 tap 一起打断，表现就是"边听边播不工作"。
  * - 配置变化通知（耳机插拔常触发）：同步 player.stop()（清空残留调度，避免从新路由外放），标记 needsRestart，并通知采集端重装 tap。
  * - 输出设备拔出：向 RouteManager 注册 onDeviceLost → player.stop()（与系统媒体 App 行为一致）。
  */
@@ -72,14 +75,21 @@ class IosAudioEngine(private val routeManager: IosRouteManager) {
     private val player = AVAudioPlayerNode()
     /** 播放格式：16 kHz 立体声 Float32 非交织；引擎负责重采样到硬件输出率。 */
     val playbackFormat: AVAudioFormat = AVAudioFormat(commonFormat = AVAudioPCMFormatFloat32, sampleRate = 16_000.0, channels = 2u, interleaved = false)
-    private var playerAttached = false
     @Volatile private var needsRestart = false
     private val configListeners = AtomicReference<List<() -> Unit>>(emptyList())
     private val observer: Any
     private val unregisterLost: () -> Unit
 
     init {
+        // 播放节点在引擎第一次启动之前就挂进图里。
+        // 原来是等第一次 play() 才 attach + connect：那是在「正在采集」的引擎上改节点图，AVAudioEngine 会发
+        // ConfigurationChange → 本类的处理器 player.stop() 清掉刚调度的缓冲、采集端跟着 installTap() 停机重装，
+        // 于是录音期间头几段译文有声也被吞掉，停掉录音（引擎重启、图不再变）才听得见 —— 看着就像"不能边听边播"。
+        // Android 那边采集与播放是 AudioRecord / AudioTrack 两条独立的路，天然互不干扰；这边只能把图一次建好、之后不动。
+        engine.attachNode(player)
+        engine.connect(player, to = engine.mainMixerNode, format = playbackFormat)
         observer = NSNotificationCenter.defaultCenter.addObserverForName(AVAudioEngineConfigurationChangeNotification, `object` = engine, queue = NSOperationQueue.mainQueue) { _: NSNotification? ->
+            Diag.log("audio", "engine configuration changed (route / format) → player stopped, restart pending")
             player.stop()
             needsRestart = true
             configListeners.value.forEach { l -> runCatching { l() } }
@@ -92,15 +102,14 @@ class IosAudioEngine(private val routeManager: IosRouteManager) {
         return { configListeners.value = configListeners.value - listener }
     }
 
-    /** 主线程调用。引擎未运行或需重启时重建连接并启动；失败抛异常（调用方决定是否上报）。 */
+    /** 引擎在跑、且不需要重启：播放据此跳过切主线程那一跳。 */
+    val ready: Boolean get() = engine.running && !needsRestart
+
+    /** 主线程调用。引擎未运行或需重启时启动；节点图在 init 里已经建好，这里绝不改图（改图 = 打断正在播的音频）。 */
     fun ensureStarted() {
-        if (!playerAttached) {
-            engine.attachNode(player)
-            engine.connect(player, to = engine.mainMixerNode, format = playbackFormat)
-            playerAttached = true
-        }
-        if (needsRestart && engine.running) engine.stop()
-        if (needsRestart || !engine.running) memScoped {
+        if (ready) return
+        if (engine.running) engine.stop()
+        memScoped {
             val err = alloc<ObjCObjectVar<NSError?>>()
             engine.prepare()
             if (!engine.startAndReturnError(err.ptr)) error("AVAudioEngine start failed: ${err.value?.localizedDescription}")
@@ -144,9 +153,13 @@ class IosAudioSource(private val shared: IosAudioEngine, private val routeManage
         }
     }
 
-    /** 主线程：按当前硬件格式（重新）安装 tap。引擎若已以"纯输出"启动，输入节点格式为 0 Hz，必须先停下再装。 */
+    /**
+     * 主线程：按当前硬件格式（重新）安装 tap。引擎若已以"纯输出"启动，输入节点格式为 0 Hz，必须先停下再装。
+     * 停引擎会打断正在播的音频，所以这里只在会话开始与真的发生路由 / 格式变化时走；
+     * 播放本身绝不碰节点图（播放节点在 [IosAudioEngine] 的 init 里就连好了）。
+     */
     private fun installTap() {
-        if (shared.engine.running) shared.engine.stop()
+        if (shared.engine.running) { Diag.log("audio", "stopping engine to (re)install input tap"); shared.engine.stop() }
         val input = shared.engine.inputNode
         if (tapInstalled) { input.removeTapOnBus(0u); tapInstalled = false }
         val hw = input.outputFormatForBus(0u)
@@ -213,7 +226,8 @@ class IosAudioSink(private val shared: IosAudioEngine, routeManager: IosRouteMan
         set(v) { field = v; shared.playerNode.volume = 10f.pow(v / 20f).coerceIn(0f, 1f) }
 
     override suspend fun play(chunk: ShortArray, channelMask: Int) {
-        withContext(Dispatchers.Main) { shared.ensureStarted() }
+        // 引擎已经在跑就别切主线程：一块音频一次往返，而采集正忙的时候主线程本来就紧
+        if (!shared.ready) withContext(Dispatchers.Main) { shared.ensureStarted() }
         if (inFlight.value >= MAX_IN_FLIGHT) awaitDrain()
         val buf = toBuffer(chunk, channelMask)
         inFlight.incrementAndGet()
@@ -237,10 +251,13 @@ class IosAudioSink(private val shared: IosAudioEngine, routeManager: IosRouteMan
     }
     override fun flush() = stop()
     override fun prime() {
-        runCatching {
-            shared.ensureStarted()
-            shared.playerNode.scheduleBuffer(toBuffer(Pcm.nearSilence(16_000, 200), 3), completionHandler = null)
-            if (!shared.playerNode.playing) shared.playerNode.play()
+        // 引擎启动必须在主线程，而 prime 是播放队列从后台协程调的（Android 那边同样是后台线程，只是 AudioTrack 不挑线程）
+        NSOperationQueue.mainQueue.addOperationWithBlock {
+            runCatching {
+                shared.ensureStarted()
+                shared.playerNode.scheduleBuffer(toBuffer(Pcm.nearSilence(16_000, 200), 3), completionHandler = null)
+                if (!shared.playerNode.playing) shared.playerNode.play()
+            }.onFailure { Diag.log("audio", "prime failed: ${it.message}") }
         }
     }
     override fun release() { unregisterLost() }

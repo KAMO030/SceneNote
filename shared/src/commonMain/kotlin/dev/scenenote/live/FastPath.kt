@@ -116,7 +116,8 @@ class FastPath(
                     if (interjectionApplies && _speaking.value && duckJob?.isActive != true) startDuckTimer()   // 对方已在说话时才开播：同样按插话处理
                 }
                 is PlaybackEvent.Done -> update(ev.utteranceId) { it.copy(tts = PlaybackStatus.DONE) }
-                is PlaybackEvent.Skipped -> update(ev.utteranceId) { it.copy(tts = if (ev.reason == "flushed" || ev.reason == "cancelled") PlaybackStatus.SHOWN_ON_SCREEN else PlaybackStatus.SKIPPED, interrupted = it.tts == PlaybackStatus.PLAYING || ev.reason == "flushed") }
+                // flushed / cancelled / stale：译文本来就在屏上，标「已上屏」而不是「跳过」；只有被打断的那句算 interrupted
+                is PlaybackEvent.Skipped -> update(ev.utteranceId) { it.copy(tts = if (ev.reason in SCREEN_ONLY) PlaybackStatus.SHOWN_ON_SCREEN else PlaybackStatus.SKIPPED, interrupted = it.tts == PlaybackStatus.PLAYING || ev.reason == "flushed") }
                 is PlaybackEvent.Failed -> { update(ev.utteranceId) { it.copy(tts = PlaybackStatus.SKIPPED) }; _health.value = _health.value.copy(tts = "failed", lastError = ev.reason) }
             }
         }.launchIn(scope)
@@ -398,7 +399,11 @@ class FastPath(
 
     private fun rememberSpoken(text: String) { recentSpoken.addLast(text); while (recentSpoken.size > 4) recentSpoken.removeFirst() }
 
-    companion object { const val REFINE_WAIT_MS = 1_200L }
+    companion object {
+        const val REFINE_WAIT_MS = 1_200L
+        /** 这些原因下译文没念出来但留在屏上（[PlaybackQueue] 的 flush / 取消 / 积压丢弃）。 */
+        private val SCREEN_ONLY = setOf("flushed", "cancelled", "stale")
+    }
 
     private fun update(id: String, f: (LiveLine) -> LiveLine) {
         val cur = _lines.value
