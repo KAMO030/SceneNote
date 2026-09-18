@@ -258,8 +258,6 @@
     <string name="live_wait_them">等对方开口，译文出现在这里</string>
     <string name="live_you_said">你说</string>
     <string name="live_you_speak_hint">你开口，译文会大字显示给对方</string>
-    <string name="live_local_asr_unavailable">本机识别不可用</string>
-    <string name="live_download_pack">去下载语音包</string>
     <string name="live_pack_loading">语音包加载中…</string>
     <string name="live_record_error_short">录音出错</string>
     <string name="live_status_standby">待机</string>
@@ -426,7 +424,12 @@
     <string name="pack_nmt_ja_en">日译英</string>
     <string name="pack_nmt_ko_en">韩译英</string>
     <string name="pack_nmt_en_ja">英译日</string>
-    <string name="live_nmt_missing">离线翻译包未下载</string>
+    <string name="live_pack_need_asr">还要下载语音识别包</string>
+    <string name="live_pack_need_asr_lang">还要下载 %1$s 的识别包</string>
+    <string name="live_pack_need_mt">还要下载离线翻译包</string>
+    <string name="live_pack_need_more">还要下载几个语音包</string>
+    <string name="live_asr_failed">本机识别启动失败</string>
+    <string name="live_tts_unavailable">没有 %1$s 的语音，只出字</string>
     <string name="live_nmt_unsupported">这对语言暂无离线翻译</string>
     <string name="pack_footer">按需下载，只存本机</string>
     <string name="pack_needed_header">当前场景需要</string>

@@ -258,8 +258,6 @@
     <string name="live_wait_them">When they speak, the translation appears here</string>
     <string name="live_you_said">You said</string>
     <string name="live_you_speak_hint">When you speak, the translation shows in big text for them</string>
-    <string name="live_local_asr_unavailable">On-device recognition unavailable</string>
-    <string name="live_download_pack">Download speech pack</string>
     <string name="live_pack_loading">Loading speech pack…</string>
     <string name="live_record_error_short">Recording error</string>
     <string name="live_status_standby">Standby</string>
@@ -426,7 +424,12 @@
     <string name="pack_nmt_ja_en">Japanese → English translation</string>
     <string name="pack_nmt_ko_en">Korean → English translation</string>
     <string name="pack_nmt_en_ja">English → Japanese translation</string>
-    <string name="live_nmt_missing">Offline translation pack not downloaded</string>
+    <string name="live_pack_need_asr">Speech recognition pack still needed</string>
+    <string name="live_pack_need_asr_lang">Recognition pack for %1$s still needed</string>
+    <string name="live_pack_need_mt">Offline translation pack still needed</string>
+    <string name="live_pack_need_more">A few packs still needed</string>
+    <string name="live_asr_failed">On-device recognition failed to start</string>
+    <string name="live_tts_unavailable">No voice for %1$s — text only</string>
     <string name="live_nmt_unsupported">No offline translation for this pair yet</string>
     <string name="pack_footer">Downloaded on demand, stored on this device only</string>
     <string name="pack_needed_header">Needed for this scene</string>

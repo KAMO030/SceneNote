@@ -132,6 +132,29 @@ object ModelCatalog {
 
     val nmtPacks: List<ModelPack> get() = listOf(nmtZhEn, nmtEnZh, nmtJaEn, nmtEnJa, nmtKoEn)
 
+    /** 所有会话共用的识别底座：VAD 切句 + 中英流式（句边界与草稿都靠它，缺了任何语言都开不了会话）。 */
+    val asrBase: List<ModelPack> get() = listOf(vadSilero, zipformerZhEn)
+
+    /**
+     * 这门语言在底座之外还要的识别包：流式是中英双语模型，日 / 韩 / 粤它认不出，整句得靠 SenseVoice 定稿；
+     * 四川话靠川渝 Paraformer。中 / 英只要底座。
+     */
+    fun asrExtraFor(lang: String): ModelPack? = when (lang) {
+        dev.scenenote.core.model.Lang.ZH_SICHUAN -> paraformerSichuan
+        dev.scenenote.core.model.Lang.JA, dev.scenenote.core.model.Lang.KO, dev.scenenote.core.model.Lang.YUE_HK -> senseVoice
+        else -> null
+    }
+
+    /**
+     * 听懂这门语言需要的全部包（顺序 = 建议下载顺序）。
+     * 与 [dev.scenenote.nmt.NmtRoutes.packsFor]（翻译包）对称：两边加起来才是一场会话要下的全部。
+     */
+    fun asrPacksFor(lang: String): List<ModelPack> = asrBase + listOfNotNull(asrExtraFor(lang))
+
+    /** 让这些语言都能听懂还要下载的包（已装的不列）。 */
+    fun asrPacksMissing(langs: List<String>, installed: (ModelPack) -> Boolean): List<ModelPack> =
+        langs.flatMap { asrPacksFor(it) }.distinct().filterNot(installed)
+
     /** 把 TTS 包翻译成 sherpa 配置（fst 顺序：日期 → 数字 → 电话）。 */
     fun ttsSpec(pack: ModelPack, store: ModelStore, numThreads: Int): dev.scenenote.asr.TtsSpec = when (pack.id) {
         ttsMatchaZhEn.id -> dev.scenenote.asr.TtsSpec(

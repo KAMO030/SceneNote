@@ -34,7 +34,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import dev.scenenote.asr.LocalEngineState
 import dev.scenenote.core.designsystem.ButtonStyle
 import dev.scenenote.core.designsystem.CapsuleTone
 import dev.scenenote.core.designsystem.GlassScaffold
@@ -135,8 +134,8 @@ fun LiveM0Screen(
                 }
             }
 
-            EngineNotice(ui.engine, ui.error, onOpenModels)
-            NmtNotice(ui, onOpenModels)
+            PackNotice(ui, onOpenModels)
+            RecordErrorNotice(ui.error)
             PostureHint(onEnter = { vm.switchMode("M1") })
         }
     }
@@ -233,17 +232,11 @@ private fun LineFlags(line: LiveLine) {
     }
 }
 
-/** 语音包缺失：一句话 + 「去下载」；录音出错：一句话。其余引擎状态不显示。 */
+/** 录音出错：一句话（原因只进诊断页）。语音包 / 引擎状态归 [PackNotice] 管。 */
 @Composable
-private fun EngineNotice(engine: LocalEngineState, error: String?, onOpenModels: (List<String>) -> Unit) {
-    val c = SceneTheme.colors
-    if (engine is LocalEngineState.Error) {
-        Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
-            SceneText(stringResource(Res.string.live_pack_missing), Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.destructive)
-            SceneButton(stringResource(Res.string.live_download), onClick = { onOpenModels(emptyList()) }, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
-        }
-    }
-    if (error != null) SceneText(stringResource(Res.string.live_record_error), style = SceneTheme.type.footnote, color = c.destructive)
+private fun RecordErrorNotice(error: String?) {
+    if (error == null) return
+    SceneText(stringResource(Res.string.live_record_error), style = SceneTheme.type.footnote, color = SceneTheme.colors.destructive)
 }
 
 /** 一行轻提示「举起手机朝向对方 → 面屏」：可点手动进入面屏。 */

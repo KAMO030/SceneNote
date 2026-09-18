@@ -16,6 +16,7 @@ import dev.scenenote.core.model.ModeSpecs
 import dev.scenenote.core.model.PrivacyMode
 import dev.scenenote.core.settings.KeyWallet
 import dev.scenenote.core.settings.Providers
+import dev.scenenote.models.ModelCatalog
 import dev.scenenote.models.ModelStore
 import dev.scenenote.nmt.NmtRoutes
 import dev.scenenote.nmt.OnnxNmtTranslator
@@ -89,9 +90,15 @@ data class LiveUiState(
     val suggestFixed: Boolean = false,
     /** M3 外放（黄标）开关：等价 voiceOut，但命名与原型一致。 */
     val speakerOut: Boolean = false,
-    /** 零 Key 时本场景语言对还缺的离线翻译包 id（空 = 不缺或走云端）；「去下载」直接带着它们进语音包页。 */
-    val nmtMissing: List<String> = emptyList(),
-    /** 零 Key 且这对语言根本没有端侧模型（如英 → 韩）：提示只能填 Key。 */
+    /** 本场景还缺的包 id（识别 + 离线翻译，顺序 = 建议下载顺序）；「去下载」直接带着它们进语音包页，排在最前。 */
+    val packsMissing: List<String> = emptyList(),
+    /** 缺的是不是通用识别底座（VAD / 流式）：缺了任何语言都开不了会话。 */
+    val asrBaseMissing: Boolean = false,
+    /** 缺专属识别包的语言（日 / 韩 / 粤要 SenseVoice 定稿，四川话要川渝）：文案点名是哪门语言听不了。 */
+    val asrMissingLangs: List<String> = emptyList(),
+    /** 没连云端翻译时本场景语言对还缺离线翻译包（有云端翻译时恒为 false：端侧只是降级）。 */
+    val mtMissing: Boolean = false,
+    /** 没连云端翻译且这对语言根本没有端侧模型（如英 → 韩）：提示只能连云端。 */
     val nmtUnsupported: Boolean = false,
 ) {
     /** 当前句（最新一行）与历史句，供 M0 / M4 布局。 */
@@ -149,13 +156,13 @@ class LiveViewModel(
         fastPath.health.onEach { h -> _ui.value = _ui.value.copy(health = h) }.launchIn(viewModelScope)
         fastPath.playing.onEach { p -> _ui.value = _ui.value.copy(playing = p) }.launchIn(viewModelScope)
         fastPath.speaking.onEach { s -> _ui.value = _ui.value.copy(speaking = s) }.launchIn(viewModelScope)
-        fastPath.resolvedOtherLang.onEach { l -> if (l != _ui.value.otherLang) { _ui.value = _ui.value.copy(otherLang = l); refreshGlossary(); refreshNmtNeeds(); viewModelScope.launch { warmNmt() } } }.launchIn(viewModelScope)
+        fastPath.resolvedOtherLang.onEach { l -> if (l != _ui.value.otherLang) { _ui.value = _ui.value.copy(otherLang = l); refreshGlossary(); refreshPackNeeds(); viewModelScope.launch { warmNmt() } } }.launchIn(viewModelScope)
         fastPath.meVoice.drop(1).onEach { settings.meVoice = it }.launchIn(viewModelScope)   // 注册 / 重置「我」的声纹都落盘（跳过初始值，别把已存的清掉）
         transcriber.error.onEach { e -> if (e != null) _ui.value = _ui.value.copy(error = e) }.launchIn(viewModelScope)
         combine(thermal.level, thermal.lowBattery) { l, b -> l to b }.onEach { (l, b) -> fastPath.setThermal(l, b) }.launchIn(viewModelScope)
         posture.posture.onEach { p -> _ui.value = _ui.value.copy(posture = p); onPosture(p) }.launchIn(viewModelScope)
         mediaKeys.events.onEach { onMediaKey(it) }.launchIn(viewModelScope)
-        store.states.onEach { refreshNmtNeeds() }.launchIn(viewModelScope)   // 下载完成 → 提示消失
+        store.states.onEach { refreshPackNeeds() }.launchIn(viewModelScope)   // 下载完成 → 提示消失
     }
 
     /** 本场景要翻的方向：仅听只有对方 → 我，速译只有我 → 对方，对话两个方向都要。 */
@@ -168,20 +175,34 @@ class LiveViewModel(
         }
     }
 
-    /** 云端译员此刻能不能用：有百炼 Key 且隐私档没锁死文本出站（逐段授权档按可用算，拒绝时自然降级到端侧）。 */
+    /**
+     * 云端译员此刻能不能用：翻译档不是「本机」、有百炼 Key，且隐私档没锁死文本出站
+     * （逐段授权档按可用算，拒绝时自然降级到端侧）。选了本机档就按零 Key 算：提示缺离线包、进会话前预热 NMT。
+     */
     private fun cloudMtPossible(): Boolean {
         val privacy = settings.privacy.value
-        return wallet.hasKey(Providers.bailian.id) && (privacy.allowsInternetText || privacy is PrivacyMode.LocalWithPerSegmentConsent)
+        return !settings.mtLocalOnly && wallet.hasKey(Providers.bailian.id) && (privacy.allowsInternetText || privacy is PrivacyMode.LocalWithPerSegmentConsent)
     }
 
-    /** 零 Key 时算一下离线翻译还缺什么包；有 Key 不提示（云端为主，端侧只是降级）。 */
-    private fun refreshNmtNeeds() {
+    /**
+     * 本场景还缺什么包。
+     * 识别包永远要算（端侧识别没有云端替代，云端 ASR 只有接口没有实现），翻译包只在没连云端翻译时算（云端为主，端侧是降级）。
+     * 一场会话要听的语言 = 各翻译方向的源语言：仅听只听对方，速译只听我，对话两边都听。
+     */
+    private fun refreshPackNeeds() {
         val u = _ui.value
-        if (u.mode == null || cloudMtPossible()) { if (u.nmtMissing.isNotEmpty() || u.nmtUnsupported) _ui.value = u.copy(nmtMissing = emptyList(), nmtUnsupported = false); return }
+        if (u.mode == null) return
         val dirs = mtDirections()
-        val missing = dirs.flatMap { (a, b) -> NmtRoutes.packsFor(a, b, store::isInstalled) }.map { it.id }.distinct()
-        val unsupported = dirs.any { (a, b) -> !NmtRoutes.possible(a, b) }
-        if (missing != u.nmtMissing || unsupported != u.nmtUnsupported) _ui.value = _ui.value.copy(nmtMissing = missing, nmtUnsupported = unsupported)
+        val langs = dirs.map { it.first }.distinct()
+        val asrPacks = ModelCatalog.asrPacksMissing(langs, store::isInstalled)
+        val baseMissing = ModelCatalog.asrBase.any { !store.isInstalled(it) }
+        val langsMissing = langs.filter { l -> ModelCatalog.asrExtraFor(l)?.let { !store.isInstalled(it) } == true }
+        val cloud = cloudMtPossible()
+        val mtPacks = if (cloud) emptyList() else dirs.flatMap { (a, b) -> NmtRoutes.packsFor(a, b, store::isInstalled) }.distinct()
+        val unsupported = !cloud && dirs.any { (a, b) -> !NmtRoutes.possible(a, b) }
+        val missing = (asrPacks + mtPacks).map { it.id }.distinct()
+        if (missing != u.packsMissing || baseMissing != u.asrBaseMissing || langsMissing != u.asrMissingLangs || mtPacks.isNotEmpty() != u.mtMissing || unsupported != u.nmtUnsupported)
+            _ui.value = _ui.value.copy(packsMissing = missing, asrBaseMissing = baseMissing, asrMissingLangs = langsMissing, mtMissing = mtPacks.isNotEmpty(), nmtUnsupported = unsupported)
     }
 
     /** 端侧翻译预热：零 Key（或逐段授权档，云端随时可能被拒）时把本场景方向的模型装进内存，首句不用等加载。 */
@@ -277,7 +298,7 @@ class LiveViewModel(
         fastPath.configure(mode, _ui.value.myLang, otherLangSetting, _ui.value.voiceOut, TtsPreference.of(settings.ttsPreference), sessionId, engine.speakerExtractor, initialMe = settings.meVoice)
         fastPath.fixDirection(_ui.value.fixedDirection)
         _ui.value = _ui.value.copy(otherLang = fastPath.resolvedOtherLang.value, otherLangAuto = otherLangSetting == Lang.AUTO)
-        refreshNmtNeeds()
+        refreshPackNeeds()
     }
 
     /**

@@ -44,7 +44,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.scenenote.asr.LocalEngineState
 import dev.scenenote.core.designsystem.ButtonStyle
 import dev.scenenote.core.designsystem.CapsuleTone
 import dev.scenenote.core.designsystem.GlassScaffold
@@ -198,7 +197,8 @@ private fun IdleContent(ui: LiveUiState, onOpenModels: (List<String>) -> Unit) {
     ) {
         SceneIcon(SceneIcons.Mic, contentDescription = null, size = 48.dp, tint = c.tint)
         SceneText(stringResource(Res.string.m4_idle_hint), style = SceneTheme.type.subheadline, color = c.secondaryLabel, textAlign = TextAlign.Center)
-        EngineNotice(ui, onOpenModels)
+        PackNotice(ui, onOpenModels, centered = true)
+        StateNotice(ui)
     }
 }
 
@@ -214,7 +214,8 @@ private fun HoldingContent(ui: LiveUiState, onOpenModels: (List<String>) -> Unit
         Waveform(active = ui.holding)
         SceneText(ui.partial.ifBlank { "…" }, style = SceneTheme.type.title2.copy(fontWeight = FontWeight.SemiBold), color = c.tertiaryLabel, textAlign = TextAlign.Center)
         SceneText(stringResource(if (ui.holding) Res.string.m4_release_when_done else Res.string.m4_transcribing), style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center)
-        EngineNotice(ui, onOpenModels)
+        PackNotice(ui, onOpenModels, centered = true)
+        StateNotice(ui)
     }
 }
 
@@ -236,18 +237,10 @@ private fun Waveform(active: Boolean) {
     }
 }
 
-/** 行内提示（不弹窗）：准备中灰字；语音包缺失一句话 + 「去下载」；暂停 / 需前台一个词；录音出错一句话。 */
+/** 行内提示（不弹窗）：语音包 / 引擎归 [PackNotice] 管；这里只剩暂停 / 需前台一个词与录音出错一句话。 */
 @Composable
-private fun EngineNotice(ui: LiveUiState, onOpenModels: (List<String>) -> Unit) {
+private fun StateNotice(ui: LiveUiState) {
     val c = SceneTheme.colors
-    when (ui.engine) {
-        LocalEngineState.Loading -> SceneText(stringResource(Res.string.live_state_arming), style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center)
-        is LocalEngineState.Error -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SceneText(stringResource(Res.string.live_pack_missing), style = SceneTheme.type.footnote, color = c.destructive, textAlign = TextAlign.Center)
-            SceneButton(stringResource(Res.string.live_download), onClick = { onOpenModels(emptyList()) }, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
-        }
-        else -> {}
-    }
     stateWord(ui.state)?.let { SceneText(stringResource(it), style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center) }
     if (ui.error != null) SceneText(stringResource(Res.string.live_record_error), style = SceneTheme.type.footnote, color = c.destructive, textAlign = TextAlign.Center)
 }

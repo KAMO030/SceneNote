@@ -65,8 +65,15 @@ object Lang {
     const val KO = "ko"
     const val AUTO = "auto"
 
-    /** MVP 端侧覆盖：基础包 zh-CN / en，方言包 yue-HK / zh-CN-sichuan（02 篇 §2.1）。 */
-    val localCoverage: Set<String> = setOf(ZH_CN, EN, YUE_HK, ZH_SICHUAN)
+    /** MVP 端侧覆盖：基础包 zh-CN / en，方言包 yue-HK / zh-CN-sichuan，SenseVoice 定稿另带 ja / ko（02 篇 §2.1）。 */
+    val localCoverage: Set<String> = setOf(ZH_CN, EN, YUE_HK, ZH_SICHUAN, JA, KO)
+    /**
+     * 流式 zipformer 是中英双语模型，只有它认得的语言才有草稿（rev0）。
+     * 其余语种（日 / 韩）整句交给 SenseVoice 定稿出 rev1；粤语两条路都走（书面粤语 zipformer 也能出个大概）。
+     */
+    fun hasStreamingDraft(tag: String): Boolean = tag != JA && tag != KO
+    /** 只有 SenseVoice 认得的语言：再省内存也得装定稿模型，否则这门语言一个字都出不来。 */
+    fun needsFinalizer(tag: String): Boolean = tag == JA || tag == KO || tag == YUE_HK
     /** 语言家族：普通话与各方言同脚本、语种识别分不开，判向 / 语对逻辑按家族比较。 */
     fun family(tag: String): String = when (tag) { ZH_CN, YUE_HK, ZH_SICHUAN, WUU, NAN -> "zh"; else -> tag }
 

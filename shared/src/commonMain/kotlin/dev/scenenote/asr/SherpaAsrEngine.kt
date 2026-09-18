@@ -35,12 +35,13 @@ data class LoadPlan(val finalizer: Finalizer = Finalizer.SENSE_VOICE, val speake
     companion object {
         /**
          * 按会话语言选定稿引擎：四川话 → 川渝 Paraformer；其余 → SenseVoice（已安装才装）。
-         * < 4 GB 机型（05 篇内存分级）实时档只留 zipformer + VAD，不带 SenseVoice 定稿，给 TTS 模型让内存。
+         * < 4 GB 机型（05 篇内存分级）实时档只留 zipformer + VAD，不带 SenseVoice 定稿，给 TTS 模型让内存——
+         * 但日 / 韩 / 粤只有 SenseVoice 认得（流式是中英双语模型），省掉它这门语言一个字都出不来，内存分级对它们不适用。
          */
         fun forLang(lang: String, speaker: Boolean = false, tier: MemoryTier = MemoryTier.current) = LoadPlan(
             finalizer = when {
                 lang == Lang.ZH_SICHUAN -> Finalizer.SICHUAN
-                tier == MemoryTier.LOW -> Finalizer.NONE
+                tier == MemoryTier.LOW && !Lang.needsFinalizer(lang) -> Finalizer.NONE
                 else -> Finalizer.SENSE_VOICE
             },
             speaker = speaker,
@@ -68,7 +69,12 @@ class SherpaAsrEngine(
     private val numThreads: Int = 2,
 ) : AsrEngine {
     override val info = EngineInfo("sherpa-onnx", ModelCatalog.zipformerZhEn.id, SherpaRuntime.version)
-    override val langs: Set<String> get() = if (state.value is LocalEngineState.Ready) buildSet { add(Lang.ZH_CN); add(Lang.EN); if (sichuan != null) add(Lang.ZH_SICHUAN); if (sense != null) add(Lang.YUE_HK) } else emptySet()
+    override val langs: Set<String> get() = if (state.value is LocalEngineState.Ready) buildSet {
+        add(Lang.ZH_CN); add(Lang.EN)
+        if (sichuan != null) add(Lang.ZH_SICHUAN)
+        // SenseVoice 是 zh/en/ja/ko/yue 五语定稿：装上了这三种就有识别能力（流式认不出，整句走定稿）
+        if (sense != null) { add(Lang.YUE_HK); add(Lang.JA); add(Lang.KO) }
+    } else emptySet()
     override val cloud = false
     override val streaming = true
 
@@ -161,6 +167,8 @@ class SherpaAsrEngine(
         val v = SherpaNative.vad(spec)   // 每会话独立（屏内字幕与实时会话可能同时开着）
         // 四川话：流式草稿仍用 zipformer（普通话口音），定稿用川渝 Paraformer 覆盖（非流式路径，02 篇 §2.1）
         val finalizer = if (lang == Lang.ZH_SICHUAN) (sichuan ?: sense) else sense
+        // 日 / 韩没有流式草稿，定稿是唯一出字的路：缺模型就直接报出来，别让用户对着不动的屏幕猜
+        if (!Lang.hasStreamingDraft(lang) && finalizer == null) error("pack not installed: ${ModelCatalog.senseVoice.id}")
         sessionOpened()
         return SherpaStreamingSession(rec, v, finalizer, info, lang, probe, CoroutineScope(Dispatchers.Default), onClosed = { v.close(); sessionClosed() })
     }
@@ -231,6 +239,15 @@ class SherpaStreamingSession(
     /** 本句音频（预滚 + 说话期间的帧），句尾交给定稿与声纹；rule3 封顶 20 s ≈ 1.3 MB。 */
     private val uttAudio = ArrayList<FloatArray>()
 
+    /**
+     * 流式 zipformer 是中英双语模型：日 / 韩喂给它只会出乱猜的汉字，草稿没有价值，
+     * 还要白跑一次每帧推理（int8 encoder 181 MB，20 ms 一次）——直接不喂，整句交给定稿。
+     * 代价是失去 zipformer 的 rule3 端点兜底，句子边界只剩 VAD hangover，所以自己加一道最长句封顶。
+     */
+    private val draftUsable = Lang.hasStreamingDraft(lang)
+    /** 草稿为空的句子交给定稿的最短时长：有草稿时是噪声门槛，没草稿时短句（「はい」）也得收。 */
+    private val minOrphanMs = if (draftUsable) 1_000L else 300L
+
     @Volatile private var drained = false
     private val refining = MutableStateFlow(0)
     /** endOfInput 之后 worker 已处理完全部帧、且没有还在跑的定稿（stop 时等它把 rev1 发完再关事件流）。 */
@@ -265,23 +282,27 @@ class SherpaStreamingSession(
             diag("VAD speech START utt=${uttId.take(8)} preRoll=${preRoll.size}")
             speaking = true; uttId = Uuid.random().toString(); lastPartial = ""; firstPartialAt = null
             uttStartMs = clockMs - preRoll.size * frameMs
-            for (f in preRoll) { stream.accept(f); uttAudio += f }          // 补喂预滚帧
+            for (f in preRoll) { if (draftUsable) stream.accept(f); uttAudio += f }   // 补喂预滚帧
             preRoll.clear()
             _events.tryEmit(AsrEvent.SpeechStart(clockMs))
         }
         if (!speaking) { preRoll.addLast(floats); while (preRoll.size > preRollFrames) preRoll.removeFirst() }
         if (speech) hangoverMs = hangoverTotalMs else if (speaking) hangoverMs -= frameMs
         if (speaking) {
-            stream.accept(floats); uttAudio += floats
-            while (rec.isReady(stream)) rec.decode(stream)
-            val text = draftText(rec.result(stream))
-            if (text.isNotBlank() && text != lastPartial) {
-                lastPartial = text
-                if (firstPartialAt == null) { firstPartialAt = probe?.nowMs(); diag("first partial: $text") }
-                _events.tryEmit(AsrEvent.Partial(text, uttStartMs))
+            uttAudio += floats
+            if (draftUsable) {
+                stream.accept(floats)
+                while (rec.isReady(stream)) rec.decode(stream)
+                val text = draftText(rec.result(stream))
+                if (text.isNotBlank() && text != lastPartial) {
+                    lastPartial = text
+                    if (firstPartialAt == null) { firstPartialAt = probe?.nowMs(); diag("first partial: $text") }
+                    _events.tryEmit(AsrEvent.Partial(text, uttStartMs))
+                }
             }
-            if (rec.isEndpoint(stream)) { diag("zipformer endpoint"); finalizeUtterance(force = false) }   // rule3 兜底（最长句）
+            if (draftUsable && rec.isEndpoint(stream)) { diag("zipformer endpoint"); finalizeUtterance(force = false) }   // rule3 兜底（最长句）
             else if (!speech && hangoverMs <= 0) { diag("VAD hangover expired"); finalizeUtterance(force = false) }
+            else if (clockMs - uttStartMs >= MAX_UTT_MS) { diag("max utterance length"); finalizeUtterance(force = true) }   // 没有 rule3 时的封顶
         }
         drainSegments()
         clockMs += frameMs
@@ -293,16 +314,20 @@ class SherpaStreamingSession(
     /**
      * 定稿语种取舍：中 / 英 / 会话语种随时接受；日 / 韩 / 粤只在草稿不像英文时接受——SenseVoice 会把口音英文短句转写成假名
      * （vivo 实测「Today is library」→ テデイリバア），而真正的日 / 韩语在中英流式模型下只会出乱码汉字或空白。
+     * 会话语言本身没有草稿（日 / 韩）时 draft 恒为空，`guessLang("")` 落回 ""，这条自然全放行——定稿说什么就是什么。
      */
     private fun acceptLid(l1: String, draft: String): Boolean =
         l1 == lang || l1 == Lang.ZH_CN || l1 == Lang.EN || Script.guessLang(draft, "") != Lang.EN
 
     /**
-     * 草稿为空时定稿单独成句的门槛：中英流式模型一个字都没认出来，SenseVoice 却说是中 / 英 → 多半是噪声幻觉（「Today is.」「The.」），丢；
-     * 说是日 / 韩 / 粤且 ≥ 4 个字才当作它不会的语种（1 s 以上的话不会只有两三个字）。
+     * 草稿为空时定稿单独成句的门槛：
+     * - 会话语言没有流式草稿（日 / 韩）：定稿是唯一的出字路，≥ 2 个字就收（「はい」也要），只挡「The.」这类单词噪声幻觉。
+     * - 其余：中英流式模型一个字都没认出来，SenseVoice 却说是中 / 英 → 多半是噪声幻觉（「Today is.」「The.」），丢；
+     *   说是日 / 韩 / 粤且 ≥ 4 个字才当作它不会的语种（1 s 以上的话不会只有两三个字）。
      */
     private fun acceptOrphan(l1: String, text: String): Boolean =
-        l1 != Lang.ZH_CN && l1 != Lang.EN && text.count { it.isLetterOrDigit() } >= 4
+        if (!draftUsable) text.count { it.isLetterOrDigit() } >= 2
+        else l1 != Lang.ZH_CN && l1 != Lang.EN && text.count { it.isLetterOrDigit() } >= 4
 
     /** 把本句音频交给声纹（UtteranceAudio）与 SenseVoice 定稿（rev1）；[draft] = 流式草稿（空 = zipformer 没认出来，可能是它不会的语种）。 */
     private fun dispatchUtterance(id: String, start: Long, samples: FloatArray, draft: String) {
@@ -329,17 +354,18 @@ class SherpaStreamingSession(
         speaking = false; hangoverMs = 0
         _events.tryEmit(AsrEvent.SpeechEnd(clockMs))
         probe?.mark(uttId, Mark.VAD_END, profile = "offline")
-        while (rec.isReady(stream)) rec.decode(stream)
-        val text = draftText(rec.result(stream)).trim()
-        rec.reset(stream)
-        diag("finalize force=$force utt=${uttId.take(8)} text=\"$text\" cleaned=\"${TextCleaner.clean(text, lang)}\"")
+        val text = if (!draftUsable) "" else {
+            while (rec.isReady(stream)) rec.decode(stream)
+            draftText(rec.result(stream)).trim().also { rec.reset(stream) }
+        }
+        diag("finalize force=$force utt=${uttId.take(8)} draft=$draftUsable text=\"$text\" cleaned=\"${TextCleaner.clean(text, lang)}\"")
         if (text.isNotEmpty()) {
             probe?.mark(uttId, Mark.ASR_FINAL)
             _events.tryEmit(AsrEvent.Final(Segment(id = uttId, startMs = uttStartMs, endMs = clockMs, lang = lang, rawText = text, text = TextCleaner.clean(text, lang),
                 isFinal = true, source = Source.LOCAL, revision = 0, engine = info), refining = sense != null))
             dispatchUtterance(uttId, uttStartMs, concat(uttAudio), text)
-        } else if (clockMs - uttStartMs >= 1_000) {
-            // 中英流式模型一个字都没认出来但说了 ≥ 1 s：可能是它不会的语种（日 / 韩 / 粤），只交给 SenseVoice 定稿（rev1 直接成句）
+        } else if (clockMs - uttStartMs >= minOrphanMs) {
+            // 没有草稿（会话语言是日 / 韩），或中英流式模型一个字都没认出来但说了 ≥ 1 s（它不会的语种）：整句交给定稿（rev1 直接成句）
             dispatchUtterance(uttId, uttStartMs, concat(uttAudio), "")
         }
         uttAudio.clear()
@@ -360,4 +386,9 @@ class SherpaStreamingSession(
     }
 
     fun close() { if (closed) return; closed = true; frames.close(); worker.cancel(); stream.close(); onClosed() }
+
+    private companion object {
+        /** 没有 zipformer rule3 端点时的最长句封顶（与 VAD 的 maxSpeechSec 对齐）。 */
+        const val MAX_UTT_MS = 20_000L
+    }
 }

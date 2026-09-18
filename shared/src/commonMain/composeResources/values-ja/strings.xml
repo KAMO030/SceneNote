@@ -258,8 +258,6 @@
     <string name="live_wait_them">相手が話すと、訳文がここに表示されます</string>
     <string name="live_you_said">あなた</string>
     <string name="live_you_speak_hint">あなたが話すと、訳文が大きな文字で相手に表示されます</string>
-    <string name="live_local_asr_unavailable">端末内認識が使えません</string>
-    <string name="live_download_pack">音声パックをダウンロード</string>
     <string name="live_pack_loading">音声パックを読み込み中…</string>
     <string name="live_record_error_short">録音エラー</string>
     <string name="live_status_standby">待機</string>
@@ -426,7 +424,12 @@
     <string name="pack_nmt_ja_en">日本語 → 英語 翻訳</string>
     <string name="pack_nmt_ko_en">韓国語 → 英語 翻訳</string>
     <string name="pack_nmt_en_ja">英語 → 日本語 翻訳</string>
-    <string name="live_nmt_missing">オフライン翻訳パックが未ダウンロードです</string>
+    <string name="live_pack_need_asr">音声認識パックのダウンロードが必要です</string>
+    <string name="live_pack_need_asr_lang">%1$s の認識パックのダウンロードが必要です</string>
+    <string name="live_pack_need_mt">オフライン翻訳パックのダウンロードが必要です</string>
+    <string name="live_pack_need_more">いくつかのパックのダウンロードが必要です</string>
+    <string name="live_asr_failed">端末の音声認識を起動できませんでした</string>
+    <string name="live_tts_unavailable">%1$s の音声がないため、文字のみ表示します</string>
     <string name="live_nmt_unsupported">この言語ペアはまだオフライン翻訳できません</string>
     <string name="pack_footer">必要なときにダウンロードし、この端末にのみ保存</string>
     <string name="pack_needed_header">このシーンに必要</string>

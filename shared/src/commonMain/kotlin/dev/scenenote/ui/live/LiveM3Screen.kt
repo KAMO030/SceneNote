@@ -61,7 +61,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.scenenote.asr.LocalEngineState
 import dev.scenenote.core.designsystem.ButtonStyle
 import dev.scenenote.core.designsystem.CapsuleTone
 import dev.scenenote.core.designsystem.GlassScaffold
@@ -70,7 +69,6 @@ import dev.scenenote.core.designsystem.SceneCapsule
 import dev.scenenote.core.designsystem.SceneIconButton
 import dev.scenenote.core.designsystem.SceneIcons
 import dev.scenenote.core.designsystem.SceneNavBar
-import dev.scenenote.core.designsystem.SceneSize
 import dev.scenenote.core.designsystem.SceneSpacing
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
@@ -161,8 +159,8 @@ private fun MyHalf(ui: LiveUiState, onFlip: (String) -> Unit, onOpenModels: (Lis
             SpeakingDot(active = ui.speaking)
             SceneText(stringResource(Res.string.live_you_lang, langName(ui.myLang)), style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
         }
-        EngineNotice(ui, onOpenModels)
-        NmtNotice(ui, onOpenModels)
+        PackNotice(ui, onOpenModels)
+        RecordErrorNotice(ui.error)
         BubbleColumn(Modifier.weight(1f).fillMaxWidth()) {
             ui.lines.takeLast(MaxBubbles).forEach { line ->
                 key(line.id) {
@@ -220,19 +218,11 @@ private fun lineBadges(line: LiveLine): List<Badge> = buildList {
     if (line.dirTentative) add(Badge("?", CapsuleTone.Gray))
 }
 
-/** 本机识别的行内提示（不弹窗）：不可用 → 红字 + 「去下载语音包」；加载中灰字；录音出错红字（原因只进诊断页）。 */
+/** 录音出错：一句话（原因只进诊断页）。语音包 / 引擎状态归 [PackNotice] 管。 */
 @Composable
-private fun EngineNotice(ui: LiveUiState, onOpenModels: (List<String>) -> Unit) {
-    val c = SceneTheme.colors
-    when (ui.engine) {
-        is LocalEngineState.Error -> Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneText(stringResource(Res.string.live_local_asr_unavailable), style = SceneTheme.type.footnote, color = c.destructive)
-            SceneButton(stringResource(Res.string.live_download_pack), onClick = { onOpenModels(emptyList()) }, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
-        }
-        LocalEngineState.Loading -> SceneText(stringResource(Res.string.live_pack_loading), style = SceneTheme.type.footnote, color = c.secondaryLabel)
-        else -> {}
-    }
-    if (ui.error != null) SceneText(stringResource(Res.string.live_record_error_short), style = SceneTheme.type.footnote, color = c.destructive)
+private fun RecordErrorNotice(error: String?) {
+    if (error == null) return
+    SceneText(stringResource(Res.string.live_record_error_short), style = SceneTheme.type.footnote, color = SceneTheme.colors.destructive)
 }
 
 // ---------- 下半屏：对方视角（旋转 180°，对方语言）----------

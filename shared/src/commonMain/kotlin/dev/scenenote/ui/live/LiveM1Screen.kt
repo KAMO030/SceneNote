@@ -47,7 +47,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.scenenote.asr.LocalEngineState
 import dev.scenenote.audio.AudioRoute
 import dev.scenenote.core.designsystem.ButtonStyle
 import dev.scenenote.core.designsystem.CapsuleTone
@@ -136,8 +135,8 @@ private fun MySection(
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OtherSaid(ui.lastOther)
             YouSaid(ui.lastMe)
-            EngineNotice(ui.engine, ui.error, onOpenModels)
-            NmtNotice(ui, onOpenModels)
+            PackNotice(ui, onOpenModels)
+            RecordErrorNotice(ui.error)
         }
 
         ControlBar(onM0 = onM0, onM3 = onM3, onEnd = onEnd)
@@ -203,19 +202,11 @@ private fun LineCapsules(line: LiveLine) {
     if (line.dirTentative) SceneCapsule("?", tone = CapsuleTone.Gray)
 }
 
-/** 本机识别的行内提示（不弹窗）：不可用 → 红字 + 「去下载语音包」；加载中 → 灰字；录音出错 → 红字（原因只进诊断页）。 */
+/** 录音出错：一句话（原因只进诊断页）。语音包 / 引擎状态归 [PackNotice] 管。 */
 @Composable
-private fun EngineNotice(engine: LocalEngineState, error: String?, onOpenModels: (List<String>) -> Unit) {
-    val c = SceneTheme.colors
-    when (engine) {
-        is LocalEngineState.Error -> Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneText(stringResource(Res.string.live_local_asr_unavailable), style = SceneTheme.type.footnote, color = c.destructive)
-            SceneButton(stringResource(Res.string.live_download_pack), onClick = { onOpenModels(emptyList()) }, style = ButtonStyle.Tinted, height = 44.dp)
-        }
-        LocalEngineState.Loading -> SceneText(stringResource(Res.string.live_pack_loading), style = SceneTheme.type.footnote, color = c.secondaryLabel)
-        else -> {}
-    }
-    if (error != null) SceneText(stringResource(Res.string.live_record_error_short), style = SceneTheme.type.footnote, color = c.destructive)
+private fun RecordErrorNotice(error: String?) {
+    if (error == null) return
+    SceneText(stringResource(Res.string.live_record_error_short), style = SceneTheme.type.footnote, color = SceneTheme.colors.destructive)
 }
 
 /**
