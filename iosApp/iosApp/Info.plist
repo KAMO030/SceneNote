@@ -30,7 +30,11 @@
 		<false/>
 	</dict>
 	<key>UILaunchScreen</key>
-	<dict/>
+	<dict>
+		<!-- 纯色底，接 Compose 里的记记酱开屏动效（ui/brand/SplashScreen.kt）；底色与 Android 的 brand_splash 同一支 -->
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>

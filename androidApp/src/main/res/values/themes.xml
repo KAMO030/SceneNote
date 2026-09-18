@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 冷启动窗口：底色与 Compose 开屏首帧一致，避免白闪。内容层的配色仍由 SceneTheme 决定 -->
+    <style name="Theme.SceneNote" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
+</resources>

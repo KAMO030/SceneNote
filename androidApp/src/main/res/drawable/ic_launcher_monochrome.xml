@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 由 scripts/brand/jiji_logo.py 生成，勿手改。Android 13+ 主题图标：系统只看形状，颜色会被替换 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="512" android:viewportHeight="512">
+    <group android:pivotX="256" android:pivotY="256" android:scaleX="0.62" android:scaleY="0.62">
+        <path android:fillColor="#FFFFFF" android:fillType="evenOdd"
+            android:pathData="M104 216 C78 136 90 60 120 34 C172 66 212 118 238 172 C246 150 250 134 256 124 C262 134 266 150 274 172 C300 118 340 66 392 34 C422 60 434 136 408 216 C446 252 462 292 460 342 C464 400 452 446 436 470 C424 488 396 484 388 464 C360 478 310 470 256 470 C202 470 152 478 124 464 C116 484 88 488 76 470 C60 446 48 400 52 342 C50 292 66 252 104 216 Z M146 172 C132 132 138 104 150 90 C174 112 190 140 198 166 Z M366 172 C380 132 374 104 362 90 C338 112 322 140 314 166 Z M140 321 a54 54 0 1 0 108 0 a54 54 0 1 0 -108 0 Z M264 321 a54 54 0 1 0 108 0 a54 54 0 1 0 -108 0 Z"/>
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M178 322 a16 19 0 1 0 32 0 a16 19 0 1 0 -32 0 Z"/>
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M302 322 a16 19 0 1 0 32 0 a16 19 0 1 0 -32 0 Z"/>
+    </group>
+</vector>

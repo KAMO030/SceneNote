@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 26–30 的冷启动窗口背景：底色 + 居中记记酱。Android 12+ 改由系统 splash 画（values-v31/themes.xml） -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/brand_splash" />
+    <item
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:gravity="center"
+        android:width="220dp"
+        android:height="220dp" />
+</layer-list>

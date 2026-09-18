@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 开屏底色：取品牌渐变（docs/品牌/应用图标-浅色.svg）的中段，Compose 开屏首帧同色，衔接不跳 -->
+    <color name="brand_splash">#FBB3DA</color>
+</resources>

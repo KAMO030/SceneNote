@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+：系统接管开屏，图标用桌面图标的前景层，落地后交给 Compose 的记记酱动效 -->
+    <style name="Theme.SceneNote" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenBackground">@color/brand_splash</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowBackground">@color/brand_splash</item>
+    </style>
+</resources>

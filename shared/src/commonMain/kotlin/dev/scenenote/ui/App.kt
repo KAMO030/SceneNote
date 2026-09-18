@@ -41,6 +41,8 @@ import dev.scenenote.ui.live.LiveM4Screen
 import dev.scenenote.ui.live.LiveTab
 import dev.scenenote.ui.live.PlaceholderSessionScreen
 import dev.scenenote.ui.models.ModelsScreen
+import dev.scenenote.ui.brand.SplashOnce
+import dev.scenenote.ui.brand.SplashScreen
 import dev.scenenote.ui.onboarding.OnboardingScreen
 import dev.scenenote.ui.selftest.AudioSelfTestScreen
 import dev.scenenote.ui.settings.SettingsTab
@@ -88,111 +90,122 @@ object Tabs { const val HOME = 0; const val LIVE = 1; const val LIBRARY = 2; con
 @Composable
 fun App() {
     SceneNoteTheme {
-        val nav = rememberNavController()
-        val link by DeepLinks.pending.collectAsState()
-        val systemCaption = org.koin.compose.koinInject<dev.scenenote.screen.SystemCaption>()
-        LaunchedEffect(link) {
-            val l = link ?: return@LaunchedEffect
-            when (l.host) {
-                "selftest" -> nav.navigate(Routes.selfTest(l.query["autostart"] == "1", l.query["stop"]?.toIntOrNull() ?: 0, l.query["bench"] ?: "", l.query["tts"] == "1", l.query["mt"] == "1"))
-                "scene" -> l.path.firstOrNull()?.let { nav.navigate(Routes.live(it, l.query["autostart"] == "1", l.query["other"] ?: "", l.query["my"] ?: "", l.query["feed"] ?: "", l.query["mode"] ?: "")) }
-                "settings" -> nav.navigate(Routes.main(Tabs.SETTINGS)) { popUpTo(Routes.MAIN) { inclusive = true } }
-                "live" -> nav.navigate(Routes.main(Tabs.LIVE)) { popUpTo(Routes.MAIN) { inclusive = true } }
-                "library" -> nav.navigate(Routes.main(Tabs.LIBRARY)) { popUpTo(Routes.MAIN) { inclusive = true } }
-                "models" -> nav.navigate(Routes.models(l.query["install"] ?: "", l.query["need"] ?: ""))
-                "gallery" -> nav.navigate(Routes.GALLERY)
-                "note" -> l.path.firstOrNull()?.let { nav.navigate(Routes.note(it)) }
-                "screen" -> nav.navigate(Routes.screen(shared = l.query["shared"] ?: "", name = l.query["name"] ?: ""))
-                // 磁贴「屏内翻译」：autostart 走 SystemCaption 的一次性信号；singleTop 防止页面已开着时再叠一层（两层 VM 共用同一 SystemCaption，弹出上层会把抓取停掉）
-                "syscaption" -> { if (l.query["autostart"] == "1") systemCaption.requestAutostart(); nav.navigate(Routes.SYSTEM_CAPTION) { launchSingleTop = true } }
-                "ledger" -> nav.navigate(Routes.LEDGER)
-                "glossary" -> nav.navigate(Routes.GLOSSARY)
-                "onboarding" -> nav.navigate(Routes.onboarding(l.query["page"]?.toIntOrNull() ?: 0))
-            }
-            DeepLinks.consume()
+        var splashDone by remember { mutableStateOf(SplashOnce.played) }
+        Box(Modifier.fillMaxSize()) {
+            AppNav()
+            // 开屏盖在上面播，底下的导航壳同时组合好：动效放完露出来的已经是能用的首页
+            if (!splashDone) SplashScreen(onFinished = { splashDone = true })
         }
-        // 首次启动先进新手引导（docs/15 §2）；引导结束写 onboardingDone，之后从设置 → 新手引导 可再看
-        val settings = org.koin.compose.koinInject<dev.scenenote.core.settings.AppSettings>()
-        val start = remember { if (settings.onboardingDone) Routes.main() else Routes.onboarding() }   // 只在首次组合决定，避免 NavGraph 重建
-        NavHost(navController = nav, startDestination = start) {
-            composable(Routes.MAIN, arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "0" }, navArgument("key") { type = NavType.StringType; defaultValue = "false" })) { entry ->
-                val initial = entry.savedStateHandle.get<String>("tab")?.toIntOrNull() ?: 0
-                val openKey = entry.savedStateHandle.get<String>("key") == "true"
-                MainShell(nav, initial, openKey)
-            }
-            composable(Routes.LIVE, arguments = listOf(
-                navArgument("sceneId") { type = NavType.StringType }, navArgument("autostart") { type = NavType.StringType; defaultValue = "false" },
-                navArgument("other") { type = NavType.StringType; defaultValue = "" }, navArgument("my") { type = NavType.StringType; defaultValue = "" },
-                navArgument("feed") { type = NavType.StringType; defaultValue = "" }, navArgument("mode") { type = NavType.StringType; defaultValue = "" },
-            )) { entry ->
-                val sceneId = entry.savedStateHandle.get<String>("sceneId") ?: "listen"
-                val auto = entry.savedStateHandle.get<String>("autostart") == "true"
-                val other = entry.savedStateHandle.get<String>("other").orEmpty(); val my = entry.savedStateHandle.get<String>("my").orEmpty()
-                val feed = entry.savedStateHandle.get<String>("feed").orEmpty()
-                val mode = entry.savedStateHandle.get<String>("mode").orEmpty()
-                LiveSessionRouter(nav, sceneId, auto, other, my, feed, mode)
-            }
-            composable(Routes.GALLERY) { DesignSystemGallery(onBack = { nav.popBackStack() }) }
-            composable(Routes.NOTE, arguments = listOf(navArgument("sessionId") { type = NavType.StringType })) { entry ->
-                val id = entry.savedStateHandle.get<String>("sessionId").orEmpty()
-                NoteRouter(nav, id)
-            }
-            composable(Routes.SCREEN, arguments = listOf(navArgument("session") { type = NavType.StringType; defaultValue = "" }, navArgument("shared") { type = NavType.StringType; defaultValue = "" }, navArgument("name") { type = NavType.StringType; defaultValue = "" })) { entry ->
-                val shared = entry.savedStateHandle.get<String>("shared").orEmpty()
-                val sharedName = entry.savedStateHandle.get<String>("name").orEmpty()
-                if (shared.isNotBlank()) {   // 分享面板送来的视频：同一 NavBackStackEntry 的 VM，先喂路径再进流程（重建不重跑）
-                    val svm: dev.scenenote.ui.screen.ScreenViewModel = org.koin.compose.viewmodel.koinViewModel()
-                    LaunchedEffect(shared) {
-                        val path = shared.decodeURLQueryComponent()
-                        if (svm.ui.value.job.media?.path != path) svm.openShared(path, sharedName.takeIf { it.isNotBlank() }?.decodeURLQueryComponent() ?: path.substringAfterLast('/'))
-                    }
+    }
+}
+
+/** 导航壳（路由 + 深链）。开屏只是盖在它上面的一层，见 [SplashScreen]。 */
+@Composable
+private fun AppNav() {
+    val nav = rememberNavController()
+    val link by DeepLinks.pending.collectAsState()
+    val systemCaption = org.koin.compose.koinInject<dev.scenenote.screen.SystemCaption>()
+    LaunchedEffect(link) {
+        val l = link ?: return@LaunchedEffect
+        when (l.host) {
+            "selftest" -> nav.navigate(Routes.selfTest(l.query["autostart"] == "1", l.query["stop"]?.toIntOrNull() ?: 0, l.query["bench"] ?: "", l.query["tts"] == "1", l.query["mt"] == "1"))
+            "scene" -> l.path.firstOrNull()?.let { nav.navigate(Routes.live(it, l.query["autostart"] == "1", l.query["other"] ?: "", l.query["my"] ?: "", l.query["feed"] ?: "", l.query["mode"] ?: "")) }
+            "settings" -> nav.navigate(Routes.main(Tabs.SETTINGS)) { popUpTo(Routes.MAIN) { inclusive = true } }
+            "live" -> nav.navigate(Routes.main(Tabs.LIVE)) { popUpTo(Routes.MAIN) { inclusive = true } }
+            "library" -> nav.navigate(Routes.main(Tabs.LIBRARY)) { popUpTo(Routes.MAIN) { inclusive = true } }
+            "models" -> nav.navigate(Routes.models(l.query["install"] ?: "", l.query["need"] ?: ""))
+            "gallery" -> nav.navigate(Routes.GALLERY)
+            "note" -> l.path.firstOrNull()?.let { nav.navigate(Routes.note(it)) }
+            "screen" -> nav.navigate(Routes.screen(shared = l.query["shared"] ?: "", name = l.query["name"] ?: ""))
+            // 磁贴「屏内翻译」：autostart 走 SystemCaption 的一次性信号；singleTop 防止页面已开着时再叠一层（两层 VM 共用同一 SystemCaption，弹出上层会把抓取停掉）
+            "syscaption" -> { if (l.query["autostart"] == "1") systemCaption.requestAutostart(); nav.navigate(Routes.SYSTEM_CAPTION) { launchSingleTop = true } }
+            "ledger" -> nav.navigate(Routes.LEDGER)
+            "glossary" -> nav.navigate(Routes.GLOSSARY)
+            "onboarding" -> nav.navigate(Routes.onboarding(l.query["page"]?.toIntOrNull() ?: 0))
+        }
+        DeepLinks.consume()
+    }
+    // 首次启动先进新手引导（docs/15 §2）；引导结束写 onboardingDone，之后从设置 → 新手引导 可再看
+    val settings = org.koin.compose.koinInject<dev.scenenote.core.settings.AppSettings>()
+    val start = remember { if (settings.onboardingDone) Routes.main() else Routes.onboarding() }   // 只在首次组合决定，避免 NavGraph 重建
+    NavHost(navController = nav, startDestination = start) {
+        composable(Routes.MAIN, arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "0" }, navArgument("key") { type = NavType.StringType; defaultValue = "false" })) { entry ->
+            val initial = entry.savedStateHandle.get<String>("tab")?.toIntOrNull() ?: 0
+            val openKey = entry.savedStateHandle.get<String>("key") == "true"
+            MainShell(nav, initial, openKey)
+        }
+        composable(Routes.LIVE, arguments = listOf(
+            navArgument("sceneId") { type = NavType.StringType }, navArgument("autostart") { type = NavType.StringType; defaultValue = "false" },
+            navArgument("other") { type = NavType.StringType; defaultValue = "" }, navArgument("my") { type = NavType.StringType; defaultValue = "" },
+            navArgument("feed") { type = NavType.StringType; defaultValue = "" }, navArgument("mode") { type = NavType.StringType; defaultValue = "" },
+        )) { entry ->
+            val sceneId = entry.savedStateHandle.get<String>("sceneId") ?: "listen"
+            val auto = entry.savedStateHandle.get<String>("autostart") == "true"
+            val other = entry.savedStateHandle.get<String>("other").orEmpty(); val my = entry.savedStateHandle.get<String>("my").orEmpty()
+            val feed = entry.savedStateHandle.get<String>("feed").orEmpty()
+            val mode = entry.savedStateHandle.get<String>("mode").orEmpty()
+            LiveSessionRouter(nav, sceneId, auto, other, my, feed, mode)
+        }
+        composable(Routes.GALLERY) { DesignSystemGallery(onBack = { nav.popBackStack() }) }
+        composable(Routes.NOTE, arguments = listOf(navArgument("sessionId") { type = NavType.StringType })) { entry ->
+            val id = entry.savedStateHandle.get<String>("sessionId").orEmpty()
+            NoteRouter(nav, id)
+        }
+        composable(Routes.SCREEN, arguments = listOf(navArgument("session") { type = NavType.StringType; defaultValue = "" }, navArgument("shared") { type = NavType.StringType; defaultValue = "" }, navArgument("name") { type = NavType.StringType; defaultValue = "" })) { entry ->
+            val shared = entry.savedStateHandle.get<String>("shared").orEmpty()
+            val sharedName = entry.savedStateHandle.get<String>("name").orEmpty()
+            if (shared.isNotBlank()) {   // 分享面板送来的视频：同一 NavBackStackEntry 的 VM，先喂路径再进流程（重建不重跑）
+                val svm: dev.scenenote.ui.screen.ScreenViewModel = org.koin.compose.viewmodel.koinViewModel()
+                LaunchedEffect(shared) {
+                    val path = shared.decodeURLQueryComponent()
+                    if (svm.ui.value.job.media?.path != path) svm.openShared(path, sharedName.takeIf { it.isNotBlank() }?.decodeURLQueryComponent() ?: path.substringAfterLast('/'))
                 }
-                ScreenFlowScreen(onBack = { nav.popBackStack() }, reopenSessionId = entry.savedStateHandle.get<String>("session").orEmpty(), onSystemCaption = { nav.navigate(Routes.SYSTEM_CAPTION) })
             }
-            composable(Routes.SYSTEM_CAPTION) { dev.scenenote.ui.screen.SystemCaptionScreen(onBack = { nav.popBackStack() }) }
-            composable(Routes.LEDGER) { dev.scenenote.ui.ledger.LedgerScreen(onBack = { nav.popBackStack() }) }
-            composable(Routes.GLOSSARY) { dev.scenenote.ui.glossary.GlossaryScreen(onBack = { nav.popBackStack() }) }
-            composable(Routes.MEETING, arguments = listOf(navArgument("autostart") { type = NavType.StringType; defaultValue = "true" })) { entry ->
-                val auto = entry.savedStateHandle.get<String>("autostart") != "false"
-                MeetingScreen(onBack = { nav.popBackStack() }, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.MEETING) { inclusive = true } } }, autostart = auto)
-            }
-            composable(Routes.ONBOARDING, arguments = listOf(navArgument("page") { type = NavType.StringType; defaultValue = "0" })) { entry ->
-                OnboardingScreen(
-                    initialPage = entry.savedStateHandle.get<String>("page")?.toIntOrNull() ?: 0,
-                    onDone = {
-                        settings.onboardingDone = true
-                        // 首次启动时引导是栈底：用 main 替换；从设置进来时直接返回
-                        if (!nav.popBackStack()) nav.navigate(Routes.main()) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
-                    },
-                    onOpenModels = { nav.navigate(Routes.models()) },
-                    onOpenKey = {
-                        settings.onboardingDone = true
-                        nav.navigate(Routes.main(Tabs.SETTINGS, openKey = true)) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
-                    },
-                )
-            }
-            composable(Routes.MODELS, arguments = listOf(navArgument("install") { type = NavType.StringType; defaultValue = "" }, navArgument("need") { type = NavType.StringType; defaultValue = "" })) { entry ->
-                val install = entry.savedStateHandle.get<String>("install").orEmpty().split(",").filter { it.isNotBlank() }
-                val need = entry.savedStateHandle.get<String>("need").orEmpty().split(",").filter { it.isNotBlank() }
-                ModelsScreen(onBack = { nav.popBackStack() }, autoInstall = install, need = need)
-            }
-            composable(
-                Routes.SELFTEST,
-                arguments = listOf(
-                    navArgument("autostart") { type = NavType.StringType; defaultValue = "false" },
-                    navArgument("stop") { type = NavType.StringType; defaultValue = "0" },
-                    navArgument("bench") { type = NavType.StringType; defaultValue = "" },
-                    navArgument("tts") { type = NavType.StringType; defaultValue = "false" },
-                    navArgument("mt") { type = NavType.StringType; defaultValue = "false" },
-                ),
-            ) { entry ->
-                val auto = entry.savedStateHandle.get<String>("autostart") == "true"
-                val stopAfter = entry.savedStateHandle.get<String>("stop")?.toIntOrNull() ?: 0
-                val benchFile = entry.savedStateHandle.get<String>("bench")?.takeIf { it.isNotBlank() }
-                val ttsTest = entry.savedStateHandle.get<String>("tts") == "true"
-                val mtTest = entry.savedStateHandle.get<String>("mt") == "true"
-                AudioSelfTestScreen(onBack = { nav.popBackStack() }, autostart = auto, stopAfterSec = stopAfter, benchFile = benchFile, ttsTest = ttsTest, mtTest = mtTest)
-            }
+            ScreenFlowScreen(onBack = { nav.popBackStack() }, reopenSessionId = entry.savedStateHandle.get<String>("session").orEmpty(), onSystemCaption = { nav.navigate(Routes.SYSTEM_CAPTION) })
+        }
+        composable(Routes.SYSTEM_CAPTION) { dev.scenenote.ui.screen.SystemCaptionScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.LEDGER) { dev.scenenote.ui.ledger.LedgerScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.GLOSSARY) { dev.scenenote.ui.glossary.GlossaryScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.MEETING, arguments = listOf(navArgument("autostart") { type = NavType.StringType; defaultValue = "true" })) { entry ->
+            val auto = entry.savedStateHandle.get<String>("autostart") != "false"
+            MeetingScreen(onBack = { nav.popBackStack() }, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.MEETING) { inclusive = true } } }, autostart = auto)
+        }
+        composable(Routes.ONBOARDING, arguments = listOf(navArgument("page") { type = NavType.StringType; defaultValue = "0" })) { entry ->
+            OnboardingScreen(
+                initialPage = entry.savedStateHandle.get<String>("page")?.toIntOrNull() ?: 0,
+                onDone = {
+                    settings.onboardingDone = true
+                    // 首次启动时引导是栈底：用 main 替换；从设置进来时直接返回
+                    if (!nav.popBackStack()) nav.navigate(Routes.main()) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+                },
+                onOpenModels = { nav.navigate(Routes.models()) },
+                onOpenKey = {
+                    settings.onboardingDone = true
+                    nav.navigate(Routes.main(Tabs.SETTINGS, openKey = true)) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+                },
+            )
+        }
+        composable(Routes.MODELS, arguments = listOf(navArgument("install") { type = NavType.StringType; defaultValue = "" }, navArgument("need") { type = NavType.StringType; defaultValue = "" })) { entry ->
+            val install = entry.savedStateHandle.get<String>("install").orEmpty().split(",").filter { it.isNotBlank() }
+            val need = entry.savedStateHandle.get<String>("need").orEmpty().split(",").filter { it.isNotBlank() }
+            ModelsScreen(onBack = { nav.popBackStack() }, autoInstall = install, need = need)
+        }
+        composable(
+            Routes.SELFTEST,
+            arguments = listOf(
+                navArgument("autostart") { type = NavType.StringType; defaultValue = "false" },
+                navArgument("stop") { type = NavType.StringType; defaultValue = "0" },
+                navArgument("bench") { type = NavType.StringType; defaultValue = "" },
+                navArgument("tts") { type = NavType.StringType; defaultValue = "false" },
+                navArgument("mt") { type = NavType.StringType; defaultValue = "false" },
+            ),
+        ) { entry ->
+            val auto = entry.savedStateHandle.get<String>("autostart") == "true"
+            val stopAfter = entry.savedStateHandle.get<String>("stop")?.toIntOrNull() ?: 0
+            val benchFile = entry.savedStateHandle.get<String>("bench")?.takeIf { it.isNotBlank() }
+            val ttsTest = entry.savedStateHandle.get<String>("tts") == "true"
+            val mtTest = entry.savedStateHandle.get<String>("mt") == "true"
+            AudioSelfTestScreen(onBack = { nav.popBackStack() }, autostart = auto, stopAfterSec = stopAfter, benchFile = benchFile, ttsTest = ttsTest, mtTest = mtTest)
         }
     }
 }
