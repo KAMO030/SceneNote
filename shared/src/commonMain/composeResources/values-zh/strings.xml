@@ -441,6 +441,7 @@
     <string name="onb_skip">跳过</string>
     <string name="onb_get_started">开始使用</string>
     <string name="onb_continue">继续</string>
+    <string name="onb_page_of">第 %1$d 页，共 %2$d 页</string>
     <string name="onb_howto_title">戴上耳机，\n对方说话，你听译文</string>
     <string name="onb_howto_sub">手机放胸前，不用举、不用看</string>
     <string name="onb_posture_pocket">胸前口袋</string>
@@ -457,7 +458,6 @@
     <string name="onb_cap_translate">更准的翻译</string>
     <string name="onb_cap_more_langs">更多语言</string>
     <string name="onb_go_key">去连接</string>
-    <string name="onb_later">稍后</string>
     <string name="onb_download_packs_first">先下载语音包</string>
     <string name="onb_entry_title">一键开始</string>
     <string name="onb_shortcuts">快捷指令</string>

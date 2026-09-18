@@ -441,6 +441,7 @@
     <string name="onb_skip">Skip</string>
     <string name="onb_get_started">Get started</string>
     <string name="onb_continue">Continue</string>
+    <string name="onb_page_of">Page %1$d of %2$d</string>
     <string name="onb_howto_title">Put in your earbuds.\nThey talk, you hear the translation</string>
     <string name="onb_howto_sub">Keep the phone at your chest; no need to hold it up or look</string>
     <string name="onb_posture_pocket">Chest pocket</string>
@@ -457,7 +458,6 @@
     <string name="onb_cap_translate">Better translation</string>
     <string name="onb_cap_more_langs">More languages</string>
     <string name="onb_go_key">Connect</string>
-    <string name="onb_later">Later</string>
     <string name="onb_download_packs_first">Download speech packs first</string>
     <string name="onb_entry_title">Start with one tap</string>
     <string name="onb_shortcuts">Shortcuts</string>

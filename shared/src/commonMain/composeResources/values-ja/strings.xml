@@ -441,6 +441,7 @@
     <string name="onb_skip">スキップ</string>
     <string name="onb_get_started">はじめる</string>
     <string name="onb_continue">続ける</string>
+    <string name="onb_page_of">%2$d ページ中 %1$d ページ目</string>
     <string name="onb_howto_title">イヤホンを付けて。\n相手の話が訳で聞こえる</string>
     <string name="onb_howto_sub">スマホは胸の前に。持ち上げる必要も見る必要もありません</string>
     <string name="onb_posture_pocket">胸ポケット</string>
@@ -457,7 +458,6 @@
     <string name="onb_cap_translate">より正確な翻訳</string>
     <string name="onb_cap_more_langs">さらに多くの言語</string>
     <string name="onb_go_key">接続する</string>
-    <string name="onb_later">あとで</string>
     <string name="onb_download_packs_first">先に音声パックをダウンロード</string>
     <string name="onb_entry_title">ワンタップで開始</string>
     <string name="onb_shortcuts">ショートカット</string>

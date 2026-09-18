@@ -441,6 +441,7 @@
     <string name="onb_skip">건너뛰기</string>
     <string name="onb_get_started">시작하기</string>
     <string name="onb_continue">계속</string>
+    <string name="onb_page_of">%2$d페이지 중 %1$d페이지</string>
     <string name="onb_howto_title">이어폰을 끼세요.\n상대가 말하면 번역이 들려요</string>
     <string name="onb_howto_sub">폰은 가슴 앞에. 들거나 볼 필요 없어요</string>
     <string name="onb_posture_pocket">가슴 주머니</string>
@@ -457,7 +458,6 @@
     <string name="onb_cap_translate">더 정확한 번역</string>
     <string name="onb_cap_more_langs">더 많은 언어</string>
     <string name="onb_go_key">연결하기</string>
-    <string name="onb_later">나중에</string>
     <string name="onb_download_packs_first">음성 팩 먼저 다운로드</string>
     <string name="onb_entry_title">한 번에 시작</string>
     <string name="onb_shortcuts">단축어</string>
