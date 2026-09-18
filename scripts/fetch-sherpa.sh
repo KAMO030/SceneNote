@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 拉取 sherpa-onnx 预编译产物（不入库）：Android AAR + iOS 静态 xcframework（sherpa-onnx + onnxruntime）。
+# 另拉 onnxruntime Android AAR（Java API + JNI，core/nmt 端侧翻译用；其 libonnxruntime.so 与 sherpa AAR 内置的同一份）与 C 头文件（iOS cinterop）。
 # 用法：scripts/fetch-sherpa.sh   （幂等；已存在则跳过）
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,7 +9,8 @@ ORT="${ORT_VERSION:-1.28.2}"
 LIBS="$ROOT/shared/libs"
 NATIVE="$ROOT/shared/native/sherpa"
 TMP="${SHERPA_TMP:-$(mktemp -d)}"; mkdir -p "$TMP"
-mkdir -p "$LIBS" "$NATIVE/include" "$NATIVE/ios-arm64" "$NATIVE/ios-simulator-arm64"
+ORT_INC="$ROOT/shared/native/onnxruntime/include"
+mkdir -p "$LIBS" "$NATIVE/include" "$NATIVE/ios-arm64" "$NATIVE/ios-simulator-arm64" "$ORT_INC"
 
 dl() { # url dest
   if [ -f "$2" ]; then echo "skip  $(basename "$2")"; return; fi
@@ -33,5 +35,13 @@ if [ ! -f "$NATIVE/ios-arm64/libonnxruntime.a" ]; then
   lipo -thin arm64 "$TMP/ort/onnxruntime.xcframework/ios-arm64_x86_64-simulator/onnxruntime.framework/onnxruntime" -output "$NATIVE/ios-simulator-arm64/libonnxruntime.a"
   echo "onnxruntime ${ORT} xcframework -> $NATIVE"
 else echo "skip  onnxruntime xcframework"; fi
+# onnxruntime Android：csukuangfj 的 zip 本身就是 AAR 布局（classes.jar + jni/*/libonnxruntime{,4j_jni}.so + headers/）
+if [ ! -f "$LIBS/onnxruntime-android-${ORT}.aar" ] || [ ! -f "$ORT_INC/onnxruntime_c_api.h" ]; then
+  dl "https://github.com/csukuangfj/onnxruntime-libs/releases/download/v${ORT}/onnxruntime-android-${ORT}.zip" "$TMP/ort-android.zip"
+  cp "$TMP/ort-android.zip" "$LIBS/onnxruntime-android-${ORT}.aar"
+  unzip -o -q "$TMP/ort-android.zip" 'headers/*' -d "$TMP/ort-android"
+  cp "$TMP/ort-android/headers/"*.h "$ORT_INC/"
+  echo "onnxruntime ${ORT} android aar -> $LIBS; headers -> $ORT_INC"
+else echo "skip  onnxruntime android aar / headers"; fi
 rm -rf "$TMP"
-ls -la "$LIBS" "$NATIVE"/ios-arm64 "$NATIVE"/ios-simulator-arm64
+ls -la "$LIBS" "$NATIVE"/ios-arm64 "$NATIVE"/ios-simulator-arm64 "$ORT_INC"

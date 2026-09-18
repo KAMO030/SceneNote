@@ -35,6 +35,7 @@ import dev.scenenote.core.designsystem.SceneDivider
 import dev.scenenote.core.designsystem.SceneGroup
 import dev.scenenote.core.designsystem.SceneNavBar
 import dev.scenenote.core.designsystem.SceneSectionFooter
+import dev.scenenote.core.designsystem.SceneSectionHeader
 import dev.scenenote.core.designsystem.SceneSize
 import dev.scenenote.core.designsystem.SceneSpacing
 import dev.scenenote.core.designsystem.SceneText
@@ -46,27 +47,39 @@ import dev.scenenote.models.ModelStore
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
 
 class ModelsViewModel(val store: ModelStore) : ViewModel() {
-    init { store.refresh() }
+    init { viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) { store.pruneOrphans() }; store.refresh() }
     fun install(p: ModelPack) { viewModelScope.launch { store.install(p).collect() } }
     fun delete(p: ModelPack) = store.delete(p)
 }
 
 /** 用户看到的包名（docs/15 §1：模型名不上页面）；按 pack.id 对应，没对上的退回目录名。 */
+@Composable
 private fun displayName(pack: ModelPack): String = when (pack.id) {
-    "zipformer-zh-en-streaming" -> "中英识别"
-    "matcha-tts-zh-en" -> "中英朗读"
-    "paraformer-zh-sichuan" -> "四川话识别"
-    "sense-voice-zh-en-ja-ko-yue" -> "多语言识别"
-    "3dspeaker-campplus" -> "说话人分辨"
-    "silero-vad" -> "静音检测"
+    "zipformer-zh-en-streaming" -> stringResource(Res.string.pack_zipformer)
+    "matcha-tts-zh-en" -> stringResource(Res.string.pack_matcha)
+    "paraformer-zh-sichuan" -> stringResource(Res.string.pack_paraformer_sichuan)
+    "sense-voice-zh-en-ja-ko-yue" -> stringResource(Res.string.pack_sensevoice)
+    "3dspeaker-campplus" -> stringResource(Res.string.pack_speaker)
+    "silero-vad" -> stringResource(Res.string.pack_vad)
+    "nmt-zh-en" -> stringResource(Res.string.pack_nmt_zh_en)
+    "nmt-en-zh" -> stringResource(Res.string.pack_nmt_en_zh)
+    "nmt-ja-en" -> stringResource(Res.string.pack_nmt_ja_en)
+    "nmt-en-ja" -> stringResource(Res.string.pack_nmt_en_ja)
+    "nmt-ko-en" -> stringResource(Res.string.pack_nmt_ko_en)
     else -> pack.name
 }
 
-/** 设置 → 语音包：每行只有名称、大小、状态按钮。 */
+/**
+ * 设置 → 语音包：每行只有名称、大小、状态按钮。
+ * [autoInstall]：进页即下载（只给 `scenenote://models?install=` 深链 / 验收用）。
+ * [need]：实时页「去下载」带来的缺包，单独排在最前面，由用户自己点下载——不替用户开下没点过的包。
+ */
 @Composable
-fun ModelsScreen(onBack: () -> Unit, autoInstall: List<String> = emptyList(), vm: ModelsViewModel = koinViewModel()) {
+fun ModelsScreen(onBack: () -> Unit, autoInstall: List<String> = emptyList(), need: List<String> = emptyList(), vm: ModelsViewModel = koinViewModel()) {
     val states by vm.store.states.collectAsState()
     // 只触发一次（Activity 重建不重复），且跳过正在下载的包
     var autoRan by rememberSaveable { mutableStateOf(false) }
@@ -75,20 +88,31 @@ fun ModelsScreen(onBack: () -> Unit, autoInstall: List<String> = emptyList(), vm
         autoRan = true
         autoInstall.mapNotNull { ModelCatalog.byId(it) }.forEach { if (!vm.store.isInstalled(it) && vm.store.states.value[it.id] !is ModelState.Downloading) vm.install(it) }
     }
-    GlassScaffold(topBar = { SceneNavBar(title = "语音包", onBack = onBack) }) {
+    val needed = need.mapNotNull { ModelCatalog.byId(it) }.distinct()
+    val rest = ModelCatalog.all.filterNot { it in needed }
+    GlassScaffold(topBar = { SceneNavBar(title = stringResource(Res.string.settings_packs_header), onBack = onBack) }) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(top = 104.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(SceneSpacing.l),
         ) {
-            Column {
-                SceneGroup {
-                    ModelCatalog.all.forEachIndexed { i, pack ->
-                        if (i > 0) SceneDivider()
-                        ModelPackRow(pack, states[pack.id] ?: ModelState.NotInstalled, onInstall = { vm.install(pack) }, onDelete = { vm.delete(pack) })
-                    }
-                }
-                SceneSectionFooter("按需下载，只存本机")
+            if (needed.isNotEmpty()) Column {
+                SceneSectionHeader(stringResource(Res.string.pack_needed_header))
+                PackGroup(needed, states, vm)
             }
+            Column {
+                PackGroup(rest, states, vm)
+                SceneSectionFooter(stringResource(Res.string.pack_footer))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PackGroup(packs: List<ModelPack>, states: Map<String, ModelState>, vm: ModelsViewModel) {
+    SceneGroup {
+        packs.forEachIndexed { i, pack ->
+            if (i > 0) SceneDivider()
+            ModelPackRow(pack, states[pack.id] ?: ModelState.NotInstalled, onInstall = { vm.install(pack) }, onDelete = { vm.delete(pack) })
         }
     }
 }
@@ -121,16 +145,16 @@ private fun ModelPackRow(pack: ModelPack, st: ModelState, onInstall: () -> Unit,
 private fun PackStatus(pack: ModelPack, st: ModelState) {
     val c = SceneTheme.colors
     when (st) {
-        is ModelState.Installed -> SceneText("${mb(st.bytes)} MB · 已下载", style = SceneTheme.type.footnote, color = c.tint, maxLines = 1)
+        is ModelState.Installed -> SceneText(stringResource(Res.string.pack_installed, mb(st.bytes).toInt()), style = SceneTheme.type.footnote, color = c.tint, maxLines = 1)
         is ModelState.Downloading -> {
             val frac = if (st.bytesTotal > 0) (st.bytesDone.toFloat() / st.bytesTotal).coerceIn(0f, 1f) else 0f
             DownloadProgress(frac)
             SceneText(
-                if (st.bytesTotal > 0) "${mb(st.bytesDone)} / ${mb(st.bytesTotal)} MB" else "下载中",
+                if (st.bytesTotal > 0) "${mb(st.bytesDone)} / ${mb(st.bytesTotal)} MB" else stringResource(Res.string.pack_downloading),
                 style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1,
             )
         }
-        is ModelState.Failed -> SceneText("${mb(pack.totalBytes)} MB · 下载失败", style = SceneTheme.type.footnote, color = c.destructive, maxLines = 1)
+        is ModelState.Failed -> SceneText(stringResource(Res.string.pack_failed, mb(pack.totalBytes).toInt()), style = SceneTheme.type.footnote, color = c.destructive, maxLines = 1)
         is ModelState.NotInstalled -> SceneText("${mb(pack.totalBytes)} MB", style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
     }
 }
@@ -139,10 +163,10 @@ private fun PackStatus(pack: ModelPack, st: ModelState) {
 @Composable
 private fun PackAction(st: ModelState, onInstall: () -> Unit, onDelete: () -> Unit) {
     when (st) {
-        is ModelState.Installed -> SceneButton("删除", onClick = onDelete, style = ButtonStyle.Destructive, height = SceneSize.glassButton)
+        is ModelState.Installed -> SceneButton(stringResource(Res.string.common_delete), onClick = onDelete, style = ButtonStyle.Destructive, height = SceneSize.glassButton)
         is ModelState.Downloading -> Unit
-        is ModelState.Failed -> SceneButton("重试", onClick = onInstall, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
-        is ModelState.NotInstalled -> SceneButton("下载", onClick = onInstall, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
+        is ModelState.Failed -> SceneButton(stringResource(Res.string.common_retry), onClick = onInstall, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
+        is ModelState.NotInstalled -> SceneButton(stringResource(Res.string.pack_download), onClick = onInstall, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
     }
 }
 

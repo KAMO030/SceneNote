@@ -21,6 +21,7 @@ koin = "4.2.2"
 multiplatform-settings = "1.3.0"
 okio = "3.18.2"
 glance = "1.2.0"   # Android 主屏小组件（I7 最小入口）
+onnxruntime-jvm = "1.28.0"   # 仅 JVM 单测用；App 内的 ORT 是 sherpa 同版 1.28.2（scripts/fetch-sherpa.sh）
 
 [libraries]
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
@@ -62,6 +63,7 @@ multiplatform-settings = { module = "com.russhwolf:multiplatform-settings", vers
 multiplatform-settings-noarg = { module = "com.russhwolf:multiplatform-settings-no-arg", version.ref = "multiplatform-settings" }
 multiplatform-settings-test = { module = "com.russhwolf:multiplatform-settings-test", version.ref = "multiplatform-settings" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
+onnxruntime-jvm = { module = "com.microsoft.onnxruntime:onnxruntime", version.ref = "onnxruntime-jvm" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
 [plugins]

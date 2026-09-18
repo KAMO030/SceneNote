@@ -2,7 +2,7 @@ package dev.scenenote.models
 
 import kotlinx.serialization.Serializable
 
-@Serializable enum class ModelKind { STREAMING_ASR, OFFLINE_ASR, VAD, SPEAKER, PUNCT, TTS }
+@Serializable enum class ModelKind { STREAMING_ASR, OFFLINE_ASR, VAD, SPEAKER, PUNCT, TTS, NMT }
 
 /** urls 非空时不走 pack.mirrors（例如 vocoder 只在 GitHub Release）。 */
 @Serializable data class ModelFile(val name: String, val bytes: Long, val sha256: String? = null, val urls: List<String>? = null)
@@ -18,7 +18,7 @@ import kotlinx.serialization.Serializable
     val note: String = "",
 ) {
     val totalBytes: Long get() = files.sumOf { it.bytes }
-    fun file(prefix: String): ModelFile = files.firstOrNull { it.name.startsWith(prefix) } ?: error("$id 缺少文件 $prefix")
+    fun file(prefix: String): ModelFile = files.firstOrNull { it.name.startsWith(prefix) } ?: error("$id missing file $prefix")
 }
 
 /** 内置清单（08 篇技术选型 + I2 调研，见 docs/验收记录/I2.md）。 */
@@ -94,6 +94,44 @@ object ModelCatalog {
 
     val ttsPacks: List<ModelPack> get() = listOf(ttsMatchaZhEn)
 
+    // ---------- 端侧翻译（core/nmt）：Marian 系模型的 ONNX int8 导出（optimum 布局：encoder + 带 KV cache 的 merged decoder） ----------
+    private fun hfRepo(repo: String) = listOf("https://hf-mirror.com/$repo/resolve/main", "https://huggingface.co/$repo/resolve/main")
+    /** 每方向五个文件：两段 ONNX（LFS，强校验）+ source/target spm + 联合词表（非 LFS，按字节数校验）。大小与 sha256 来自 HF tree API（2026-09-18）。 */
+    private fun nmt(id: String, repo: String, name: String, langs: List<String>, encBytes: Long, encSha: String, decBytes: Long, decSha: String, srcSpm: Long, tgtSpm: Long, vocab: Long, license: String, version: String, note: String) = ModelPack(
+        id = id, kind = ModelKind.NMT, name = name, langs = langs,
+        files = listOf(
+            ModelFile("onnx/encoder_model_quantized.onnx", encBytes, encSha),
+            ModelFile("onnx/decoder_model_merged_quantized.onnx", decBytes, decSha),
+            ModelFile("source.spm", srcSpm), ModelFile("target.spm", tgtSpm), ModelFile("vocab.json", vocab),
+        ),
+        mirrors = hfRepo(repo), license = license, version = version, note = note,
+    )
+    private const val XENOVA = "2025-07-14（Xenova 导出）"
+
+    val nmtZhEn = nmt("nmt-zh-en", "Xenova/opus-mt-zh-en", "中 → 英翻译（opus-mt int8）", listOf("zh-CN", "yue-HK", "en"),
+        52_899_742, "84d5e171b626bc8b6b220d022ac58696e9528c25deeacca62b5cbf4364547a99", 60_212_804, "c6b7f04ff1ba0fbd1bf6852599b4c0cad6fe512d57cd887f44ef36cf705424cb",
+        804_677, 806_530, 1_747_906, "CC-BY-4.0（Helsinki-NLP/opus-mt-zh-en，署名义务待法务复核）", XENOVA,
+        "零 Key 离线档：普通话 / 川渝 / 吴 / 闽 / 粤（书面粤语实测比 mul-en 好）→ 英；108 MB")
+    val nmtEnZh = nmt("nmt-en-zh", "Xenova/opus-mt-en-zh", "英 → 中翻译（opus-mt int8）", listOf("en", "zh-CN", "yue-HK"),
+        52_899_742, "d3b7912bf6a9bd27e4c074c2df91d4ff3d5b4bc5f7f6c8d7cc9c805c98fbafee", 60_212_804, "023be4f841f4c47cd65fffcbaa81c0d99d7f7e0138f7ba0e03fa220a4e688aff",
+        806_435, 804_600, 1_747_795, "Apache-2.0（Helsinki-NLP/opus-mt-en-zh）", XENOVA, "零 Key 离线档：英 → 简体（>>cmn_Hans<<）/ 粤语繁体（>>yue_Hant<<）；108 MB")
+    /**
+     * 日 ↔ 英用 FuguMT（staka/fugumt-*，Marian 架构，日英质量明显好于 opus-mt-ja-en / opus-mt-en-mul，词表 32k 解码也更快）；
+     * ONNX int8 导出来自 Kadonox（第三方仓库，sha256 锁死；仓库消失需另找镜像）。source.spm == target.spm（共享词表）。
+     */
+    val nmtJaEn = nmt("nmt-ja-en", "Kadonox/fugumt-ja-en-onnx", "日 → 英翻译（FuguMT int8）", listOf("ja", "en"),
+        35_979_078, "caea82d93435b76cd01edcb9dfb6dbfce82bde435bdc739a198a298014884b06", 108_678_224, "faf90e39de2b027461f09297f7edc83734c24c00bcfb1482c7ec1ca77e84a989",
+        796_876, 796_876, 861_152, "CC-BY-SA-4.0（staka/fugumt-ja-en；署名 + 相同方式共享，法务复核）", "2026-04-10（Kadonox 导出）", "日 → 英；日 → 中经英语中转（配英 → 中包）；139 MB")
+    val nmtEnJa = nmt("nmt-en-ja", "Kadonox/fugumt-en-ja-onnx", "英 → 日翻译（FuguMT int8）", listOf("en", "ja"),
+        35_979_078, "60b290662bcb83d7ac1f20749dcbac95d4ff92752389ae418fd514ef0d4ce50b", 108_678_224, "669dbec3443a70f278b9e713598751d0f34d5b0b28aeab8d0f1a9f20ccd87c97",
+        768_297, 768_297, 791_091, "CC-BY-SA-4.0（staka/fugumt-en-ja；署名 + 相同方式共享，法务复核）", "2026-04-10（Kadonox 导出）", "英 → 日；中 / 韩 → 日经英语中转；139 MB")
+    val nmtKoEn = nmt("nmt-ko-en", "Xenova/opus-mt-ko-en", "韩 → 英翻译（opus-mt int8）", listOf("ko", "en"),
+        52_899_741, "210e1d2cb5b457cdeeffe288099cc9d1df9f13c35dc3d39fde4ba252af877380", 60_212_803, "e131732653a6d3cec42a8b65f8844980042b036bdaca931446bc4b3530bc3506",
+        841_805, 813_126, 1_849_870, "Apache-2.0（Helsinki-NLP/opus-mt-ko-en）", XENOVA,
+        "韩 → 英；韩 → 中 / 日经英语中转；108 MB。英 → 韩暂无可用端侧模型：opus-mt-en-mul 不含韩语，tc-big-en-ko 的 HF 词表缺源语言（sepvoc 转换坏了，英文全成 <unk>）")
+
+    val nmtPacks: List<ModelPack> get() = listOf(nmtZhEn, nmtEnZh, nmtJaEn, nmtEnJa, nmtKoEn)
+
     /** 把 TTS 包翻译成 sherpa 配置（fst 顺序：日期 → 数字 → 电话）。 */
     fun ttsSpec(pack: ModelPack, store: ModelStore, numThreads: Int): dev.scenenote.asr.TtsSpec = when (pack.id) {
         ttsMatchaZhEn.id -> dev.scenenote.asr.TtsSpec(
@@ -101,11 +139,11 @@ object ModelCatalog {
             tokens = store.path(pack, "tokens"), lexicon = store.path(pack, "lexicon"), dataDir = store.join(pack, "espeak-ng-data"),
             ruleFsts = listOf("date-zh", "number-zh", "phone-zh").joinToString(",") { store.path(pack, it) }, numThreads = numThreads,
         )
-        else -> error("未知 TTS 包 ${pack.id}")
+        else -> error("unknown TTS pack ${pack.id}")
     }
 
     /** 全部包（顺序 = 建议下载顺序）。粤语专用包（WSYue SenseVoice 2025-09-09 / u2pp conformer）待按需加入。 */
-    val all: List<ModelPack> get() = listOf(vadSilero, zipformerZhEn, ttsMatchaZhEn, senseVoice, paraformerSichuan, speakerCampp)
+    val all: List<ModelPack> get() = listOf(vadSilero, zipformerZhEn, ttsMatchaZhEn, nmtZhEn, nmtEnZh, senseVoice, paraformerSichuan, speakerCampp, nmtJaEn, nmtEnJa, nmtKoEn)
     fun byId(id: String): ModelPack? = all.firstOrNull { it.id == id }
 }
 

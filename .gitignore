@@ -30,6 +30,7 @@ shared/libs/*.aar
 shared/native/sherpa/ios-arm64/
 shared/native/sherpa/ios-simulator-arm64/
 shared/native/sherpa/include/
+shared/native/onnxruntime/include/
 
 # Models & secrets（模型包不入库；Key 只存 SecureStore）
 /models/

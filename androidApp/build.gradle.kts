@@ -30,6 +30,8 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        // sherpa-onnx AAR 与 onnxruntime-android AAR 各带一份 libonnxruntime.so（同为 1.28.2、sha256 相同），任取其一
+        jniLibs { pickFirsts += "**/libonnxruntime.so" }
     }
     buildTypes {
         getByName("release") {

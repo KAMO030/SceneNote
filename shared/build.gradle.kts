@@ -27,6 +27,11 @@ kotlin {
             includeDirs(project.file("native/sherpa/include"))
             extraOpts("-libraryPath", project.file("native/sherpa/$sherpaLibDir").absolutePath)
         }
+        // onnxruntime C API（core/nmt 端侧翻译）：只要头文件，静态库已随上面的 sherpa cinterop 嵌入（同一份 1.28.2）
+        iosTarget.compilations.getByName("main").cinterops.create("onnxruntime") {
+            defFile(project.file("src/nativeInterop/cinterop/onnxruntime.def"))
+            includeDirs(project.file("native/onnxruntime/include"))
+        }
     }
 
     android {
@@ -40,6 +45,8 @@ kotlin {
         androidResources {
             enable = true
         }
+        // JVM 单测（commonTest 也在这里跑，比 iOS 模拟器快得多）；core/nmt 的端到端用桌面版 ORT
+        withHostTestBuilder {}.configure { isIncludeAndroidResources = false }
     }
 
     compilerOptions {
@@ -95,6 +102,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(files("libs/sherpa-onnx-1.13.8.aar"))
+            implementation(files("libs/onnxruntime-android-1.28.2.aar"))   // core/nmt：Java API + JNI；libonnxruntime.so 与 sherpa AAR 同一份（app 侧 pickFirst）
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)
@@ -106,6 +114,9 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
             implementation(libs.sqldelight.native.driver)
+        }
+        getByName("androidHostTest").dependencies {
+            implementation(libs.onnxruntime.jvm)   // 桌面版 ORT（与 AAR 同一套 ai.onnxruntime Java API，自带 macOS / Linux 原生库）
         }
     }
 }

@@ -70,12 +70,14 @@ val commonModule: Module = module {
         val engine = get<SherpaAsrEngine>()
         DefaultLiveSessionMachine(audio.routeManager(), get<AudioSink>(), audio.haptics(), get(), arm = { engine.state.value is LocalEngineState.Ready || engine.load() is LocalEngineState.Ready })   // 计划由 LiveViewModel 按场景先选好
     }
-    // I3 快路径：翻译（百炼 BYOK；端侧 NMT 待 core/nmt）→ TTS（系统 / sherpa）→ 播放队列
+    // I3 快路径：翻译（百炼 BYOK 云端；端侧 opus-mt NMT 为零 Key 默认档与超时降级目标）→ TTS（系统 / sherpa）→ 播放队列
     single { BailianMtTranslator(get(), get(), get()) }
+    single { dev.scenenote.nmt.OnnxNmtTranslator(get()) }
     single { KeyTester(get(), get()) }
     single {
         val bailian = get<BailianMtTranslator>()
-        FastTranslator(cloud = { bailian.takeIf { it.hasKey() } }, local = { null as Translator? })
+        val nmt = get<dev.scenenote.nmt.OnnxNmtTranslator>()
+        FastTranslator(cloud = { bailian.takeIf { it.hasKey() } }, local = { nmt as Translator })
     }
     single { SherpaTts(get()) }
     single { TtsRouter(system = { get<SystemTtsProvider>().get() }, local = { get<SherpaTts>() }) }
@@ -97,13 +99,18 @@ val commonModule: Module = module {
     viewModel { dev.scenenote.ui.note.NoteViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { dev.scenenote.ui.library.LibraryViewModel(get(), get<AppPaths>()) }
     // I6：屏内字幕
-    single { dev.scenenote.screen.SubtitleJob(get(), get(), get(), get(), get<AppPaths>(), get(), get()) }
+    // 字幕按 8 句一批翻，快路径的 1.5 s 超时太紧（超时两次就熔断 30 s、整段退到端侧）；用自己的译员实例，熔断也不和实时会话互相牵连
+    single {
+        val bailian = get<BailianMtTranslator>()
+        val nmt = get<dev.scenenote.nmt.OnnxNmtTranslator>()
+        dev.scenenote.screen.SubtitleJob(get(), get(), FastTranslator(cloud = { bailian.takeIf { it.hasKey() } }, local = { nmt as Translator }, timeoutMs = 20_000), get(), get<AppPaths>(), get(), get())
+    }
     viewModel { dev.scenenote.ui.screen.ScreenViewModel(get(), get(), get(), get(), get(), get(), get()) }
     single { dev.scenenote.screen.SystemCaption(get(), get(), get(), get()) }
     viewModel { dev.scenenote.ui.screen.SystemCaptionViewModel(get(), get()) }
     viewModel { ModelsViewModel(get()) }
     viewModel { SettingsViewModel(get(), get(), get()) }
-    viewModel { AudioSelfTestViewModel(get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get()) }
+    viewModel { AudioSelfTestViewModel(get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get(), get()) }
 }
 
 fun initKoin(platformModule: Module, config: KoinAppDeclaration? = null): KoinApplication = startKoin {

@@ -1,0 +1,5 @@
+# onnxruntime C API（1.28.2）：core/nmt 端侧翻译的 seq2seq 解码。静态库 libonnxruntime.a 已由 sherpa.def 嵌入，这里只导声明。
+headers = onnxruntime_c_api.h
+headerFilter = onnxruntime_c_api.h onnxruntime_ep_c_api.h
+package = dev.scenenote.ort.native
+nonStrictEnums = OrtLoggingLevel ONNXTensorElementDataType ONNXType GraphOptimizationLevel ExecutionMode OrtAllocatorType OrtMemType OrtErrorCode
