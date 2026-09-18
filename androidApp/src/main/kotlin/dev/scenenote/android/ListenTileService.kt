@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import dev.scenenote.app.R
 
 /**
  * 快捷设置磁贴（规格 §3.1「触发：手机不出口袋」的 Android 入口）。
@@ -14,13 +15,13 @@ import android.service.quicksettings.TileService
  * Android 14+ 用 startActivityAndCollapse(PendingIntent)，旧版本走已弃用的 Intent 重载。
  * 磁贴只是入口，不承载状态：始终 INACTIVE（可点），不做开关语义。
  */
-abstract class SceneTileService(private val deepLink: String, private val tileLabel: String) : TileService() {
+abstract class SceneTileService(private val deepLink: String, private val tileLabel: Int) : TileService() {
 
     override fun onStartListening() {
         qsTile?.apply {
             state = Tile.STATE_INACTIVE
-            label = tileLabel
-            if (Build.VERSION.SDK_INT >= 29) subtitle = "场记"
+            label = getString(tileLabel)
+            if (Build.VERSION.SDK_INT >= 29) subtitle = getString(R.string.app_name)
             updateTile()
         }
     }
@@ -44,7 +45,10 @@ abstract class SceneTileService(private val deepLink: String, private val tileLa
 }
 
 /** 「仅听」：M0 直接开始（autostart=1），一按就听。 */
-class ListenTileService : SceneTileService("scenenote://scene/listen?autostart=1", "仅听")
+class ListenTileService : SceneTileService("scenenote://scene/listen?autostart=1", R.string.tile_listen)
 
 /** 「速译一句」：M4 是按住说 → 松手出字，不自动开始，只把页面打开到「按住说话」。 */
-class QuickPhraseTileService : SceneTileService("scenenote://scene/quick_phrase", "速译一句")
+class QuickPhraseTileService : SceneTileService("scenenote://scene/quick_phrase", R.string.tile_quick_phrase)
+
+/** 「屏内翻译」：S1 系统字幕直接开始（autostart=1）——进页面即弹系统投屏确认，授权后切回视频 App 自动进画中画字幕条。 */
+class ScreenCaptionTileService : SceneTileService("scenenote://syscaption?autostart=1", R.string.tile_screen_caption)

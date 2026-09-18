@@ -137,6 +137,7 @@ class AndroidSystemAudioCapture(context: Context) : SystemAudioCapture {
         val ok = runCatching { startRecord(mp) }.onFailure { Diag.log("syscap", "AudioRecord failed: ${it.message}") }.getOrDefault(false)
         if (ok) {
             _state.value = CaptureState.CAPTURING
+            AndroidPip.armAutoEnter()   // 用户接下来切回视频 App，字幕条自动跟出去
             ready?.complete(true)
         } else {
             stopInternal()

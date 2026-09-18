@@ -62,3 +62,9 @@ class MainActivity : ComponentActivity() {
         if (wanted.isNotEmpty()) permissions.launch(wanted.toTypedArray())
     }
 }
+    /** Android 10 / 11 没有 PiP autoEnter：系统字幕抓取中用户按 Home / 切 App，这里主动进字幕条（12+ 由系统接管，此调用是空操作）。 */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        AndroidPip.onUserLeaveHint()
+    }
+

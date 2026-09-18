@@ -25,12 +25,17 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.core.i18n.uiError
+import dev.scenenote.core.i18n.uiText
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.getString
 
 data class ScreenUiState(
     val job: SubtitleState = SubtitleState(),
     val recent: List<SessionRow> = emptyList(),
     val downloading: Float? = null,
-    val error: String? = null,
+    val error: UiText? = null,
     /** 播放器：当前应显示的 cue（按 position 找）。 */
     val currentCue: Cue? = null,
     /** 转写落后于播放 → 等待遮罩。 */
@@ -64,14 +69,14 @@ class ScreenViewModel(
 
     fun pick(source: MediaSource) {
         viewModelScope.launch {
-            val item = runCatching { picker.pickVideo(source) }.getOrElse { _ui.value = _ui.value.copy(error = it.message); null } ?: return@launch
+            val item = runCatching { picker.pickVideo(source) }.getOrElse { _ui.value = _ui.value.copy(error = it.uiText()); null } ?: return@launch
             begin(item)
         }
     }
     fun openUrl(url: String) {
         viewModelScope.launch {
             _ui.value = _ui.value.copy(downloading = 0f, error = null)
-            val item = runCatching { job.download(url.trim()) { p -> _ui.value = _ui.value.copy(downloading = p) } }.getOrElse { _ui.value = _ui.value.copy(downloading = null, error = it.message); null } ?: return@launch
+            val item = runCatching { job.download(url.trim()) { p -> _ui.value = _ui.value.copy(downloading = p) } }.getOrElse { _ui.value = _ui.value.copy(downloading = null, error = it.uiText()); null } ?: return@launch
             _ui.value = _ui.value.copy(downloading = null)
             begin(item)
         }
@@ -84,8 +89,8 @@ class ScreenViewModel(
         player = players.create(item.path).also { p ->
             p.positionMs.onEach { syncCue() }.launchIn(viewModelScope)
         }
-        val src = settings.otherLang; val tgt = settings.myLang
-        job.start(item, src, tgt, translate = src != tgt)
+        // 视频的语种逐句识别（对方语言设定只作兜底）；和我的语言不同的句子才翻成我的语言
+        job.start(item, settings.otherLang, settings.myLang)
     }
 
     /** 只恢复自己暂停的播放；用户手动暂停不自动开播。 */
@@ -114,7 +119,7 @@ class ScreenViewModel(
             val s = repo.byId(id) ?: return@launch
             val cues = _ui.value.job.cues
             val p = if (vtt) exports.vtt(s, cues, translated = true) else exports.srt(s, cues, translated = true)
-            sharer.shareFile(p, if (vtt) "text/vtt" else "application/x-subrip", s.title ?: "字幕")
+            sharer.shareFile(p, if (vtt) "text/vtt" else "application/x-subrip", s.title ?: getString(Res.string.library_kind_subtitles))
             _ui.value = _ui.value.copy(exportedPath = p)
         }
     }

@@ -107,6 +107,18 @@
             <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
         </service>
 
+        <!-- 「屏内翻译」（屏内 S1）：在 YouTube 等 App 里下拉点一下 → 系统投屏弹窗 → 抓取开始 → 切回视频时自动进画中画字幕条 -->
+        <service
+            android:name="dev.scenenote.android.ScreenCaptionTileService"
+            android:exported="true"
+            android:label="@string/tile_screen_caption"
+            android:icon="@drawable/ic_tile_screen_caption"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
+        </service>
         <!-- 系统分享（I5 会议卡 / 资料库导出）：把 filesDir / cacheDir 下的 .md / .voxnote / .png 以 content:// 交给分享面板 -->
         <provider
             android:name="androidx.core.content.FileProvider"
