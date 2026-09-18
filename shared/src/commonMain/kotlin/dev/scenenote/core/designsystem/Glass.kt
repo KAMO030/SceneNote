@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeDefaults
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
@@ -23,8 +24,9 @@ import dev.chrisbanes.haze.rememberHazeState
 
 // ---------- Liquid Glass（07 篇 §7.14）：玻璃只出现在功能层，内容层绝不用 ----------
 // 实现：内容层用 haze 标记为取样源（hazeSource），每个玻璃条用 hazeEffect 取样并模糊（26 dp）+ 叠 58% 白 / 72% 黑填充 + 2% 噪点，
-// 上面再画 0.5 dp 描边与顶部高光线。haze 自己处理平台差异：iOS / 桌面走 Skia RenderEffect，Android 12+ 走 RenderNode + RenderEffect，
-// Android < 12 不模糊、只画 fallbackTint（高填充）。Reduce Transparency → 不走 haze，不透明回退；Increase Contrast → 加强描边与填充。
+// 上面再画 0.5 dp 描边与顶部高光线。平台差异：iOS / 桌面走 Skia RenderEffect，Android 12+ 走 RenderNode + RenderEffect；
+// Android < 12 没有 RenderEffect（HazeDefaults.blurEnabled() = false），不挂 haze，直接画高填充（sheet 则不透明）。
+// Reduce Transparency → 不走 haze，不透明回退；Increase Contrast → 加强描边与填充。
 
 /** 内容层的取样源：由 [GlassScaffold] 创建、[glassBackdropSource] 挂到内容层、[glass] 读。一个页面一个。 */
 @Stable
@@ -49,15 +51,18 @@ enum class GlassStyle {
     Clear,
 }
 
-/** 玻璃视觉参数，随无障碍偏好变化。[saturation] 仅作记录：haze 1.7 无饱和度参数，由填充 tint 近似。 */
+/** 玻璃视觉参数，随无障碍偏好变化。[saturation] 仅作记录：haze 1.7 无饱和度参数，由填充 tint 近似。[blurEnabled] 为 false 时没有模糊可叠，只画填充。 */
 data class GlassSpec(val fill: Color, val stroke: Color, val highlight: Color, val blurRadius: Dp, val saturation: Float, val blurEnabled: Boolean)
+
+/** 平台能不能做背景模糊：iOS / 桌面恒可以，Android 需要 API 31+ 的 RenderEffect。 */
+fun platformSupportsBackdropBlur(): Boolean = HazeDefaults.blurEnabled()
 
 @Composable
 fun rememberGlassSpec(style: GlassStyle = GlassStyle.Regular, backdropAvailable: Boolean = true): GlassSpec {
     val colors = SceneTheme.colors
     val a11y = SceneTheme.a11y
     return remember(colors, a11y, style, backdropAvailable) {
-        val blurEnabled = backdropAvailable && !a11y.reduceTransparency
+        val blurEnabled = backdropAvailable && !a11y.reduceTransparency && platformSupportsBackdropBlur()
         val baseFill = when (style) {
             GlassStyle.Regular -> colors.glassFill
             GlassStyle.Clear -> Color(0x47141416)
@@ -79,7 +84,7 @@ private fun Color.boostedForFallback(): Color = copy(alpha = (alpha + 0.34f).coe
 
 /**
  * 把这个节点画成玻璃：背景模糊取样自 [backdrop]（默认取 [LocalGlassBackdrop]），叠填充 + 描边 + 高光 + 投影。
- * 不传 backdrop 或系统开了「降低透明度」时退化为高填充半透明面；平台不支持模糊（Android < 12）由 haze 自动改画 fallbackTint。
+ * 不传 backdrop、系统开了「降低透明度」或平台不支持模糊（Android < 12）时不挂 haze，退化为高填充半透明面。
  */
 @Composable
 fun Modifier.glass(

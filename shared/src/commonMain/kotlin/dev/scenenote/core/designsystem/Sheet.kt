@@ -37,6 +37,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
 
 /**
  * Sheet（`sheets.md › Best practices`）：设置类短任务专用；一次一个、可拖拽有 grabber、Done 必配 Cancel、可下滑关闭。
@@ -50,8 +52,8 @@ fun BoxScope.SceneSheet(
     title: String,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
-    cancelText: String = "取消",
-    doneText: String = "完成",
+    cancelText: String = stringResource(Res.string.common_cancel),
+    doneText: String = stringResource(Res.string.common_done),
     topInset: Dp = 96.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -119,11 +121,16 @@ fun BoxScope.SceneSheet(
     }
 }
 
-/** sheet 的平板材质：更高填充、更强模糊、不画对角高光。 */
+/**
+ * sheet 的平板材质：比 Tab 栏（58%）更高的填充、不画对角高光。
+ * 填充色与页面底色同为 secondarySystemBackground，透出的那部分只有下面的白色行、彩色图标和文字能看出来，所以 alpha 不能太高——
+ * 86% 时模糊后的差异只剩几个灰阶，肉眼等于不透明；72% 能看到柔和的形状又不影响 sheet 上的文字。
+ * 只有真能模糊（拿得到内容层、平台支持、没开「降低透明度」）才半透明；否则下面的页面会直接穿出来，改为不透明。
+ */
 @Composable
-fun Modifier.glassFlat(shape: androidx.compose.ui.graphics.Shape): Modifier {
+fun Modifier.glassFlat(shape: androidx.compose.ui.graphics.Shape, backdrop: GlassBackdrop? = LocalGlassBackdrop.current): Modifier {
     val c = SceneTheme.colors
-    val a11y = SceneTheme.a11y
-    val fill = if (a11y.reduceTransparency) c.secondarySystemBackground else c.secondarySystemBackground.copy(alpha = 0.86f)
-    return this.glass(shape, elevation = 16.dp, fillOverride = fill)
+    val spec = rememberGlassSpec(backdropAvailable = backdrop != null)
+    val fill = if (spec.blurEnabled) c.secondarySystemBackground.copy(alpha = 0.72f) else c.secondarySystemBackground
+    return this.glass(shape, backdrop = backdrop, elevation = 16.dp, fillOverride = fill)
 }

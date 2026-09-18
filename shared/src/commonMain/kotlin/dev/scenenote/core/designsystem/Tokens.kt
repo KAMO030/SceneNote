@@ -44,30 +44,33 @@ data class SceneColors(
     val glassHighlight: Color,
 ) {
     companion object {
-        val Light = SceneColors(
+        /** 浅色令牌；强调色四件套来自 [accent]（默认 [Accents.default]）。 */
+        fun light(accent: AccentSpec = Accents.default): SceneColors = SceneColors(
             isDark = false,
             label = Color(Palette.LightLabel), secondaryLabel = Color(Palette.LightSecondaryLabel), tertiaryLabel = Color(Palette.LightTertiaryLabel),
             systemBackground = Color(Palette.LightSystemBackground), secondarySystemBackground = Color(Palette.LightSecondarySystemBackground),
             groupedBackground = Color(Palette.LightGroupedBackground), secondaryGroupedBackground = Color(Palette.LightSecondaryGroupedBackground),
             separator = Color(Palette.LightSeparator), fill = Color(Palette.LightFill),
-            tint = Color(Palette.LightTint), onTint = Color(Palette.LightOnTint), tintSoft = Color(Palette.LightTintSoft), onTintSoft = Color(Palette.LightOnTintSoft),
+            tint = Color(accent.light.tint), onTint = Color(accent.light.onTint), tintSoft = Color(accent.light.tintSoft), onTintSoft = Color(accent.light.onTintSoft),
             warningSoft = Color(Palette.LightWarningSoft), onWarningSoft = Color(Palette.LightOnWarningSoft),
             destructiveSoft = Color(Palette.LightDestructiveSoft), onDestructiveSoft = Color(Palette.LightOnDestructiveSoft),
             destructive = Color(Palette.LightDestructive), recording = Color(Palette.LightRecording),
             glassFill = Color(Palette.LightGlassFill), glassStroke = Color(Palette.LightGlassStroke), glassHighlight = Color(Palette.LightGlassHighlight),
         )
-        val Dark = SceneColors(
+        fun dark(accent: AccentSpec = Accents.default): SceneColors = SceneColors(
             isDark = true,
             label = Color(Palette.DarkLabel), secondaryLabel = Color(Palette.DarkSecondaryLabel), tertiaryLabel = Color(Palette.DarkTertiaryLabel),
             systemBackground = Color(Palette.DarkSystemBackground), secondarySystemBackground = Color(Palette.DarkSecondarySystemBackground),
             groupedBackground = Color(Palette.DarkGroupedBackground), secondaryGroupedBackground = Color(Palette.DarkSecondaryGroupedBackground),
             separator = Color(Palette.DarkSeparator), fill = Color(Palette.DarkFill),
-            tint = Color(Palette.DarkTint), onTint = Color(Palette.DarkOnTint), tintSoft = Color(Palette.DarkTintSoft), onTintSoft = Color(Palette.DarkOnTintSoft),
+            tint = Color(accent.dark.tint), onTint = Color(accent.dark.onTint), tintSoft = Color(accent.dark.tintSoft), onTintSoft = Color(accent.dark.onTintSoft),
             warningSoft = Color(Palette.DarkWarningSoft), onWarningSoft = Color(Palette.DarkOnWarningSoft),
             destructiveSoft = Color(Palette.DarkDestructiveSoft), onDestructiveSoft = Color(Palette.DarkOnDestructiveSoft),
             destructive = Color(Palette.DarkDestructive), recording = Color(Palette.DarkRecording),
             glassFill = Color(Palette.DarkGlassFill), glassStroke = Color(Palette.DarkGlassStroke), glassHighlight = Color(Palette.DarkGlassHighlight),
         )
+        val Light: SceneColors = light()
+        val Dark: SceneColors = dark()
     }
 }
 

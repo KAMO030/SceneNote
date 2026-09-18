@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,7 @@ import dev.scenenote.core.designsystem.AlertAction
 import dev.scenenote.core.designsystem.ButtonStyle
 import dev.scenenote.core.designsystem.CapsuleTone
 import dev.scenenote.core.designsystem.GlassScaffold
+import dev.scenenote.core.designsystem.LocalGlassBackdrop
 import dev.scenenote.core.designsystem.MenuItem
 import dev.scenenote.core.designsystem.SceneAlert
 import dev.scenenote.core.designsystem.SceneButton
@@ -56,6 +58,7 @@ import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
 import dev.scenenote.core.designsystem.SceneToggle
 import dev.scenenote.core.designsystem.SceneVerticalSpace
+import dev.scenenote.core.designsystem.rememberGlassBackdrop
 
 /**
  * 设计系统预览页（`scenenote://gallery`）：把 core/design-system 的每个组件在真机上摆一遍，
@@ -74,8 +77,10 @@ fun DesignSystemGallery(onBack: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var dockMode by remember { mutableStateOf(false) }
 
+    val backdrop = rememberGlassBackdrop()   // 骨架与 sheet 共用，sheet 也取样内容层做模糊
     Box(Modifier.fillMaxSize()) {
         GlassScaffold(
+            backdrop = backdrop,
             topBar = {
                 SceneNavBar(
                     title = "设计系统",
@@ -226,18 +231,21 @@ fun DesignSystemGallery(onBack: () -> Unit) {
             }
         }
 
-        SceneSheet(visible = sheet, onDismiss = { sheet = false }, title = "Key 钱包", onDone = { sheet = false }) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(SceneSpacing.l)) {
-                SceneSectionHeader("厂商 · 只用你自己的 Key 直连")
-                SceneGroup {
-                    SceneRow("阿里云百炼", value = "已配置", trailing = { SceneCapsule("翻译 · 润色", tone = CapsuleTone.Tint) })
-                    SceneDivider()
-                    SceneRow("Anthropic", value = "未配置", chevron = true, onClick = {})
-                    SceneDivider()
-                    SceneRow("OpenAI 兼容端点", value = "未配置", chevron = true, onClick = {})
+        // sheet 在骨架之外（取样源外面），拿骨架的 backdrop 做真模糊
+        CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
+            SceneSheet(visible = sheet, onDismiss = { sheet = false }, title = "Key 钱包", onDone = { sheet = false }) {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(SceneSpacing.l)) {
+                    SceneSectionHeader("厂商 · 只用你自己的 Key 直连")
+                    SceneGroup {
+                        SceneRow("阿里云百炼", value = "已配置", trailing = { SceneCapsule("翻译 · 润色", tone = CapsuleTone.Tint) })
+                        SceneDivider()
+                        SceneRow("Anthropic", value = "未配置", chevron = true, onClick = {})
+                        SceneDivider()
+                        SceneRow("OpenAI 兼容端点", value = "未配置", chevron = true, onClick = {})
+                    }
+                    SceneSectionFooter("Key 只存在本机 Keychain / Keystore，不备份、不同步；App 不内置任何 Key。")
+                    SceneVerticalSpace()
                 }
-                SceneSectionFooter("Key 只存在本机 Keychain / Keystore，不备份、不同步；App 不内置任何 Key。")
-                SceneVerticalSpace()
             }
         }
     }

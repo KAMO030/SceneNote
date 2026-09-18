@@ -6,6 +6,8 @@ import dev.scenenote.core.model.PrivacyMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.StringResource
 
 /** 普通偏好（非敏感）。敏感数据（Key）只进 [SecureStore]。 */
 class AppSettings(private val settings: Settings) {
@@ -13,12 +15,23 @@ class AppSettings(private val settings: Settings) {
     val privacy: StateFlow<PrivacyMode> = _privacy.asStateFlow()
     fun setPrivacy(mode: PrivacyMode) { settings.putString(KEY_PRIVACY, PrivacyMode.idOf(mode)); _privacy.value = mode }
 
+    /** 主题色 id（core/designsystem `Accents`）；StateFlow 让设置页一点就全 App 换色。 */
+    private val _accent = MutableStateFlow(settings.getString(KEY_ACCENT, "pink"))
+    val accent: StateFlow<String> = _accent.asStateFlow()
+    fun setAccent(id: String) { settings.putString(KEY_ACCENT, id); _accent.value = id }
+
     var myLang: String
         get() = settings.getString(KEY_MY_LANG, Lang.ZH_CN)
         set(v) = settings.putString(KEY_MY_LANG, v)
+    /** 对方语言；[Lang.AUTO] = 会话里按定稿语种识别自动学（中 / 英 / 粤 / 日 / 韩），未识别前先按英语。 */
     var otherLang: String
         get() = settings.getString(KEY_OTHER_LANG, Lang.EN)
         set(v) = settings.putString(KEY_OTHER_LANG, v)
+
+    /** 「我」的声纹（3D-Speaker embedding，逗号分隔浮点）：会话里注册后持久化，下次进对话页第一句就能靠声纹分人。 */
+    var meVoice: FloatArray?
+        get() = settings.getStringOrNull(KEY_ME_VOICE)?.split(',')?.mapNotNull { it.toFloatOrNull() }?.toFloatArray()?.takeIf { it.isNotEmpty() }
+        set(v) = if (v == null) settings.remove(KEY_ME_VOICE) else settings.putString(KEY_ME_VOICE, v.joinToString(","))
 
     /** 本地消费闸门：每月估算费用上限（本币），0 = 不限制。 */
     var monthlyLimit: Double
@@ -59,6 +72,11 @@ class AppSettings(private val settings: Settings) {
         get() = settings.getBoolean(KEY_POLITE_OPENER, false)
         set(v) = settings.putBoolean(KEY_POLITE_OPENER, v)
 
+    /** 系统字幕（S1）画中画：默认只显示译文；双语 = 原文小字在上（02 篇「屏内字幕」）。 */
+    var captionBilingual: Boolean
+        get() = settings.getBoolean(KEY_CAPTION_BILINGUAL, false)
+        set(v) = settings.putBoolean(KEY_CAPTION_BILINGUAL, v)
+
     /** 一次性轻提示（会话页空态气泡等）：看过一次就不再打扰。 */
     fun hintSeen(key: String): Boolean = settings.getBoolean("hint.$key", false)
     fun markHintSeen(key: String) = settings.putBoolean("hint.$key", true)
@@ -70,8 +88,10 @@ class AppSettings(private val settings: Settings) {
 
     private companion object {
         const val KEY_PRIVACY = "privacy_default"
+        const val KEY_ACCENT = "accent"
         const val KEY_MY_LANG = "my_lang"
         const val KEY_OTHER_LANG = "other_lang"
+        const val KEY_ME_VOICE = "me_voice"
         const val KEY_MONTHLY_LIMIT = "monthly_limit"
         const val KEY_DEFAULT_PROVIDER = "default_provider"
         const val KEY_ONBOARDING = "onboarding_done"
@@ -81,6 +101,7 @@ class AppSettings(private val settings: Settings) {
         const val KEY_AUTO_POSTURE = "auto_posture"
         const val KEY_DIRECTION_AUTO = "direction_auto"
         const val KEY_POLITE_OPENER = "polite_opener"
+        const val KEY_CAPTION_BILINGUAL = "caption_bilingual"
     }
 }
 
@@ -93,22 +114,22 @@ interface SecureStore {
 
 /** 云端 provider 描述（不含任何 Key）。host 用于去向账本与 Egress 门面。 */
 data class CloudProvider(
-    val id: String, val name: String, val host: String,
-    val capabilities: Set<Capability>, val keyHint: String, val docUrl: String, val region: String
+    val id: String, val name: StringResource, val host: String,
+    val capabilities: Set<Capability>, val keyHint: StringResource, val docUrl: String, val region: String
 ) {
     enum class Capability { ASR, MT, LLM, TTS }
 }
 
 object Providers {
-    val bailian = CloudProvider("bailian", "阿里云百炼", "dashscope.aliyuncs.com",
+    val bailian = CloudProvider("bailian", Res.string.provider_bailian, "dashscope.aliyuncs.com",
         setOf(CloudProvider.Capability.ASR, CloudProvider.Capability.MT, CloudProvider.Capability.LLM, CloudProvider.Capability.TTS),
-        keyHint = "sk-…（百炼控制台 → 模型 → 设置 → API Key；北京地域）", docUrl = "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key", region = "cn")
-    val anthropic = CloudProvider("anthropic", "Anthropic", "api.anthropic.com",
+        keyHint = Res.string.provider_bailian_hint, docUrl = "https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key", region = "cn")
+    val anthropic = CloudProvider("anthropic", Res.string.provider_anthropic, "api.anthropic.com",
         setOf(CloudProvider.Capability.LLM, CloudProvider.Capability.MT),
-        keyHint = "sk-ant-…", docUrl = "https://console.anthropic.com", region = "global")
-    val openaiCompatible = CloudProvider("openai_compat", "OpenAI 兼容端点", "",
+        keyHint = Res.string.provider_anthropic_hint, docUrl = "https://console.anthropic.com", region = "global")
+    val openaiCompatible = CloudProvider("openai_compat", Res.string.provider_openai_compat, "",
         setOf(CloudProvider.Capability.LLM, CloudProvider.Capability.MT),
-        keyHint = "sk-…（需同时填写 Base URL）", docUrl = "", region = "custom")
+        keyHint = Res.string.provider_openai_compat_hint, docUrl = "", region = "custom")
     val all = listOf(bailian, anthropic, openaiCompatible)
     fun byId(id: String) = all.firstOrNull { it.id == id }
 }

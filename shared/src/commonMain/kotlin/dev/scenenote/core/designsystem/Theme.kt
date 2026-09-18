@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 
 val LocalSceneColors = staticCompositionLocalOf { SceneColors.Light }
+/** 当前主题色；由最外层 [SceneTheme] 从设置读入，页面里套 `SceneTheme(dark = true)` 时沿用。 */
+val LocalSceneAccent = staticCompositionLocalOf { Accents.default }
 val LocalSceneTypography = staticCompositionLocalOf { SceneTypography.default() }
 val LocalSceneMotion = staticCompositionLocalOf { SceneMotion.Default }
 
@@ -23,7 +25,7 @@ val LocalTextStyle = compositionLocalOf { SceneTypography.default().body }
 
 /**
  * 场记设计系统入口（07 篇 §7.14）：Apple HIG 而非 Material 3。
- * - 不提供 App 内外观开关：`dark` 默认跟随系统（`dark-mode.md › Best practices`）。
+ * - 不提供 App 内外观开关：`dark` 默认跟随系统（`dark-mode.md › Best practices`）；主题色（[accent]）用户可在设置里选内置的几种。
  * - 无障碍偏好从系统读取，玻璃 / 动效据此回退。
  * - 与 `compose.material3` 无关，可与旧的 MaterialTheme 同时存在（迁移期）。
  */
@@ -32,12 +34,14 @@ fun SceneTheme(
     dark: Boolean = isSystemInDarkTheme(),
     typography: SceneTypography = SceneTypography.default(),
     accessibility: AccessibilityPrefs = rememberSystemAccessibilityPrefs(),
+    accent: AccentSpec = LocalSceneAccent.current,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (dark) SceneColors.Dark else SceneColors.Light
+    val colors = remember(dark, accent) { if (dark) SceneColors.dark(accent) else SceneColors.light(accent) }
     val motion = remember(accessibility.reduceMotion) { if (accessibility.reduceMotion) SceneMotion.forReduced() else SceneMotion.Default }
     val indication = remember(colors, accessibility.increaseContrast) { PressHighlightIndication.forColors(colors, accessibility.increaseContrast) }
     CompositionLocalProvider(
+        LocalSceneAccent provides accent,
         LocalSceneColors provides colors,
         LocalSceneTypography provides typography,
         LocalSceneMotion provides motion,

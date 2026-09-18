@@ -5,6 +5,10 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import androidx.glance.appwidget.updateAll
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -34,6 +38,13 @@ class MainActivity : ComponentActivity() {
         PickerBridge.detach(this)
         AndroidPip.detach(this)
         super.onDestroy()
+    override fun onStop() {
+        super.onStop()
+        // 离开 App 时刷一次主屏小组件：主题色在设置里改了要跟上
+        val app = applicationContext
+        CoroutineScope(Dispatchers.Default).launch { runCatching { SceneWidget().updateAll(app) } }
+    }
+
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {

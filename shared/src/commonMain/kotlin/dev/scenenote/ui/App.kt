@@ -21,6 +21,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import dev.scenenote.core.designsystem.GlassScaffold
+import dev.scenenote.core.designsystem.LocalGlassBackdrop
+import dev.scenenote.core.designsystem.rememberGlassBackdrop
 import dev.scenenote.core.designsystem.SceneIcons
 import dev.scenenote.core.designsystem.SceneTab
 import dev.scenenote.core.designsystem.SceneTabBar
@@ -42,7 +44,11 @@ import dev.scenenote.ui.models.ModelsScreen
 import dev.scenenote.ui.onboarding.OnboardingScreen
 import dev.scenenote.ui.selftest.AudioSelfTestScreen
 import dev.scenenote.ui.settings.SettingsTab
+import androidx.compose.animation.togetherWith
 import dev.scenenote.ui.theme.SceneNoteTheme
+import dev.scenenote.ui.i18n.title
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
 
 /**
  * 路由（07 篇 §7.10 深链统一 scenenote://）：
@@ -70,10 +76,11 @@ object Routes {
     fun meeting(autostart: Boolean = true) = "meeting?autostart=$autostart"
     const val ONBOARDING = "onboarding?page={page}"
     fun onboarding(page: Int = 0) = "onboarding?page=$page"
-    const val MODELS = "models?install={install}"
-    fun models(install: String = "") = "models?install=$install"
-    const val SELFTEST = "selftest?autostart={autostart}&stop={stop}&bench={bench}&tts={tts}"
-    fun selfTest(autostart: Boolean = false, stopAfterSec: Int = 0, bench: String = "", tts: Boolean = false) = "selftest?autostart=$autostart&stop=$stopAfterSec&bench=$bench&tts=$tts"
+    /** install：进页即下载（深链 / 验收）；need：实时页缺的包，排在最前但不自动下载。 */
+    const val MODELS = "models?install={install}&need={need}"
+    fun models(install: String = "", need: String = "") = "models?install=$install&need=$need"
+    const val SELFTEST = "selftest?autostart={autostart}&stop={stop}&bench={bench}&tts={tts}&mt={mt}"
+    fun selfTest(autostart: Boolean = false, stopAfterSec: Int = 0, bench: String = "", tts: Boolean = false, mt: Boolean = false) = "selftest?autostart=$autostart&stop=$stopAfterSec&bench=$bench&tts=$tts&mt=$mt"
 }
 
 object Tabs { const val HOME = 0; const val LIVE = 1; const val LIBRARY = 2; const val SETTINGS = 3 }
@@ -83,19 +90,21 @@ fun App() {
     SceneNoteTheme {
         val nav = rememberNavController()
         val link by DeepLinks.pending.collectAsState()
+        val systemCaption = org.koin.compose.koinInject<dev.scenenote.screen.SystemCaption>()
         LaunchedEffect(link) {
             val l = link ?: return@LaunchedEffect
             when (l.host) {
-                "selftest" -> nav.navigate(Routes.selfTest(l.query["autostart"] == "1", l.query["stop"]?.toIntOrNull() ?: 0, l.query["bench"] ?: "", l.query["tts"] == "1"))
+                "selftest" -> nav.navigate(Routes.selfTest(l.query["autostart"] == "1", l.query["stop"]?.toIntOrNull() ?: 0, l.query["bench"] ?: "", l.query["tts"] == "1", l.query["mt"] == "1"))
                 "scene" -> l.path.firstOrNull()?.let { nav.navigate(Routes.live(it, l.query["autostart"] == "1", l.query["other"] ?: "", l.query["my"] ?: "", l.query["feed"] ?: "", l.query["mode"] ?: "")) }
                 "settings" -> nav.navigate(Routes.main(Tabs.SETTINGS)) { popUpTo(Routes.MAIN) { inclusive = true } }
                 "live" -> nav.navigate(Routes.main(Tabs.LIVE)) { popUpTo(Routes.MAIN) { inclusive = true } }
                 "library" -> nav.navigate(Routes.main(Tabs.LIBRARY)) { popUpTo(Routes.MAIN) { inclusive = true } }
-                "models" -> nav.navigate(Routes.models(l.query["install"] ?: ""))
+                "models" -> nav.navigate(Routes.models(l.query["install"] ?: "", l.query["need"] ?: ""))
                 "gallery" -> nav.navigate(Routes.GALLERY)
                 "note" -> l.path.firstOrNull()?.let { nav.navigate(Routes.note(it)) }
                 "screen" -> nav.navigate(Routes.screen(shared = l.query["shared"] ?: "", name = l.query["name"] ?: ""))
-                "syscaption" -> nav.navigate(Routes.SYSTEM_CAPTION)
+                // 磁贴「屏内翻译」：autostart 走 SystemCaption 的一次性信号；singleTop 防止页面已开着时再叠一层（两层 VM 共用同一 SystemCaption，弹出上层会把抓取停掉）
+                "syscaption" -> { if (l.query["autostart"] == "1") systemCaption.requestAutostart(); nav.navigate(Routes.SYSTEM_CAPTION) { launchSingleTop = true } }
                 "ledger" -> nav.navigate(Routes.LEDGER)
                 "glossary" -> nav.navigate(Routes.GLOSSARY)
                 "onboarding" -> nav.navigate(Routes.onboarding(l.query["page"]?.toIntOrNull() ?: 0))
@@ -162,9 +171,10 @@ fun App() {
                     },
                 )
             }
-            composable(Routes.MODELS, arguments = listOf(navArgument("install") { type = NavType.StringType; defaultValue = "" })) { entry ->
+            composable(Routes.MODELS, arguments = listOf(navArgument("install") { type = NavType.StringType; defaultValue = "" }, navArgument("need") { type = NavType.StringType; defaultValue = "" })) { entry ->
                 val install = entry.savedStateHandle.get<String>("install").orEmpty().split(",").filter { it.isNotBlank() }
-                ModelsScreen(onBack = { nav.popBackStack() }, autoInstall = install)
+                val need = entry.savedStateHandle.get<String>("need").orEmpty().split(",").filter { it.isNotBlank() }
+                ModelsScreen(onBack = { nav.popBackStack() }, autoInstall = install, need = need)
             }
             composable(
                 Routes.SELFTEST,
@@ -173,13 +183,15 @@ fun App() {
                     navArgument("stop") { type = NavType.StringType; defaultValue = "0" },
                     navArgument("bench") { type = NavType.StringType; defaultValue = "" },
                     navArgument("tts") { type = NavType.StringType; defaultValue = "false" },
+                    navArgument("mt") { type = NavType.StringType; defaultValue = "false" },
                 ),
             ) { entry ->
                 val auto = entry.savedStateHandle.get<String>("autostart") == "true"
                 val stopAfter = entry.savedStateHandle.get<String>("stop")?.toIntOrNull() ?: 0
                 val benchFile = entry.savedStateHandle.get<String>("bench")?.takeIf { it.isNotBlank() }
                 val ttsTest = entry.savedStateHandle.get<String>("tts") == "true"
-                AudioSelfTestScreen(onBack = { nav.popBackStack() }, autostart = auto, stopAfterSec = stopAfter, benchFile = benchFile, ttsTest = ttsTest)
+                val mtTest = entry.savedStateHandle.get<String>("mt") == "true"
+                AudioSelfTestScreen(onBack = { nav.popBackStack() }, autostart = auto, stopAfterSec = stopAfter, benchFile = benchFile, ttsTest = ttsTest, mtTest = mtTest)
             }
         }
     }
@@ -189,18 +201,44 @@ fun App() {
 @Composable
 fun MainShell(nav: NavHostController, initialTab: Int, openKey: Boolean = false) {
     var tab by rememberSaveable { mutableStateOf(initialTab.coerceIn(0, 3)) }
-    val tabs = listOf(SceneTab("场景", SceneIcons.Scenes), SceneTab("实时", SceneIcons.Waveform), SceneTab("资料库", SceneIcons.Library), SceneTab("设置", SceneIcons.Sliders))
+    val tabs = listOf(SceneTab(stringResource(Res.string.tab_scenes), SceneIcons.Scenes), SceneTab(stringResource(Res.string.tab_live), SceneIcons.Waveform), SceneTab(stringResource(Res.string.tab_library), SceneIcons.Library), SceneTab(stringResource(Res.string.tab_settings), SceneIcons.Sliders))
     val overlay = remember { mutableStateOf<(@Composable BoxScope.() -> Unit)?>(null) }
+    val backdrop = rememberGlassBackdrop()   // 骨架与覆盖层共用：sheet 也取样内容层做模糊
     CompositionLocalProvider(LocalShellOverlay provides overlay) {
         Box(Modifier.fillMaxSize()) {
-            GlassScaffold(bottomBar = { SceneTabBar(tabs, tab, onSelect = { tab = it }) }) { TabContent(nav, tab, onSelectTab = { tab = it }, openKey = openKey) }
-            overlay.value?.let { it() }   // sheet / 压暗层盖在 Tab 栏之上
+            GlassScaffold(backdrop = backdrop, bottomBar = { SceneTabBar(tabs, tab, onSelect = { tab = it }) }) { TabContent(nav, tab, onSelectTab = { tab = it }, openKey = openKey) }
+            // sheet / 压暗层盖在 Tab 栏之上；它在取样源外面，可以拿 backdrop 做真模糊
+            CompositionLocalProvider(LocalGlassBackdrop provides backdrop) { overlay.value?.let { it() } }
         }
     }
 }
 
+/** Tab 内容切换：淡入淡出 + 朝切换方向轻微平移（1/12 宽）；系统「减少动态效果」时瞬切。 */
 @Composable
 private fun TabContent(nav: NavHostController, tab: Int, onSelectTab: (Int) -> Unit, openKey: Boolean = false) {
+    val motion = dev.scenenote.core.designsystem.SceneTheme.motion
+    androidx.compose.animation.AnimatedContent(
+        targetState = tab,
+        transitionSpec = {
+            if (motion.reduced) {
+                androidx.compose.animation.fadeIn(androidx.compose.animation.core.snap()) togetherWith androidx.compose.animation.fadeOut(androidx.compose.animation.core.snap())
+            } else {
+                val dir = if (targetState > initialState) 1 else -1
+                (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(motion.normalMs)) +
+                    androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(motion.normalMs)) { dir * it / 12 })
+                    .togetherWith(
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(motion.fastMs)) +
+                            androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(motion.fastMs)) { -dir * it / 12 },
+                    )
+                    .using(androidx.compose.animation.SizeTransform(clip = false))
+            }
+        },
+        label = "tab",
+    ) { current -> TabPage(nav, current, onSelectTab, openKey) }
+}
+
+@Composable
+private fun TabPage(nav: NavHostController, tab: Int, onSelectTab: (Int) -> Unit, openKey: Boolean = false) {
     Box(Modifier.fillMaxSize()) {
         when (tab) {
             Tabs.HOME -> HomeTab(
@@ -234,11 +272,11 @@ private fun LiveSessionRouter(nav: NavHostController, sceneId: String, autostart
     if (baseId == Scenes.screenFile.id) { ScreenFlowScreen(onBack = back, onSystemCaption = { nav.navigate(Routes.SYSTEM_CAPTION) }); return }
     if (baseId == Scenes.meeting.id) { MeetingScreen(onBack = back, onDone = { id -> nav.navigate(Routes.note(id)) { popUpTo(Routes.LIVE) { inclusive = true } } }, autostart = autostart); return }
     when (mode?.id) {
-        "M4" -> LiveM4Screen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed)
-        "M0", "M1", "M3" -> LiveConversationScreen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models()) }, autostart = autostart, otherLang = other, myLang = my, feed = feed, initialMode = modeOverride,
+        "M4" -> LiveM4Screen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models(need = it.joinToString(","))) }, autostart = autostart, otherLang = other, myLang = my, feed = feed)
+        "M0", "M1", "M3" -> LiveConversationScreen(sceneId = sceneId, onBack = back, onOpenModels = { nav.navigate(Routes.models(need = it.joinToString(","))) }, autostart = autostart, otherLang = other, myLang = my, feed = feed, initialMode = modeOverride,
             onEnded = { savedId -> if (savedId != null) nav.navigate(Routes.note(savedId)) { popUpTo(Routes.LIVE) { inclusive = true } } else nav.popBackStack() },
             onOpenQuickPhrase = { nav.navigate(Routes.live(Scenes.quickPhrase.id)) { popUpTo(Routes.LIVE) { inclusive = true } } })   // M4 替换 M0，不叠在其上
-        else -> PlaceholderSessionScreen(title = scene?.name ?: sceneId, note = "稍后开放", onBack = back)
+        else -> PlaceholderSessionScreen(title = scene?.title() ?: sceneId, note = stringResource(Res.string.common_coming_soon), onBack = back)
     }
 }
 
@@ -256,7 +294,7 @@ private fun NoteRouter(nav: NavHostController, sessionId: String) {
         kind == dev.scenenote.core.db.SessionKind.LIVE -> LiveEndScreen(sessionId = sessionId, onBack = { nav.popBackStack() })
         kind == dev.scenenote.core.db.SessionKind.SCREEN -> ScreenFlowScreen(onBack = { nav.popBackStack() }, reopenSessionId = sessionId)
         kind != null -> MeetingResultScreen(sessionId = sessionId, onBack = { nav.popBackStack() })
-        missing -> dev.scenenote.ui.live.PlaceholderSessionScreen(title = "记录", note = "找不到这条记录", onBack = { nav.popBackStack() })
+        missing -> dev.scenenote.ui.live.PlaceholderSessionScreen(title = stringResource(Res.string.common_record), note = stringResource(Res.string.common_record_missing), onBack = { nav.popBackStack() })
         else -> Unit
     }
 }

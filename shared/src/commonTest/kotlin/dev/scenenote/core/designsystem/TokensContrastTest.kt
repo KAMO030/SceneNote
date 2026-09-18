@@ -9,6 +9,11 @@ import kotlin.test.assertTrue
  * ≤ 17 pt 文本 4.5:1；≥ 18 pt 或粗体 3:1；tertiaryLabel 只准用于 ≥ 18 pt / 非文字，所以只卡 3:1。
  */
 class TokensContrastTest {
+    @Test fun accentIdsUnique() {
+        assertTrue(Accents.all.map { it.id }.toSet().size == Accents.all.size, "主题色 id 重复")
+        assertTrue(Accents.byId("no-such") === Accents.default, "未知 id 应回退默认主题色")
+    }
+
     private fun assertContrast(name: String, fg: Long, bg: Long, min: Double) {
         val r = Palette.contrast(fg, bg)
         assertTrue(r >= min, "$name 对比度 ${(r * 100).roundToInt() / 100.0} < $min")
@@ -23,9 +28,12 @@ class TokensContrastTest {
     }
 
     @Test fun lightTintAndSoftSurfaces() {
-        assertContrast("onTint/tint", Palette.LightOnTint, Palette.LightTint, 4.5)
-        assertContrast("tint/systemBackground (plain button)", Palette.LightTint, Palette.LightSystemBackground, 4.5)
-        assertContrast("onTintSoft/tintSoft", Palette.LightOnTintSoft, Palette.LightTintSoft, 4.5)
+        for (a in Accents.all) {
+            assertContrast("${a.id} onTint/tint", a.light.onTint, a.light.tint, 4.5)
+            assertContrast("${a.id} tint/systemBackground (plain button)", a.light.tint, Palette.LightSystemBackground, 4.5)
+            assertContrast("${a.id} tint/groupedBackground", a.light.tint, Palette.LightGroupedBackground, 4.5)
+            assertContrast("${a.id} onTintSoft/tintSoft", a.light.onTintSoft, a.light.tintSoft, 4.5)
+        }
         assertContrast("onWarningSoft/warningSoft", Palette.LightOnWarningSoft, Palette.LightWarningSoft, 4.5)
         assertContrast("onDestructiveSoft/destructiveSoft", Palette.LightOnDestructiveSoft, Palette.LightDestructiveSoft, 4.5)
         assertContrast("destructive/systemBackground", Palette.LightDestructive, Palette.LightSystemBackground, 4.5)
@@ -39,9 +47,12 @@ class TokensContrastTest {
     }
 
     @Test fun darkTintAndSoftSurfaces() {
-        assertContrast("onTint/tint", Palette.DarkOnTint, Palette.DarkTint, 4.5)
-        assertContrast("tint/systemBackground", Palette.DarkTint, Palette.DarkSystemBackground, 4.5)
-        assertContrast("onTintSoft/tintSoft", Palette.DarkOnTintSoft, Palette.DarkTintSoft, 4.5)
+        for (a in Accents.all) {
+            assertContrast("${a.id} onTint/tint", a.dark.onTint, a.dark.tint, 4.5)
+            assertContrast("${a.id} tint/systemBackground", a.dark.tint, Palette.DarkSystemBackground, 4.5)
+            assertContrast("${a.id} tint/secondarySystemBackground", a.dark.tint, Palette.DarkSecondarySystemBackground, 4.5)
+            assertContrast("${a.id} onTintSoft/tintSoft", a.dark.onTintSoft, a.dark.tintSoft, 4.5)
+        }
         assertContrast("onWarningSoft/warningSoft", Palette.DarkOnWarningSoft, Palette.DarkWarningSoft, 4.5)
         assertContrast("onDestructiveSoft/destructiveSoft", Palette.DarkOnDestructiveSoft, Palette.DarkDestructiveSoft, 4.5)
         assertContrast("destructive/secondarySystemBackground", Palette.DarkDestructive, Palette.DarkSecondarySystemBackground, 4.5)

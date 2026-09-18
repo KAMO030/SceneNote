@@ -30,6 +30,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import dev.scenenote.app.R
 
 /**
  * 主屏小组件（I7 最小入口，规格 §3.1）：两枚按钮「仅听」「会议」，点击走 scenenote:// 深链一按进场景。
@@ -42,13 +43,17 @@ class SceneWidget : GlanceAppWidget() {
 
     @Composable
     private fun Content() {
+        // 底色跟设置里的主题色（浅色 tint，白字 ≥ 4.5:1）；Koin 还没起来时用默认色
+        val accent = runCatching { org.koin.core.context.GlobalContext.getOrNull()?.get<dev.scenenote.core.settings.AppSettings>()?.accent?.value }.getOrNull()
+        val tint = Color(dev.scenenote.core.designsystem.Accents.byId(accent).light.tint)
         Row(
-            GlanceModifier.fillMaxSize().background(Color(0xFF0E7C86)).cornerRadius(24.dp).padding(6.dp),
+            GlanceModifier.fillMaxSize().background(tint).cornerRadius(24.dp).padding(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Pill("仅听", "scenenote://scene/listen?autostart=1", GlanceModifier.defaultWeight())
+            val ctx = androidx.glance.LocalContext.current
+            Pill(ctx.getString(R.string.widget_listen), "scenenote://scene/listen?autostart=1", GlanceModifier.defaultWeight())
             Spacer(GlanceModifier.width(6.dp))
-            Pill("会议", "scenenote://scene/meeting?autostart=1", GlanceModifier.defaultWeight())
+            Pill(ctx.getString(R.string.widget_meeting), "scenenote://scene/meeting?autostart=1", GlanceModifier.defaultWeight())
         }
     }
 
