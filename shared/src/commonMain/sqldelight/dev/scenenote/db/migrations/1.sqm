@@ -1,0 +1,30 @@
+-- v1 → v2：schema 版本一直是 1、从没写过迁移，I5 新加的三张表（Notes.sq）在旧库上不存在，进资料库直接崩
+-- （`no such table: glossary_candidate`）。全部 IF NOT EXISTS：I5 之后建的库跑到这里是空操作。
+-- 以后加表 / 加列都要在这里往下追加新的 N.sqm，别再只改 .sq。
+
+CREATE TABLE IF NOT EXISTS session_note (
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    backend TEXT NOT NULL,
+    style TEXT NOT NULL DEFAULT '',
+    json TEXT NOT NULL,
+    markdown TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (session_id, kind)
+);
+
+CREATE TABLE IF NOT EXISTS bookmark (
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    at_ms INTEGER NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (session_id, at_ms)
+);
+
+CREATE TABLE IF NOT EXISTS glossary_candidate (
+    session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+    term TEXT NOT NULL,
+    translation TEXT NOT NULL DEFAULT '',
+    lang TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    PRIMARY KEY (session_id, term)
+);
