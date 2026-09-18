@@ -1,7 +1,10 @@
 package dev.scenenote.core.model
 
 import dev.scenenote.audio.AudioMode
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.shared.resources.*
 import kotlinx.serialization.Serializable
+import org.jetbrains.compose.resources.StringResource
 
 // ---------- core:model（全部不可变，与附录 A.1 对齐） ----------
 
@@ -64,11 +67,17 @@ object Lang {
 
     /** MVP 端侧覆盖：基础包 zh-CN / en，方言包 yue-HK / zh-CN-sichuan（02 篇 §2.1）。 */
     val localCoverage: Set<String> = setOf(ZH_CN, EN, YUE_HK, ZH_SICHUAN)
+    /** 语言家族：普通话与各方言同脚本、语种识别分不开，判向 / 语对逻辑按家族比较。 */
+    fun family(tag: String): String = when (tag) { ZH_CN, YUE_HK, ZH_SICHUAN, WUU, NAN -> "zh"; else -> tag }
 
-    fun displayName(tag: String): String = when (tag) {
-        ZH_CN -> "普通话"; YUE_HK -> "粤语"; ZH_SICHUAN -> "四川话"; WUU -> "上海话"; NAN -> "闽南语"
-        EN -> "英语"; JA -> "日语"; KO -> "韩语"; AUTO -> "自动"; else -> tag
+    /** 语言名的资源（按界面语言显示）；未知标签返回 null，调用方原样显示 tag。Composable 里用 ui/i18n 的 `langName`。 */
+    fun nameRes(tag: String): StringResource? = when (tag) {
+        ZH_CN -> Res.string.lang_zh_cn; YUE_HK -> Res.string.lang_yue_hk; ZH_SICHUAN -> Res.string.lang_zh_sichuan; WUU -> Res.string.lang_wuu; NAN -> Res.string.lang_nan
+        EN -> Res.string.lang_en; JA -> Res.string.lang_ja; KO -> Res.string.lang_ko; AUTO -> Res.string.lang_auto; else -> null
     }
+    fun name(tag: String): UiText = nameRes(tag)?.let { UiText.Res(it) } ?: UiText.Plain(tag)
+    /** 选字体 / 排版用的标准 BCP-47（方言归到对应书写系统）。 */
+    fun bcp47(tag: String): String = when (tag) { ZH_SICHUAN, WUU, NAN -> ZH_CN; YUE_HK -> "zh-HK"; AUTO -> EN; else -> tag }
 }
 
 @Serializable data class LangChip(val tag: String, val default: Boolean = false, val shownOnCard: Boolean = false)

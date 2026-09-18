@@ -34,6 +34,8 @@ import kotlin.time.Clock
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.getString
 
 enum class RecState { IDLE, PREPARING, RECORDING, PAUSED, FINISHING }
 
@@ -169,7 +171,7 @@ class MeetingRecorder(
         if (st != RecState.PAUSED) closeStream()
         val path = writer?.runCatching { close() }?.getOrNull(); writer = null
         val first = _state.value.segments.firstOrNull()?.text?.take(24)
-        repo.end(sessionId, title = first?.let { "会议 · $it" } ?: "会议 ${clockHm()}", summary = null, audioPath = path)
+        repo.end(sessionId, title = first?.let { getString(Res.string.session_title_meeting_with, it) } ?: getString(Res.string.session_title_meeting_at, clockHm()), summary = null, audioPath = path)
         _state.update { it.copy(state = RecState.IDLE, audioPath = path) }
         return sessionId
     }

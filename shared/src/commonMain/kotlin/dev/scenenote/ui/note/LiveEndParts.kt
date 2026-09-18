@@ -41,13 +41,16 @@ import dev.scenenote.core.designsystem.SceneSize
 import dev.scenenote.core.designsystem.SceneSpacing
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
-import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.Speaker
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.time.Instant
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.i18n.dayLabel
+import dev.scenenote.ui.i18n.langName
+import dev.scenenote.core.i18n.stringResource
 
 // ---------- 对话卡片（LiveEnd）的私有组件：卡片头 / 双语对照 / 要点 / 新词候选 / 状态行 / dock ----------
 
@@ -76,7 +79,7 @@ internal fun UtteranceLine(u: StoredUtterance) {
             Box(Modifier.width(12.dp))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            SceneText(if (mine) "我" else "对方", style = SceneTheme.type.caption1, color = if (mine) c.secondaryLabel else c.onTintSoft)
+            SceneText(stringResource(if (mine) Res.string.common_me else Res.string.common_other), style = SceneTheme.type.caption1, color = if (mine) c.secondaryLabel else c.onTintSoft)
             SceneText(text, style = SceneTheme.type.subheadline, color = c.label)
             val tr = u.translation?.takeIf { it.isNotBlank() }
             if (tr != null) SceneText(tr, style = SceneTheme.type.footnote, color = c.secondaryLabel)
@@ -93,9 +96,9 @@ internal fun KeyPointsBlock(points: List<String>, cloud: Boolean) {
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            SceneText("要点", style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.label)
+            SceneText(stringResource(Res.string.note_key_points), style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.label)
             SceneIcon(SceneIcons.Sparkle, contentDescription = null, size = 12.dp, tint = c.secondaryLabel)
-            SceneText(if (cloud) "云端整理" else "本机整理", style = SceneTheme.type.caption2, color = c.secondaryLabel, maxLines = 1)
+            SceneText(stringResource(if (cloud) Res.string.note_backend_cloud else Res.string.note_backend_local), style = SceneTheme.type.caption2, color = c.secondaryLabel, maxLines = 1)
         }
         points.forEach { p ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -111,7 +114,7 @@ internal fun KeyPointsBlock(points: List<String>, cloud: Boolean) {
 internal fun CandidatesSection(items: List<GlossaryCandidate>, onAccept: (String) -> Unit, onReject: (String) -> Unit) {
     if (items.isEmpty()) return
     Column {
-        SceneSectionHeader("新词候选")
+        SceneSectionHeader(stringResource(Res.string.note_candidates))
         SceneGroup {
             items.forEachIndexed { i, cand ->
                 if (i > 0) SceneDivider()
@@ -133,8 +136,8 @@ private fun CandidateRow(cand: GlossaryCandidate, onAccept: () -> Unit, onReject
             SceneText(cand.term, style = SceneTheme.type.body, color = c.label)
             if (cand.translation.isNotBlank()) SceneText(cand.translation, style = SceneTheme.type.footnote, color = c.secondaryLabel)
         }
-        SceneButton("忽略", onClick = onReject, style = ButtonStyle.Gray, height = SceneSize.glassButton)
-        SceneButton("确认", onClick = onAccept, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
+        SceneButton(stringResource(Res.string.note_ignore), onClick = onReject, style = ButtonStyle.Gray, height = SceneSize.glassButton)
+        SceneButton(stringResource(Res.string.note_confirm), onClick = onAccept, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
     }
 }
 
@@ -143,13 +146,13 @@ private fun CandidateRow(cand: GlossaryCandidate, onAccept: () -> Unit, onReject
 internal fun NoteStatusLine(working: Boolean, error: String?, onRetry: (() -> Unit)?) {
     val c = SceneTheme.colors
     when {
-        working -> SceneText("正在整理…", Modifier.padding(horizontal = SceneSpacing.page), style = SceneTheme.type.footnote, color = c.secondaryLabel)
+        working -> SceneText(stringResource(Res.string.note_working), Modifier.padding(horizontal = SceneSpacing.page), style = SceneTheme.type.footnote, color = c.secondaryLabel)
         error != null -> Row(
             Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page),
             horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically,
         ) {
             SceneText(error, Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.destructive)
-            if (onRetry != null) SceneButton("重试", onClick = onRetry, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
+            if (onRetry != null) SceneButton(stringResource(Res.string.common_retry), onClick = onRetry, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
         }
     }
 }
@@ -167,18 +170,19 @@ internal fun NoteFooter(text: String) {
 @Composable
 internal fun LiveEndDock(canShareCard: Boolean, onShareCard: () -> Unit, onShareText: () -> Unit, onExport: () -> Unit) {
     SceneDock(height = 72.dp) {
-        SceneIconButton(NoteIcons.TextLines, contentDescription = "分享文字", onClick = onShareText, size = 56.dp)
+        SceneIconButton(NoteIcons.TextLines, contentDescription = stringResource(Res.string.note_share_text), onClick = onShareText, size = 56.dp)
         SceneButton(
-            text = "分享卡片", onClick = onShareCard, icon = SceneIcons.Share, style = ButtonStyle.Prominent, enabled = canShareCard,
+            text = stringResource(Res.string.note_share_card), onClick = onShareCard, icon = SceneIcons.Share, style = ButtonStyle.Prominent, enabled = canShareCard,
             modifier = Modifier.weight(1f).padding(horizontal = SceneSpacing.s), height = 56.dp,
         )
-        SceneIconButton(SceneIcons.Doc, contentDescription = "导出", onClick = onExport, size = 56.dp)
+        SceneIconButton(SceneIcons.Doc, contentDescription = stringResource(Res.string.note_export), onClick = onExport, size = 56.dp)
     }
 }
 
 // ---------- 文案辅助 ----------
 
 /** 元信息：日期 · 时长 · 语言对（缺的项不显示）。 */
+@Composable
 internal fun sessionMeta(session: SessionRow, utterances: List<StoredUtterance>, now: Long = Clock.System.now().toEpochMilliseconds()): String {
     val parts = mutableListOf<String>()
     parts += formatSessionDate(session.startedAt, now)
@@ -188,40 +192,37 @@ internal fun sessionMeta(session: SessionRow, utterances: List<StoredUtterance>,
 }
 
 /** 今天 14:02 / 昨天 14:02 / 9月12日 14:02 / 2025年3月3日。 */
+@Composable
 internal fun formatSessionDate(epochMs: Long, nowMs: Long): String {
     val tz = TimeZone.currentSystemDefault()
     val t = Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(tz)
     val today = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(tz).date
     val hm = "${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}"
-    val dayDiff = today.toEpochDays() - t.date.toEpochDays()
-    return when {
-        dayDiff == 0L -> "今天 $hm"
-        dayDiff == 1L -> "昨天 $hm"
-        t.year == today.year -> "${t.month.number}月${t.day}日 $hm"
-        else -> "${t.year}年${t.month.number}月${t.day}日"
-    }
+    return if (t.year == today.year) "${dayLabel(t.date, today)} $hm" else dayLabel(t.date, today)
 }
 
 /** 45 秒 / 4 分钟 / 1 小时 5 分钟。 */
+@Composable
 internal fun formatDuration(ms: Long): String {
     val totalSec = ms / 1000
-    val h = totalSec / 3600
-    val m = (totalSec % 3600) / 60
+    val h = (totalSec / 3600).toInt()
+    val m = ((totalSec % 3600) / 60).toInt()
     return when {
-        totalSec < 60 -> "$totalSec 秒"
-        h == 0L -> "$m 分钟"
-        m == 0L -> "$h 小时"
-        else -> "$h 小时 $m 分钟"
+        totalSec < 60 -> stringResource(Res.string.duration_seconds, totalSec.toInt())
+        h == 0 -> stringResource(Res.string.duration_minutes, m)
+        m == 0 -> stringResource(Res.string.duration_hours, h)
+        else -> stringResource(Res.string.duration_hours_minutes, h, m)
     }
 }
 
 /** 语言对「普通话 ⇄ 英语」：优先会话记录的我 / 对方语言，缺则从对话行推断。 */
+@Composable
 internal fun langPair(session: SessionRow, utterances: List<StoredUtterance>): String? {
     val my = session.myLang ?: utterances.firstOrNull { it.speaker == Speaker.ME.name }?.lang ?: session.defaultLang
     val other = session.otherLang ?: utterances.firstOrNull { it.speaker != Speaker.ME.name }?.lang
         ?: utterances.firstNotNullOfOrNull { it.targetLang }
     if (other == null || other == my) return null
-    return "${Lang.displayName(my)} ⇄ ${Lang.displayName(other)}"
+    return "${langName(my)} ⇄ ${langName(other)}"
 }
 
 /** LiveEnd 专用图标（SceneIcons 没有）：文字行 = 分享文字。 */

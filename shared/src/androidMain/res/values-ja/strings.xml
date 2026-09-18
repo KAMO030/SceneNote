@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_channel_name">リマインダー</string>
+    <string name="notif_channel_desc">録音後の議事録と振り返りのリマインダー</string>
+</resources>

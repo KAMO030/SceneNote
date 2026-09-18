@@ -46,7 +46,7 @@ class SherpaTts(private val store: ModelStore, private val numThreads: Int = 4) 
     suspend fun preload(lang: String): Boolean { val p = packFor(lang) ?: return false; ensureLoaded(p); return true }
 
     override suspend fun synthesize(req: TtsRequest, onChunk: suspend (ShortArray) -> Boolean): TtsStats {
-        val pack = packFor(req.lang) ?: throw TtsFailed("没有 ${req.lang} 的端侧语音包")
+        val pack = packFor(req.lang) ?: throw TtsFailed("no on-device voice pack for ${req.lang}")
         val n = ensureLoaded(pack)
         val t0 = TimeSource.Monotonic.markNow()
         var firstMs = -1L; var samples = 0
@@ -65,7 +65,7 @@ class SherpaTts(private val store: ModelStore, private val numThreads: Int = 4) 
                             chunks.trySend(Resample.toPcm16(f, sr)); true
                         }
                     }
-                } catch (t: Throwable) { chunks.trySend(null); throw TtsFailed("合成失败：${t.message}", t) }
+                } catch (t: Throwable) { chunks.trySend(null); throw TtsFailed("synthesis failed: ${t.message}", t) }
                 finally { chunks.trySend(null) }
             }
             for (c in chunks) {

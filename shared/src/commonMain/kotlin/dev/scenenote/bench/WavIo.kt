@@ -8,7 +8,7 @@ import okio.SYSTEM
 object WavIo {
     fun readPcm16k(path: String): ShortArray {
         val bytes = FileSystem.SYSTEM.read(path.toPath()) { readByteArray() }
-        require(bytes.size > 44 && bytes.decodeToString(0, 4) == "RIFF" && bytes.decodeToString(8, 12) == "WAVE") { "不是 WAV 文件：$path" }
+        require(bytes.size > 44 && bytes.decodeToString(0, 4) == "RIFF" && bytes.decodeToString(8, 12) == "WAVE") { "not a WAV file: $path" }
         var pos = 12
         var channels = 1; var sampleRate = 16_000; var bits = 16
         var data: ShortArray? = null
@@ -19,7 +19,7 @@ object WavIo {
             when (id) {
                 "fmt " -> { channels = le16(bytes, body + 2); sampleRate = le32(bytes, body + 4); bits = le16(bytes, body + 14) }
                 "data" -> {
-                    require(bits == 16) { "只支持 16-bit PCM（当前 $bits-bit）" }
+                    require(bits == 16) { "only 16-bit PCM supported (got $bits-bit)" }
                     val n = minOf(size, bytes.size - body) / 2
                     val all = ShortArray(n) { i -> ((bytes[body + 2 * i].toInt() and 0xFF) or (bytes[body + 2 * i + 1].toInt() shl 8)).toShort() }
                     data = if (channels <= 1) all else ShortArray(n / channels) { i -> all[i * channels] }
@@ -27,7 +27,7 @@ object WavIo {
             }
             pos = body + size + (size and 1)
         }
-        val pcm = data ?: error("WAV 无 data 块")
+        val pcm = data ?: error("WAV has no data chunk")
         return if (sampleRate == 16_000) pcm else resample(pcm, sampleRate, 16_000)
     }
 

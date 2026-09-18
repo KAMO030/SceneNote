@@ -103,7 +103,7 @@ class IosAudioEngine(private val routeManager: IosRouteManager) {
         if (needsRestart || !engine.running) memScoped {
             val err = alloc<ObjCObjectVar<NSError?>>()
             engine.prepare()
-            if (!engine.startAndReturnError(err.ptr)) error("AVAudioEngine 启动失败：${err.value?.localizedDescription}")
+            if (!engine.startAndReturnError(err.ptr)) error("AVAudioEngine start failed: ${err.value?.localizedDescription}")
             needsRestart = false
         }
     }
@@ -129,17 +129,17 @@ class IosAudioSource(private val shared: IosAudioEngine, private val routeManage
     private var unregisterConfig: (() -> Unit)? = null
 
     override suspend fun start(config: CaptureConfig) {
-        if (!requestMicPermission()) throw IllegalStateException("未授予麦克风权限")
+        if (!requestMicPermission()) throw IllegalStateException("microphone permission not granted")
         this.config = config
         routeManager.ensure()
         withContext(Dispatchers.Main) {
             // 模拟器无头启动 / 无输入设备时，inputNode 初始化会在 AudioToolbox 内 RPC 超时并 abort（不可捕获），先行拦截。
-            if (!AVAudioSession.sharedInstance().inputAvailable) throw IllegalStateException("当前没有可用的音频输入设备（模拟器需打开 Simulator.app 并授予 macOS 麦克风权限）")
+            if (!AVAudioSession.sharedInstance().inputAvailable) throw IllegalStateException("no audio input available (on Simulator, open Simulator.app and grant macOS microphone access)")
             installTap()
             shared.ensureStarted()
             unregisterConfig?.invoke()
             unregisterConfig = shared.onConfigurationChange {
-                if (tapInstalled) runCatching { installTap(); shared.ensureStarted() }.onFailure { _errors.tryEmit("配置变化后重装采集失败：${it.message}") }
+                if (tapInstalled) runCatching { installTap(); shared.ensureStarted() }.onFailure { _errors.tryEmit("reinstall tap after config change failed: ${it.message}") }
             }
         }
     }
@@ -150,7 +150,7 @@ class IosAudioSource(private val shared: IosAudioEngine, private val routeManage
         val input = shared.engine.inputNode
         if (tapInstalled) { input.removeTapOnBus(0u); tapInstalled = false }
         val hw = input.outputFormatForBus(0u)
-        if (hw.sampleRate <= 0.0 || hw.channelCount == 0u) throw IllegalStateException("输入格式无效（${hw.sampleRate} Hz / ${hw.channelCount} ch）")
+        if (hw.sampleRate <= 0.0 || hw.channelCount == 0u) throw IllegalStateException("invalid input format (${hw.sampleRate} Hz / ${hw.channelCount} ch)")
         val target = AVAudioFormat(commonFormat = AVAudioPCMFormatInt16, sampleRate = config.sampleRate.toDouble(), channels = 1u, interleaved = true)
         val converter = AVAudioConverter(fromFormat = hw, toFormat = target)
         val ratio = config.sampleRate.toDouble() / hw.sampleRate
@@ -167,7 +167,7 @@ class IosAudioSource(private val shared: IosAudioEngine, private val routeManage
                     if (!consumed) { consumed = true; statusPtr?.pointed?.value = AVAudioConverterInputStatus_HaveData; inBuf }
                     else { statusPtr?.pointed?.value = AVAudioConverterInputStatus_NoDataNow; null }
                 }
-                if (st == AVAudioConverterOutputStatus_Error) _errors.tryEmit("采样率转换失败：${err.value?.localizedDescription}")
+                if (st == AVAudioConverterOutputStatus_Error) _errors.tryEmit("sample rate conversion failed: ${err.value?.localizedDescription}")
                 st
             }
             if (status == AVAudioConverterOutputStatus_Error) return@installTapOnBus
@@ -279,14 +279,14 @@ class IosAacFileWriter(private val path: String, private val sampleRate: Int = 1
             val out = alloc<ExtAudioFileRefVar>()
             val st = ExtAudioFileCreateWithURL(url, kAudioFileM4AType, fileDesc.ptr, null, kAudioFileFlags_EraseFile, out.ptr)
             CFBridgingRelease(url)
-            if (st != 0 || out.value == null) error("ExtAudioFileCreateWithURL 失败（OSStatus $st）")
+            if (st != 0 || out.value == null) error("ExtAudioFileCreateWithURL failed (OSStatus $st)")
             val client = alloc<AudioStreamBasicDescription>().apply {
                 mSampleRate = sampleRate.toDouble(); mFormatID = kAudioFormatLinearPCM
                 mFormatFlags = kAudioFormatFlagIsSignedInteger or kAudioFormatFlagIsPacked
                 mChannelsPerFrame = 1u; mBitsPerChannel = 16u; mBytesPerFrame = 2u; mFramesPerPacket = 1u; mBytesPerPacket = 2u
             }
             val st2 = ExtAudioFileSetProperty(out.value, kExtAudioFileProperty_ClientDataFormat, sizeOf<AudioStreamBasicDescription>().toUInt(), client.ptr)
-            if (st2 != 0) { ExtAudioFileDispose(out.value); error("ExtAudioFile 设置客户端格式失败（OSStatus $st2）") }
+            if (st2 != 0) { ExtAudioFileDispose(out.value); error("ExtAudioFile set client format failed (OSStatus $st2)") }
             ref = out.value
         }
     }

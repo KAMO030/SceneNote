@@ -42,7 +42,7 @@ actual object SherpaNative {
             enableEndpoint = true, decodingMethod = spec.decodingMethod, maxActivePaths = spec.maxActivePaths,
             hotwordsFile = spec.hotwordsFile, hotwordsScore = spec.hotwordsScore,
         )
-        val rec = runCatching { OnlineRecognizer(config = config) }.getOrElse { throw IllegalStateException("流式识别器创建失败：${it.message}", it) }
+        val rec = runCatching { OnlineRecognizer(config = config) }.getOrElse { throw IllegalStateException("OnlineRecognizer create failed: ${it.message}", it) }
         return object : NativeOnlineRecognizer {
             override fun createStream(): NativeOnlineStream = AndroidOnlineStream(rec.createStream())
             override fun isReady(stream: NativeOnlineStream) = rec.isReady((stream as AndroidOnlineStream).s)
@@ -72,7 +72,7 @@ actual object SherpaNative {
             ),
             decodingMethod = "greedy_search",
         )
-        val rec = runCatching { OfflineRecognizer(config = config) }.getOrElse { throw IllegalStateException("SenseVoice 创建失败：${it.message}", it) }
+        val rec = runCatching { OfflineRecognizer(config = config) }.getOrElse { throw IllegalStateException("SenseVoice create failed: ${it.message}", it) }
         return AndroidOffline(rec)
     }
 
@@ -85,7 +85,7 @@ actual object SherpaNative {
             ),
             decodingMethod = "greedy_search",
         )
-        val rec = runCatching { OfflineRecognizer(config = config) }.getOrElse { throw IllegalStateException("Paraformer 创建失败：${it.message}", it) }
+        val rec = runCatching { OfflineRecognizer(config = config) }.getOrElse { throw IllegalStateException("Paraformer create failed: ${it.message}", it) }
         return AndroidOffline(rec)
     }
 
@@ -108,7 +108,7 @@ actual object SherpaNative {
                 minSpeechDuration = spec.minSpeechSec, windowSize = spec.windowSize, maxSpeechDuration = spec.maxSpeechSec),
             sampleRate = 16_000, numThreads = spec.numThreads,
         )
-        val vad = runCatching { Vad(config = config) }.getOrElse { throw IllegalStateException("VAD 创建失败：${it.message}", it) }
+        val vad = runCatching { Vad(config = config) }.getOrElse { throw IllegalStateException("VAD create failed: ${it.message}", it) }
         return object : NativeVad {
             override fun accept(samples: FloatArray) = vad.acceptWaveform(samples)
             override fun isSpeechDetected() = vad.isSpeechDetected()
@@ -125,14 +125,14 @@ actual object SherpaNative {
 
     actual fun speaker(spec: SpeakerSpec): NativeSpeakerExtractor {
         val ex = runCatching { SpeakerEmbeddingExtractor(config = SpeakerEmbeddingExtractorConfig(model = spec.model, numThreads = spec.numThreads, provider = spec.provider)) }
-            .getOrElse { throw IllegalStateException("声纹模型创建失败：${it.message}", it) }
+            .getOrElse { throw IllegalStateException("speaker model create failed: ${it.message}", it) }
         return object : NativeSpeakerExtractor {
             override val dim: Int = ex.dim()
             override fun embed(samples: FloatArray, sampleRate: Int): FloatArray {
                 val s = ex.createStream()
                 try {
                     s.acceptWaveform(samples, sampleRate); s.inputFinished()
-                    check(ex.isReady(s)) { "声纹：语音太短" }
+                    check(ex.isReady(s)) { "speaker embedding: utterance too short" }
                     return ex.compute(s)
                 } finally { s.release() }
             }
@@ -148,7 +148,7 @@ actual object SherpaNative {
             }
         }
         val config = OfflineTtsConfig(model = model, ruleFsts = spec.ruleFsts, maxNumSentences = 1)
-        val tts = runCatching { OfflineTts(assetManager = null, config = config) }.getOrElse { throw IllegalStateException("TTS 创建失败：${it.message}", it) }
+        val tts = runCatching { OfflineTts(assetManager = null, config = config) }.getOrElse { throw IllegalStateException("TTS create failed: ${it.message}", it) }
         return object : NativeTts {
             override val sampleRate: Int = tts.sampleRate()
             override val numSpeakers: Int = tts.numSpeakers()

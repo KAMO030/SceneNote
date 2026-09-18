@@ -38,12 +38,12 @@ data class AsrBenchResult(
 
 class AsrBench(private val engine: SherpaAsrEngine, private val paths: AppPaths) {
     suspend fun run(pcm16k: ShortArray): AsrBenchResult = withContext(Dispatchers.Default) {
-        require(pcm16k.size >= 16_000) { "至少需要 1 秒音频" }
+        require(pcm16k.size >= 16_000) { "need at least 1 s of audio" }
         val audioMs = pcm16k.size * 1000L / 16_000
         val memBefore = MemoryInfo.residentBytes()
         engine.unload()
         val st = engine.load(dev.scenenote.asr.LoadPlan.ALL, loadAll = true)
-        val ready = st as? LocalEngineState.Ready ?: error((st as? LocalEngineState.Error)?.reason ?: "引擎未就绪")
+        val ready = st as? LocalEngineState.Ready ?: error((st as? LocalEngineState.Error)?.reason ?: "engine not ready")
         val memAfter = MemoryInfo.residentBytes()
 
         // 流式：尽快喂完整段音频，量处理耗时与首包

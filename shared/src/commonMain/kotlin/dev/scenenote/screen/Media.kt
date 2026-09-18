@@ -55,7 +55,7 @@ enum class CaptureState { IDLE, REQUESTING, CAPTURING, BLOCKED /* 2 s 内全零�
 
 class NoopMediaPicker : MediaPicker { override suspend fun pickVideo(source: MediaSource): MediaItem? = null }
 class NoopAudioExtractor : AudioExtractor {
-    override suspend fun extractPcm16k(videoPath: String, onProgress: (Float) -> Unit): String = error("本平台未实现抽音频")
+    override suspend fun extractPcm16k(videoPath: String, onProgress: (Float) -> Unit): String = error("audio extraction not implemented on this platform")
     override suspend fun durationMs(videoPath: String): Long = -1
 }
 class NoopSystemAudioCapture : SystemAudioCapture {

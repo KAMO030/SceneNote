@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">场记</string>
+    <string name="widget_desc">一按开始仅听或会议</string>
+    <string name="tile_listen">仅听</string>
+    <string name="tile_quick_phrase">速译一句</string>
+    <string name="tile_screen_caption">屏内翻译</string>
+    <string name="widget_listen">仅听</string>
+    <string name="widget_meeting">会议</string>
+    <string name="capture_channel_name">系统字幕</string>
+    <string name="capture_channel_desc">正在抓取其他应用的声音并显示字幕时常驻</string>
+    <string name="capture_notification_title">系统字幕</string>
+    <string name="capture_notification_text">正在聆听…</string>
+    <string name="capture_notification_stop">停止</string>
+</resources>

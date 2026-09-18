@@ -32,7 +32,7 @@ class IosSystemTts : TtsEngine {
     override fun supports(lang: String): Boolean = voiceFor(lang) != null
 
     override suspend fun synthesize(req: TtsRequest, onChunk: suspend (ShortArray) -> Boolean): TtsStats {
-        val voice = voiceFor(req.lang) ?: throw TtsFailed("系统没有 ${req.lang} 的语音")
+        val voice = voiceFor(req.lang) ?: throw TtsFailed("no system voice for ${req.lang}")
         val utt = AVSpeechUtterance(string = req.text).apply {
             this.voice = voice
             rate = (AVSpeechUtteranceDefaultSpeechRate * req.rate).coerceIn(0.1f, 0.7f)

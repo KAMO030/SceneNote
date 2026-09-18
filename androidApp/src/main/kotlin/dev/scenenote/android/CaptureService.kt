@@ -64,8 +64,8 @@ class CaptureService : Service() {
     private fun createChannel() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (nm.getNotificationChannel(CHANNEL_ID) == null) {
-            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "系统字幕", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "正在抓取其他应用的声音并显示字幕时常驻"
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, getString(R.string.capture_channel_name), NotificationManager.IMPORTANCE_LOW).apply {
+                description = getString(R.string.capture_channel_desc)
                 setShowBadge(false)
             })
         }
@@ -81,15 +81,15 @@ class CaptureService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile_listen)
-            .setContentTitle("系统字幕")
-            .setContentText("正在聆听…")
+            .setContentTitle(getString(R.string.capture_notification_title))
+            .setContentText(getString(R.string.capture_notification_text))
             .setOngoing(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .apply { open?.let { setContentIntent(it) } }
-            .addAction(0, "停止", stop)
+            .addAction(0, getString(R.string.capture_notification_stop), stop)
             .build()
     }
 

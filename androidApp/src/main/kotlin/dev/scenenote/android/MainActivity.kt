@@ -16,6 +16,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import dev.scenenote.screen.PickerBridge
 import dev.scenenote.screen.AndroidPip
+import android.content.Context
+import dev.scenenote.core.platform.AndroidAppLocale
 import dev.scenenote.ui.App
 
 class MainActivity : ComponentActivity() {
@@ -24,6 +26,8 @@ class MainActivity : ComponentActivity() {
     private val activityResults = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         PickerBridge.deliver(r.resultCode, r.data)
     }
+
+    override fun attachBaseContext(newBase: Context) { super.attachBaseContext(AndroidAppLocale.wrap(newBase)) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,10 +38,6 @@ class MainActivity : ComponentActivity() {
         requestRuntimePermissions()
     }
 
-    override fun onDestroy() {
-        PickerBridge.detach(this)
-        AndroidPip.detach(this)
-        super.onDestroy()
     override fun onStop() {
         super.onStop()
         // 离开 App 时刷一次主屏小组件：主题色在设置里改了要跟上
@@ -45,11 +45,27 @@ class MainActivity : ComponentActivity() {
         CoroutineScope(Dispatchers.Default).launch { runCatching { SceneWidget().updateAll(app) } }
     }
 
+    override fun onDestroy() {
+        PickerBridge.detach(this)
+        AndroidPip.detach(this)
+        super.onDestroy()
+    }
+
+    /** 语言变化（清单里 configChanges=locale）：不重建，让 Compose 原地换文案。 */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        AndroidAppLocale.onActivityConfigurationChanged(application, newConfig)
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         AndroidPip.onModeChanged(isInPictureInPictureMode)
+    }
+
+    /** Android 10 / 11 没有 PiP autoEnter：系统字幕抓取中用户按 Home / 切 App，这里主动进字幕条（12+ 由系统接管，此调用是空操作）。 */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        AndroidPip.onUserLeaveHint()
     }
 
     /** I0：进入即申请麦克风 / 蓝牙 / 通知；正式流程在 I4 改为场景内按需引导（显式同意页）。 */
@@ -62,9 +78,3 @@ class MainActivity : ComponentActivity() {
         if (wanted.isNotEmpty()) permissions.launch(wanted.toTypedArray())
     }
 }
-    /** Android 10 / 11 没有 PiP autoEnter：系统字幕抓取中用户按 Home / 切 App，这里主动进字幕条（12+ 由系统接管，此调用是空操作）。 */
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        AndroidPip.onUserLeaveHint()
-    }
-

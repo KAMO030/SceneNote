@@ -12,6 +12,9 @@
 		2152FB042600AC8F00CF470E /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2152FB032600AC8F00CF470E /* iOSApp.swift */; };
 		7555FF83242A565900829871 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7555FF82242A565900829871 /* ContentView.swift */; };
 		5C1A4E2B2E7B0001004D7A11 /* SceneNoteIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1A4E2A2E7B0001004D7A11 /* SceneNoteIntents.swift */; };
+		5C1A4E3B2E7B0002004D7A11 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 5C1A4E3A2E7B0002004D7A11 /* InfoPlist.xcstrings */; };
+		5C1A4E3D2E7B0002004D7A11 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 5C1A4E3C2E7B0002004D7A11 /* Localizable.xcstrings */; };
+		5C1A4E3F2E7B0002004D7A11 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 5C1A4E3E2E7B0002004D7A11 /* AppShortcuts.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +24,9 @@
 		7555FF7B242A565900829871 /* SceneNote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SceneNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7555FF82242A565900829871 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5C1A4E2A2E7B0001004D7A11 /* SceneNoteIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneNoteIntents.swift; sourceTree = "<group>"; };
+		5C1A4E3A2E7B0002004D7A11 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		5C1A4E3C2E7B0002004D7A11 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		5C1A4E3E2E7B0002004D7A11 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
 		7555FF8C242A565B00829871 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AB3632DC29227652001CCB65 /* Config.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -77,6 +83,9 @@
 				7555FF8C242A565B00829871 /* Info.plist */,
 				2152FB032600AC8F00CF470E /* iOSApp.swift */,
 				5C1A4E2A2E7B0001004D7A11 /* SceneNoteIntents.swift */,
+				5C1A4E3A2E7B0002004D7A11 /* InfoPlist.xcstrings */,
+				5C1A4E3C2E7B0002004D7A11 /* Localizable.xcstrings */,
+				5C1A4E3E2E7B0002004D7A11 /* AppShortcuts.xcstrings */,
 				058557D7273AAEEB004C7B11 /* Preview Content */,
 			);
 			path = iosApp;
@@ -136,6 +145,9 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
+				ja,
+				ko,
 			);
 			mainGroup = 7555FF72242A565900829871;
 			packageReferences = (
@@ -156,6 +168,9 @@
 			files = (
 				058557D9273AAEEB004C7B11 /* Preview Assets.xcassets in Resources */,
 				058557BB273AAA24004C7B11 /* Assets.xcassets in Resources */,
+				5C1A4E3B2E7B0002004D7A11 /* InfoPlist.xcstrings in Resources */,
+				5C1A4E3D2E7B0002004D7A11 /* Localizable.xcstrings in Resources */,
+				5C1A4E3F2E7B0002004D7A11 /* AppShortcuts.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

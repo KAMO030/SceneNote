@@ -36,7 +36,6 @@ import dev.scenenote.core.designsystem.SceneSegmentedControl
 import dev.scenenote.core.designsystem.SceneSpacing
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
-import dev.scenenote.core.model.Lang
 import dev.scenenote.core.settings.AppSettings
 import dev.scenenote.ui.common.InlineField
 import dev.scenenote.ui.common.SmallPill
@@ -47,11 +46,15 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.i18n.langName
+import org.jetbrains.compose.resources.StringResource
+import dev.scenenote.core.i18n.stringResource
 
 /** 词袋（用户看到的名字）：general 兜底。 */
-internal data class Bucket(val id: String, val label: String)
-internal val BUCKETS = listOf(Bucket("general", "通用"), Bucket("travel", "出行"), Bucket("work", "工作"))
-internal fun bucketLabel(id: String): String = BUCKETS.firstOrNull { it.id == id }?.label ?: id
+internal data class Bucket(val id: String, val label: StringResource)
+internal val BUCKETS = listOf(Bucket("general", Res.string.bucket_general), Bucket("travel", Res.string.bucket_travel), Bucket("work", Res.string.bucket_work))
+@Composable internal fun bucketLabel(id: String): String = BUCKETS.firstOrNull { it.id == id }?.let { stringResource(it.label) } ?: id
 
 data class GlossaryUiState(
     val bucket: String = "general",
@@ -101,7 +104,7 @@ fun GlossaryScreen(onBack: () -> Unit, vm: GlossaryViewModel = koinViewModel()) 
     var right by remember { mutableStateOf("") }
     GlassScaffold(
         background = c.groupedBackground,
-        topBar = { SceneNavBar(title = "术语表", onBack = onBack) },
+        topBar = { SceneNavBar(title = stringResource(Res.string.settings_glossary), onBack = onBack) },
     ) {
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -111,7 +114,7 @@ fun GlossaryScreen(onBack: () -> Unit, vm: GlossaryViewModel = koinViewModel()) 
             item {
                 Box(Modifier.padding(horizontal = SceneSpacing.page)) {
                     SceneSegmentedControl(
-                        options = BUCKETS.map { it.label },
+                        options = BUCKETS.map { stringResource(it.label) },
                         selectedIndex = BUCKETS.indexOfFirst { it.id == ui.bucket }.coerceAtLeast(0),
                         onSelect = { vm.setBucket(BUCKETS[it].id) },
                     )
@@ -119,41 +122,41 @@ fun GlossaryScreen(onBack: () -> Unit, vm: GlossaryViewModel = koinViewModel()) 
             }
             item {
                 Column {
-                    SceneSectionHeader("译名")
+                    SceneSectionHeader(stringResource(Res.string.glossary_translations))
                     SceneGroup {
                         Row(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            InlineField(term, { term = it }, Lang.displayName(ui.myLang), Modifier.weight(1f), imeAction = ImeAction.Next)
+                            InlineField(term, { term = it }, langName(ui.myLang), Modifier.weight(1f), imeAction = ImeAction.Next)
                             SceneText("→", style = SceneTheme.type.body, color = c.tertiaryLabel)
-                            InlineField(translation, { translation = it }, Lang.displayName(ui.otherLang), Modifier.weight(1f), onDone = { vm.add(term, translation); term = ""; translation = "" })
-                            SmallPill("加入", onClick = { vm.add(term, translation); term = ""; translation = "" }, tinted = true, enabled = term.isNotBlank() && translation.isNotBlank())
+                            InlineField(translation, { translation = it }, langName(ui.otherLang), Modifier.weight(1f), onDone = { vm.add(term, translation); term = ""; translation = "" })
+                            SmallPill(stringResource(Res.string.glossary_add), onClick = { vm.add(term, translation); term = ""; translation = "" }, tinted = true, enabled = term.isNotBlank() && translation.isNotBlank())
                         }
                         ui.terms.forEach { t ->
                             SceneDivider(inset = SceneSpacing.row)
                             TermRow(t, ui.otherLang, ui.myLang, onDelete = { vm.delete(t) })
                         }
                     }
-                    SceneSectionFooter(if (ui.terms.isEmpty()) "对话结束后的「新词」确认也会进这里" else "翻译时优先用这里的译名")
+                    SceneSectionFooter(stringResource(if (ui.terms.isEmpty()) Res.string.glossary_empty_footer else Res.string.glossary_footer))
                 }
             }
             item {
                 Column {
-                    SceneSectionHeader("听错纠正")
+                    SceneSectionHeader(stringResource(Res.string.glossary_corrections))
                     SceneGroup {
                         Row(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            InlineField(wrong, { wrong = it }, "常听成", Modifier.weight(1f), imeAction = ImeAction.Next)
+                            InlineField(wrong, { wrong = it }, stringResource(Res.string.glossary_misheard), Modifier.weight(1f), imeAction = ImeAction.Next)
                             SceneText("→", style = SceneTheme.type.body, color = c.tertiaryLabel)
-                            InlineField(right, { right = it }, "应该是", Modifier.weight(1f), onDone = { vm.addCorrection(wrong, right); wrong = ""; right = "" })
-                            SmallPill("加入", onClick = { vm.addCorrection(wrong, right); wrong = ""; right = "" }, tinted = true, enabled = wrong.isNotBlank() && right.isNotBlank())
+                            InlineField(right, { right = it }, stringResource(Res.string.glossary_should_be), Modifier.weight(1f), onDone = { vm.addCorrection(wrong, right); wrong = ""; right = "" })
+                            SmallPill(stringResource(Res.string.glossary_add), onClick = { vm.addCorrection(wrong, right); wrong = ""; right = "" }, tinted = true, enabled = wrong.isNotBlank() && right.isNotBlank())
                         }
                         ui.corrections.forEach { cr ->
                             SceneDivider(inset = SceneSpacing.row)
                             Row(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 SceneText("${cr.wrong} → ${cr.right}", Modifier.weight(1f), style = SceneTheme.type.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                SmallPill("删除", onClick = { vm.deleteCorrection(cr) }, destructive = true)
+                                SmallPill(stringResource(Res.string.common_delete), onClick = { vm.deleteCorrection(cr) }, destructive = true)
                             }
                         }
                     }
-                    SceneSectionFooter("识别到左边的词时自动改成右边")
+                    SceneSectionFooter(stringResource(Res.string.glossary_corrections_footer))
                 }
             }
         }
@@ -167,8 +170,8 @@ private fun TermRow(t: GlossaryTerm, otherLang: String, myLang: String, onDelete
     Row(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f)) {
             SceneText(t.term, style = SceneTheme.type.body.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            SceneText(target.ifBlank { "还没有译名" } + if (t.hits > 0) " · 用过 ${t.hits} 次" else "", style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SceneText(target.ifBlank { stringResource(Res.string.glossary_no_translation) } + if (t.hits > 0) " · " + stringResource(Res.string.glossary_used_times, t.hits.toInt()) else "", style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        SmallPill("删除", onClick = onDelete, destructive = true)
+        SmallPill(stringResource(Res.string.common_delete), onClick = onDelete, destructive = true)
     }
 }

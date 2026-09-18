@@ -40,8 +40,8 @@ enum SceneNoteIntentBridge {
 
 /// 「开始仅听」：手机在口袋，对方说什么耳机里听译文（M0）。
 struct StartListeningIntent: AppIntent {
-    static let title: LocalizedStringResource = "开始仅听"
-    static let description = IntentDescription("打开场记并立即开始仅听：对方说什么，耳机里听译文。", categoryName: "面对面对话")
+    static let title: LocalizedStringResource = "Start Listening"
+    static let description = IntentDescription("Opens SceneNote and starts listening right away: hear the translation in your earbuds as they talk.", categoryName: "Face-to-face")
     /// 必须打开 App：会话页与音频引擎都在前台进程里。
     static let openAppWhenRun: Bool = true
 
@@ -54,8 +54,8 @@ struct StartListeningIntent: AppIntent {
 
 /// 「速译一句」：按住说话，松手大字朝向对方（M4）。
 struct QuickPhraseIntent: AppIntent {
-    static let title: LocalizedStringResource = "速译一句"
-    static let description = IntentDescription("打开场记的速译一句：说一句，大字朝向对方。", categoryName: "面对面对话")
+    static let title: LocalizedStringResource = "Quick Phrase"
+    static let description = IntentDescription("Opens SceneNote's quick phrase: say a line and show it in big text.", categoryName: "Face-to-face")
     static let openAppWhenRun: Bool = true
 
     @MainActor
@@ -67,8 +67,8 @@ struct QuickPhraseIntent: AppIntent {
 
 /// 「面对面对话」：戴上耳机就能听，掏出手机对方看半屏（M1）。
 struct StartTalkIntent: AppIntent {
-    static let title: LocalizedStringResource = "面对面对话"
-    static let description = IntentDescription("打开场记并开始面对面对话：戴上耳机就能听，掏出手机对方看半屏。", categoryName: "面对面对话")
+    static let title: LocalizedStringResource = "Face-to-face Conversation"
+    static let description = IntentDescription("Opens SceneNote and starts a face-to-face conversation: listen through your earbuds and hand over half the screen.", categoryName: "Face-to-face")
     static let openAppWhenRun: Bool = true
 
     @MainActor
@@ -82,7 +82,8 @@ struct StartTalkIntent: AppIntent {
 //
 // 声明后无需用户手动添加：快捷指令 App「App 快捷指令」区、Spotlight 搜索、Siri 短语、
 // 设置 → 操作按钮 → 快捷指令 里都能直接选到这三条。
-// `\(.applicationName)` 由系统替换为本地化的 App 名（CFBundleDisplayName「场记」）。
+// `\(.applicationName)` 由系统替换为本地化的 App 名（CFBundleDisplayName，InfoPlist.xcstrings 里按语言给）。
+// 短语 / 标题 / 描述以英文为源语言，中 / 日 / 韩在 AppShortcuts.xcstrings 与 Localizable.xcstrings 里。
 
 struct SceneNoteShortcuts: AppShortcutsProvider {
     /// 快捷指令 App 里的磁贴底色：与设计系统的青绿主色对齐。
@@ -92,37 +93,31 @@ struct SceneNoteShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: StartListeningIntent(),
             phrases: [
-                "用\(.applicationName)开始仅听",
-                "\(.applicationName)仅听",
-                "打开\(.applicationName)仅听",
                 "Start listening with \(.applicationName)",
                 "\(.applicationName) listen only",
+                "Open \(.applicationName) and listen",
             ],
-            shortTitle: "开始仅听",
+            shortTitle: "Start Listening",
             systemImageName: "headphones"
         )
         AppShortcut(
             intent: QuickPhraseIntent(),
             phrases: [
-                "用\(.applicationName)速译一句",
-                "\(.applicationName)速译一句",
-                "打开\(.applicationName)速译",
                 "Quick phrase with \(.applicationName)",
                 "\(.applicationName) quick phrase",
+                "Open \(.applicationName) quick phrase",
             ],
-            shortTitle: "速译一句",
+            shortTitle: "Quick Phrase",
             systemImageName: "text.bubble"
         )
         AppShortcut(
             intent: StartTalkIntent(),
             phrases: [
-                "用\(.applicationName)面对面对话",
-                "\(.applicationName)面对面对话",
-                "打开\(.applicationName)对话",
                 "Start a conversation with \(.applicationName)",
                 "\(.applicationName) face to face",
+                "Open \(.applicationName) conversation",
             ],
-            shortTitle: "面对面对话",
+            shortTitle: "Face-to-face Conversation",
             systemImageName: "person.2.wave.2"
         )
     }

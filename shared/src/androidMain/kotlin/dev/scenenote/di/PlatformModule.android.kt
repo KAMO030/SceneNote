@@ -40,5 +40,6 @@ fun androidPlatformModule(): Module = module {
     single<dev.scenenote.screen.VideoPlayerFactory> { dev.scenenote.screen.AndroidVideoPlayerFactory(androidContext()) }
     single<dev.scenenote.screen.SystemAudioCapture> { dev.scenenote.screen.AndroidSystemAudioCapture(androidContext()) }
     single<dev.scenenote.core.platform.Notifier> { dev.scenenote.core.platform.AndroidNotifier(androidContext()) }
+    single<dev.scenenote.core.platform.AppLocale> { dev.scenenote.core.platform.AndroidAppLocale(androidApplication()) }
     single<SystemTtsProvider> { AndroidSystemTtsProvider(androidContext()) }
 }

@@ -1,6 +1,8 @@
 package dev.scenenote.core.model
 
 import dev.scenenote.audio.AudioMode
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.StringResource
 
 /** 内置场景卡（精简 MVP：面对面对话 / 仅听 / 速译一句 / 会议 / 屏内文件字幕）。01 篇 §1.3 的参数表子集。 */
 object Scenes {
@@ -48,4 +50,14 @@ object Scenes {
 
     val mvp: List<ScenePreset> = listOf(liveTalk, listenOnly, quickPhrase, meeting, screenFile)
     fun byId(id: String): ScenePreset? = mvp.firstOrNull { it.id == id }
+
+    /** 内置场景的名字 / 副标题按界面语言显示；`name` / `tagline` 字段留作中文源与自定义场景的用户输入。 */
+    fun nameRes(id: String): StringResource? = when (id) {
+        liveTalk.id -> Res.string.scene_live_talk; listenOnly.id -> Res.string.scene_listen; quickPhrase.id -> Res.string.scene_quick_phrase
+        meeting.id -> Res.string.scene_meeting; screenFile.id -> Res.string.scene_screen_file; else -> null
+    }
+    fun taglineRes(id: String): StringResource? = when (id) {
+        liveTalk.id -> Res.string.scene_live_talk_tagline; listenOnly.id -> Res.string.scene_listen_tagline; quickPhrase.id -> Res.string.scene_quick_phrase_tagline
+        meeting.id -> Res.string.scene_meeting_tagline; screenFile.id -> Res.string.scene_screen_file_tagline; else -> null
+    }
 }

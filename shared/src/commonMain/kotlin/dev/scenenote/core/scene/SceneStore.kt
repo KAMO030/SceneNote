@@ -7,6 +7,8 @@ import dev.scenenote.core.model.RoutePolicy
 import dev.scenenote.core.model.ScenePreset
 import dev.scenenote.core.model.Scenes
 import dev.scenenote.core.model.Style
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.shared.resources.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,9 +27,9 @@ import kotlin.uuid.Uuid
 
 /** 路由 × 联网权限的合法性（原型 SceneEdit：「优先云端」× 不联网 / 只发文字 → 行内提示，不弹窗）。 */
 object SceneRules {
-    fun problem(route: RoutePolicy, privacy: PrivacyMode): String? = when {
-        route == RoutePolicy.CLOUD_FIRST && privacy is PrivacyMode.Locked -> "优先云端需要联网权限"
-        route == RoutePolicy.CLOUD_FIRST && !privacy.allowsInternetAudio -> "云端识别要上传录音，联网权限得选「文字和录音」"
+    fun problem(route: RoutePolicy, privacy: PrivacyMode): UiText? = when {
+        route == RoutePolicy.CLOUD_FIRST && privacy is PrivacyMode.Locked -> UiText.Res(Res.string.scene_rule_cloud_needs_net)
+        route == RoutePolicy.CLOUD_FIRST && !privacy.allowsInternetAudio -> UiText.Res(Res.string.scene_rule_cloud_needs_audio)
         else -> null
     }
 }
@@ -40,7 +42,8 @@ class SceneStore(private val settings: Settings) {
     private fun load(): List<CustomScene> = settings.getStringOrNull(KEY)?.let { runCatching { json.decodeFromString<List<CustomScene>>(it) }.getOrNull() }.orEmpty()
     private fun save(list: List<CustomScene>) { settings.putString(KEY, json.encodeToString(list)); _custom.value = list }
 
-    fun copyOf(base: ScenePreset, name: String = "${base.name} 副本"): CustomScene = CustomScene(
+    /** name 由 UI 按界面语言给（「%s 副本」）。 */
+    fun copyOf(base: ScenePreset, name: String): CustomScene = CustomScene(
         id = "custom-${Uuid.random()}", baseId = base.id, name = name,
         myLang = base.langChips.firstOrNull { it.default }?.tag ?: "zh-CN", otherLang = base.translationTargets.firstOrNull() ?: "en",
         style = base.style, route = base.route, privacyId = PrivacyMode.idOf(base.privacy), bucket = base.hotwordBucket, createdAt = Clock.System.now().toEpochMilliseconds(),

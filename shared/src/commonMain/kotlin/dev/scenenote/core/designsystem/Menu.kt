@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
 
 data class MenuItem(val text: String, val onClick: () -> Unit, val icon: ImageVector? = null, val destructive: Boolean = false, val checked: Boolean = false)
 
@@ -62,7 +64,7 @@ fun SceneMenu(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SceneText(item.text, Modifier.weight(1f), style = SceneTheme.type.body, color = if (item.destructive) c.destructive else c.label, maxLines = 1)
-                    if (item.checked) SceneIcon(SceneIcons.Check, contentDescription = "已选", size = 18.dp, tint = c.label)
+                    if (item.checked) SceneIcon(SceneIcons.Check, contentDescription = stringResource(Res.string.common_selected), size = 18.dp, tint = c.label)
                     if (item.icon != null) SceneIcon(item.icon, contentDescription = null, size = 20.dp, tint = if (item.destructive) c.destructive else c.label)
                 }
             }

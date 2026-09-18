@@ -42,6 +42,8 @@ import dev.scenenote.core.designsystem.SceneRow
 import dev.scenenote.core.designsystem.SceneSize
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
 
 /** 行内展开的多选一（设置 / 场景编辑共用）：不弹窗，选项行打勾。 */
 @Composable
@@ -49,7 +51,7 @@ fun <T> InlineOptions(
     expanded: Boolean,
     options: List<T>,
     selected: T,
-    label: (T) -> String,
+    label: @Composable (T) -> String,
     onSelect: (T) -> Unit,
 ) {
     val c = SceneTheme.colors
@@ -62,7 +64,7 @@ fun <T> InlineOptions(
                 SceneRow(
                     label(o),
                     leading = { Spacer(Modifier.width(29.dp)) },
-                    trailing = { if (on) SceneIcon(SceneIcons.Check, contentDescription = "已选", size = 18.dp, tint = c.tint) },
+                    trailing = { if (on) SceneIcon(SceneIcons.Check, contentDescription = stringResource(Res.string.common_selected), size = 18.dp, tint = c.tint) },
                     onClick = { onSelect(o) },
                 )
             }

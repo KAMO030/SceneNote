@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SceneNote</string>
+    <string name="widget_desc">한 번 눌러 듣기 또는 회의 시작</string>
+    <string name="tile_listen">듣기 전용</string>
+    <string name="tile_quick_phrase">한마디 번역</string>
+    <string name="tile_screen_caption">화면 내 번역</string>
+    <string name="widget_listen">듣기</string>
+    <string name="widget_meeting">회의</string>
+    <string name="capture_channel_name">시스템 자막</string>
+    <string name="capture_channel_desc">다른 앱의 소리를 캡처해 자막을 표시하는 동안 유지돼요</string>
+    <string name="capture_notification_title">시스템 자막</string>
+    <string name="capture_notification_text">듣는 중…</string>
+    <string name="capture_notification_stop">정지</string>
+</resources>

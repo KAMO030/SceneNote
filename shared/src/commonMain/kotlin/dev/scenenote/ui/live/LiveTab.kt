@@ -53,6 +53,9 @@ import dev.scenenote.core.platform.PlatformInfo
 import dev.scenenote.core.platform.isAndroid
 import dev.scenenote.core.platform.isIos
 import dev.scenenote.core.settings.AppSettings
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.i18n.langName
+import dev.scenenote.core.i18n.stringResource
 import org.koin.compose.koinInject
 
 /** 语言对卡的候选语言。 */
@@ -87,8 +90,8 @@ fun LiveTab(onStart: (sceneId: String, mode: String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(SceneSpacing.l),
         ) {
             Column(Modifier.padding(horizontal = SceneSpacing.page), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SceneText("实时", style = SceneTheme.type.largeTitle)
-                SceneSegmentedControl(listOf("屏外 · 面对面", "屏内 · 视频"), segment, onSelect = { segment = it })
+                SceneText(stringResource(Res.string.tab_live), style = SceneTheme.type.largeTitle)
+                SceneSegmentedControl(listOf(stringResource(Res.string.live_seg_offscreen), stringResource(Res.string.live_seg_onscreen)), segment, onSelect = { segment = it })
             }
 
             if (!screenIn) {
@@ -98,38 +101,40 @@ fun LiveTab(onStart: (sceneId: String, mode: String) -> Unit) {
                         onMyLang = { myLang = it; settings.myLang = it },
                         onOtherLang = { otherLang = it; settings.otherLang = it },
                         onSwap = {
-                            val m = myLang; myLang = otherLang; otherLang = m
-                            settings.myLang = myLang; settings.otherLang = otherLang
+                            if (otherLang != Lang.AUTO) {   // 「自动」没法当我的语言
+                                val m = myLang; myLang = otherLang; otherLang = m
+                                settings.myLang = myLang; settings.otherLang = otherLang
+                            }
                         },
                     )
-                    if (showHint) SceneSectionFooter("戴上耳机，手机放胸前，对方说话你听译文")
+                    if (showHint) SceneSectionFooter(stringResource(Res.string.live_hint_first))
                 }
 
                 Column {
-                    SceneSectionHeader("怎么用")
+                    SceneSectionHeader(stringResource(Res.string.live_how_to))
                     SceneGroup {
-                        SceneRow("仅听", subtitle = "对方说话，你在耳机里听", chevron = true, onClick = { onStart(Scenes.listenOnly.id, "") })
+                        SceneRow(stringResource(Res.string.scene_listen), subtitle = stringResource(Res.string.live_row_listen_sub), chevron = true, onClick = { onStart(Scenes.listenOnly.id, "") })
                         SceneDivider()
-                        SceneRow("面屏", subtitle = "掏出手机，对方看半屏", chevron = true, onClick = { onStart(Scenes.liveTalk.id, "M1") })
+                        SceneRow(stringResource(Res.string.live_row_facing), subtitle = stringResource(Res.string.live_row_facing_sub), chevron = true, onClick = { onStart(Scenes.liveTalk.id, "M1") })
                         SceneDivider()
-                        SceneRow("双屏", subtitle = "你一半我一半，轮流说", chevron = true, onClick = { onStart(Scenes.liveTalk.id, "M3") })
+                        SceneRow(stringResource(Res.string.live_row_split), subtitle = stringResource(Res.string.live_row_split_sub), chevron = true, onClick = { onStart(Scenes.liveTalk.id, "M3") })
                         SceneDivider()
-                        SceneRow("速译", subtitle = "说一句，大字给对方看", chevron = true, onClick = { onStart(Scenes.quickPhrase.id, "") })
+                        SceneRow(stringResource(Res.string.home_quick_phrase), subtitle = stringResource(Res.string.live_row_quick_sub), chevron = true, onClick = { onStart(Scenes.quickPhrase.id, "") })
                     }
                 }
             } else {
                 Column {
                     SceneGroup {
-                        SceneRow("视频字幕", subtitle = "相册里的视频，边看边出字幕", chevron = true, onClick = { onStart(Scenes.screenFile.id, "") })
+                        SceneRow(stringResource(Res.string.scene_screen_file), subtitle = stringResource(Res.string.home_video_desc), chevron = true, onClick = { onStart(Scenes.screenFile.id, "") })
                     }
-                    if (PlatformInfo.isIos) SceneSectionFooter("其他 App 里的视频，先存到相册再选")
+                    if (PlatformInfo.isIos) SceneSectionFooter(stringResource(Res.string.live_ios_video_hint))
                 }
             }
         }
 
         // 主按钮：固定在 Tab 栏（8 + 66 dp）上方 14 dp 的拇指区，内容从它下面滚过。
         SceneButton(
-            text = if (screenIn) "选择视频" else "开始仅听",
+            text = if (screenIn) stringResource(Res.string.live_pick_video) else stringResource(Res.string.home_start_listen),
             onClick = { onStart(if (screenIn) Scenes.screenFile.id else Scenes.listenOnly.id, "") },
             style = ButtonStyle.Prominent,
             height = FloatButtonHeight,
@@ -142,7 +147,7 @@ fun LiveTab(onStart: (sceneId: String, mode: String) -> Unit) {
     }
 }
 
-/** 语言对卡：我说 / 交换 / 对方说，点语言弹菜单选候选。 */
+/** 语言对卡：我说 / 交换 / 对方说，点语言弹菜单选候选；对方说可选「自动」（会话里按对方说的语种自动识别：中 / 英 / 粤 / 日 / 韩）。 */
 @Composable
 private fun LangPairCard(myLang: String, otherLang: String, onMyLang: (String) -> Unit, onOtherLang: (String) -> Unit, onSwap: () -> Unit) {
     var picking by remember { mutableStateOf<Int?>(null) } // 0 我说 / 1 对方说
@@ -153,16 +158,17 @@ private fun LangPairCard(myLang: String, otherLang: String, onMyLang: (String) -
                 horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                LangPicker("我说", myLang, onClick = { picking = 0 })
-                SceneIconButton(SceneIcons.Swap, contentDescription = "交换语言", onClick = onSwap, style = ButtonStyle.Tinted)
-                LangPicker("对方说", otherLang, onClick = { picking = 1 })
+                LangPicker(stringResource(Res.string.live_i_speak), myLang, onClick = { picking = 0 })
+                SceneIconButton(SceneIcons.Swap, contentDescription = stringResource(Res.string.live_swap_langs), onClick = onSwap, style = ButtonStyle.Tinted)
+                LangPicker(stringResource(Res.string.live_they_speak), otherLang, onClick = { picking = 1 })
             }
             // 菜单锚在整行右上角（Popup 不会自动避让屏幕边缘，锚在单侧会出界）。
             val current = if (picking == 0) myLang else otherLang
+            val candidates = if (picking == 1) listOf(Lang.AUTO) + LangCandidates else LangCandidates
             SceneMenu(
                 expanded = picking != null, onDismissRequest = { picking = null },
-                items = LangCandidates.map { tag ->
-                    MenuItem(Lang.displayName(tag), onClick = { if (picking == 0) onMyLang(tag) else onOtherLang(tag) }, checked = tag == current)
+                items = candidates.map { tag ->
+                    MenuItem(langName(tag), onClick = { if (picking == 0) onMyLang(tag) else onOtherLang(tag) }, checked = tag == current)
                 },
             )
         }
@@ -184,7 +190,7 @@ private fun LangPicker(label: String, tag: String, onClick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         SceneText(label, style = SceneTheme.type.caption1, color = c.secondaryLabel)
-        SceneText(Lang.displayName(tag), style = SceneTheme.type.title3, maxLines = 1)
+        SceneText(langName(tag), style = SceneTheme.type.title3, maxLines = 1)
     }
 }
 

@@ -59,9 +59,13 @@ import dev.scenenote.core.designsystem.SceneSize
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
 import dev.scenenote.core.designsystem.glass
-import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.LiveState
 import dev.scenenote.live.LiveLine
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.i18n.forLang
+import dev.scenenote.ui.i18n.langName
+import org.jetbrains.compose.resources.StringResource
+import dev.scenenote.core.i18n.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.PI
 import kotlin.math.sin
@@ -74,7 +78,7 @@ private enum class M4Phase { Idle, Holding, Card }
  * 速译默认不出声：进页先关 voiceOut，朗读只由「朗读 · 外放」触发。页面上不出现工程数据（耗时 / 引擎名），见 docs/15。
  */
 @Composable
-fun LiveM4Screen(sceneId: String, onBack: () -> Unit, onOpenModels: () -> Unit, autostart: Boolean, otherLang: String, myLang: String, feed: String) {
+fun LiveM4Screen(sceneId: String, onBack: () -> Unit, onOpenModels: (List<String>) -> Unit, autostart: Boolean, otherLang: String, myLang: String, feed: String) {
     val vm: LiveViewModel = koinViewModel()
     LaunchedEffect(Unit) { vm.enter(sceneId, myLang, otherLang, feed, autostart, voiceOut = false) }
     val ui by vm.ui.collectAsState()
@@ -87,7 +91,7 @@ fun LiveM4Screen(sceneId: String, onBack: () -> Unit, onOpenModels: () -> Unit, 
         else -> M4Phase.Idle
     }
     // 「朗读 · 外放」没有可用语音时的行内提示；换句即清
-    var speakHint by remember { mutableStateOf<String?>(null) }
+    var speakHint by remember { mutableStateOf<StringResource?>(null) }
     LaunchedEffect(current?.id) { speakHint = null }
     val playing = current != null && ui.playing == current.id
     val back: () -> Unit = { vm.end(); onBack() }
@@ -95,18 +99,18 @@ fun LiveM4Screen(sceneId: String, onBack: () -> Unit, onOpenModels: () -> Unit, 
     GlassScaffold(
         background = c.systemBackground,
         topBar = {
-            SceneNavBar(title = "速译", onBack = back, trailing = { LangPairCapsule(ui.myLang, ui.otherLang) })
+            SceneNavBar(title = stringResource(Res.string.home_quick_phrase), onBack = back, trailing = { LangPairCapsule(ui.myLang, ui.otherLang) })
         },
         bottomBar = {
             SceneDock(height = 112.dp) {
                 // 胶囊始终在树上（只换文案），否则切态时 pointerInput 被重建、松手事件会丢
                 HoldCapsule(
                     holding = ui.holding,
-                    label = when {
-                        ui.holding -> "松手 → 出字"
-                        phase == M4Phase.Card -> "再说一句"
-                        else -> "按住说话"
-                    },
+                    label = stringResource(when {
+                        ui.holding -> Res.string.m4_release_to_show
+                        phase == M4Phase.Card -> Res.string.m4_say_another
+                        else -> Res.string.m4_hold_to_talk
+                    }),
                     onPress = { if (phase == M4Phase.Card) vm.clear(); vm.holdStart() },
                     onRelease = vm::holdEnd,
                     modifier = Modifier.weight(1f),
@@ -114,13 +118,13 @@ fun LiveM4Screen(sceneId: String, onBack: () -> Unit, onOpenModels: () -> Unit, 
                 if (phase == M4Phase.Card) {
                     Spacer(Modifier.width(8.dp))
                     SceneButton(
-                        onClick = { if (playing) vm.stopSpeaking() else if (!vm.speakCurrent()) speakHint = "无语音" },
+                        onClick = { if (playing) vm.stopSpeaking() else if (!vm.speakCurrent()) speakHint = Res.string.live_status_no_voice },
                         style = ButtonStyle.Warning, height = 96.dp, contentPadding = 8.dp, modifier = Modifier.width(120.dp),
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             SceneIcon(if (playing) SceneIcons.Stop else SceneIcons.Speaker, contentDescription = null, size = 22.dp)
-                            SceneText(if (playing) "停止朗读" else "朗读 · 外放", style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
-                            SceneText("会外放", style = SceneTheme.type.caption2, color = c.onWarningSoft, maxLines = 1)
+                            SceneText(stringResource(if (playing) Res.string.m4_stop_speaking else Res.string.m4_speak_aloud), style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+                            SceneText(stringResource(Res.string.live_will_play_aloud), style = SceneTheme.type.caption2, color = c.onWarningSoft, maxLines = 1)
                         }
                     }
                 }
@@ -143,7 +147,7 @@ private fun LangPairCapsule(myLang: String, otherLang: String) {
         contentAlignment = Alignment.Center,
     ) {
         SceneText(
-            "${Lang.displayName(myLang)} → ${Lang.displayName(otherLang)}",
+            stringResource(Res.string.common_lang_pair, langName(myLang), langName(otherLang)),
             style = SceneTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = SceneTheme.colors.label, maxLines = 1,
         )
     }
@@ -185,7 +189,7 @@ private fun HoldCapsule(holding: Boolean, label: String, onPress: () -> Unit, on
 
 /** idle：麦克风 + 一行说明。 */
 @Composable
-private fun IdleContent(ui: LiveUiState, onOpenModels: () -> Unit) {
+private fun IdleContent(ui: LiveUiState, onOpenModels: (List<String>) -> Unit) {
     val c = SceneTheme.colors
     Column(
         Modifier.fillMaxSize().padding(top = 104.dp, bottom = 164.dp, start = 32.dp, end = 32.dp),
@@ -193,14 +197,14 @@ private fun IdleContent(ui: LiveUiState, onOpenModels: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         SceneIcon(SceneIcons.Mic, contentDescription = null, size = 48.dp, tint = c.tint)
-        SceneText("按住说一句，松手后大字给对方看", style = SceneTheme.type.subheadline, color = c.secondaryLabel, textAlign = TextAlign.Center)
+        SceneText(stringResource(Res.string.m4_idle_hint), style = SceneTheme.type.subheadline, color = c.secondaryLabel, textAlign = TextAlign.Center)
         EngineNotice(ui, onOpenModels)
     }
 }
 
 /** holding：波形 + 灰字 partial + 一行说明。未按住但会话已开始时波形静止、提示「正在出字」。 */
 @Composable
-private fun HoldingContent(ui: LiveUiState, onOpenModels: () -> Unit) {
+private fun HoldingContent(ui: LiveUiState, onOpenModels: (List<String>) -> Unit) {
     val c = SceneTheme.colors
     Column(
         Modifier.fillMaxSize().padding(top = 104.dp, bottom = 164.dp, start = 32.dp, end = 32.dp),
@@ -209,7 +213,7 @@ private fun HoldingContent(ui: LiveUiState, onOpenModels: () -> Unit) {
     ) {
         Waveform(active = ui.holding)
         SceneText(ui.partial.ifBlank { "…" }, style = SceneTheme.type.title2.copy(fontWeight = FontWeight.SemiBold), color = c.tertiaryLabel, textAlign = TextAlign.Center)
-        SceneText(if (ui.holding) "说完就松手" else "正在出字…", style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center)
+        SceneText(stringResource(if (ui.holding) Res.string.m4_release_when_done else Res.string.m4_transcribing), style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center)
         EngineNotice(ui, onOpenModels)
     }
 }
@@ -234,25 +238,25 @@ private fun Waveform(active: Boolean) {
 
 /** 行内提示（不弹窗）：准备中灰字；语音包缺失一句话 + 「去下载」；暂停 / 需前台一个词；录音出错一句话。 */
 @Composable
-private fun EngineNotice(ui: LiveUiState, onOpenModels: () -> Unit) {
+private fun EngineNotice(ui: LiveUiState, onOpenModels: (List<String>) -> Unit) {
     val c = SceneTheme.colors
     when (ui.engine) {
-        LocalEngineState.Loading -> SceneText("准备中…", style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center)
+        LocalEngineState.Loading -> SceneText(stringResource(Res.string.live_state_arming), style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center)
         is LocalEngineState.Error -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SceneText("语音包未下载", style = SceneTheme.type.footnote, color = c.destructive, textAlign = TextAlign.Center)
-            SceneButton("去下载", onClick = onOpenModels, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
+            SceneText(stringResource(Res.string.live_pack_missing), style = SceneTheme.type.footnote, color = c.destructive, textAlign = TextAlign.Center)
+            SceneButton(stringResource(Res.string.live_download), onClick = { onOpenModels(emptyList()) }, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
         }
         else -> {}
     }
-    stateWord(ui.state)?.let { SceneText(it, style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center) }
-    if (ui.error != null) SceneText("录音出错，请重试", style = SceneTheme.type.footnote, color = c.destructive, textAlign = TextAlign.Center)
+    stateWord(ui.state)?.let { SceneText(stringResource(it), style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center) }
+    if (ui.error != null) SceneText(stringResource(Res.string.live_record_error), style = SceneTheme.type.footnote, color = c.destructive, textAlign = TextAlign.Center)
 }
 
 /** 非待机 / 非进行中状态的一个词（不用 VM 的 hint：那里有工程措辞）；准备中已由引擎行覆盖，返回 null。 */
-private fun stateWord(s: LiveState): String? = when (s) {
-    is LiveState.Paused -> "已暂停"
-    LiveState.NeedForeground -> "点一下继续"
-    LiveState.Ending -> "结束中…"
+private fun stateWord(s: LiveState): StringResource? = when (s) {
+    is LiveState.Paused -> Res.string.live_state_paused
+    LiveState.NeedForeground -> Res.string.live_state_tap_resume
+    LiveState.Ending -> Res.string.live_state_ending
     else -> null
 }
 
@@ -261,7 +265,7 @@ private fun stateWord(s: LiveState): String? = when (s) {
  * 只有译文 + 原文：38 sp 译文（缺译文时显示原文）+ 15 sp 原文；翻译失败时一个「未翻译」胶囊。
  */
 @Composable
-private fun PhraseCard(line: LiveLine, speakHint: String?) {
+private fun PhraseCard(line: LiveLine, speakHint: StringResource?) {
     SceneTheme(dark = true, accessibility = SceneTheme.a11y) {
         val c = SceneTheme.colors
         Column(
@@ -278,7 +282,7 @@ private fun PhraseCard(line: LiveLine, speakHint: String?) {
                 Box(Modifier.verticalScroll(rememberScrollState()).heightIn(min = maxHeight), contentAlignment = Alignment.CenterStart) {
                     SceneText(
                         line.translation ?: line.text,
-                        style = SceneTheme.type.facingScreen.copy(fontSize = 38.sp, lineHeight = 45.sp),
+                        style = SceneTheme.type.facingScreen.copy(fontSize = 38.sp, lineHeight = 45.sp).forLang(line.tgtLang),
                         color = c.label,
                     )
                 }
@@ -293,9 +297,9 @@ private fun PhraseCard(line: LiveLine, speakHint: String?) {
             val translating = line.translation == null && !line.mtDegraded
             if (untranslated || translating || speakHint != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (untranslated) SceneCapsule("未翻译", tone = CapsuleTone.Destructive)
-                    if (translating) SceneText("翻译中…", style = SceneTheme.type.caption1, color = c.secondaryLabel)
-                    if (speakHint != null) SceneCapsule(speakHint, tone = CapsuleTone.Warning)
+                    if (untranslated) SceneCapsule(stringResource(Res.string.live_flag_untranslated), tone = CapsuleTone.Destructive)
+                    if (translating) SceneText(stringResource(Res.string.m4_translating), style = SceneTheme.type.caption1, color = c.secondaryLabel)
+                    if (speakHint != null) SceneCapsule(stringResource(speakHint), tone = CapsuleTone.Warning)
                 }
             }
         }

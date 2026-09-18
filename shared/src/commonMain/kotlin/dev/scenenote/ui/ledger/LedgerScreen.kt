@@ -40,6 +40,9 @@ import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 import org.koin.compose.viewmodel.koinViewModel
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.settings.privacyLabel
+import dev.scenenote.core.i18n.stringResource
 
 /**
  * 数据去向（I7）：今天 / 7 天 → 三个数字块（文字 / 录音 / 局域网）→ 逐条去向。
@@ -51,7 +54,7 @@ fun LedgerScreen(onBack: () -> Unit, vm: LedgerViewModel = koinViewModel()) {
     val c = SceneTheme.colors
     GlassScaffold(
         background = c.groupedBackground,
-        topBar = { SceneNavBar(title = "数据去向", onBack = onBack) },
+        topBar = { SceneNavBar(title = stringResource(Res.string.settings_ledger), onBack = onBack) },
     ) {
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -60,47 +63,47 @@ fun LedgerScreen(onBack: () -> Unit, vm: LedgerViewModel = koinViewModel()) {
         ) {
             item {
                 SceneSegmentedControl(
-                    options = listOf("今天", "7 天"),
+                    options = listOf(stringResource(Res.string.date_today), stringResource(Res.string.ledger_seven_days)),
                     selectedIndex = if (ui.days == 1) 0 else 1,
                     onSelect = { vm.setDays(if (it == 0) 1 else 7) },
                 )
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-                    NumberBlock("文字", kb(ui.textKb))
-                    NumberBlock("录音", kb(ui.audioKb))
-                    NumberBlock("局域网", kb(ui.lanKb))
+                    NumberBlock(stringResource(Res.string.ledger_text), kb(ui.textKb))
+                    NumberBlock(stringResource(Res.string.ledger_audio), kb(ui.audioKb))
+                    NumberBlock(stringResource(Res.string.ledger_lan), kb(ui.lanKb))
                 }
             }
             item {
                 Column {
                     SceneGroup {
                         Row(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SceneText("联网权限", Modifier.weight(1f), style = SceneTheme.type.body)
-                            SceneCapsule(privacyWord(ui.privacy))
+                            SceneText(stringResource(Res.string.settings_net_header), Modifier.weight(1f), style = SceneTheme.type.body)
+                            SceneCapsule(privacyLabel(ui.privacy))
                         }
                         SceneDivider(inset = SceneSpacing.row)
                         Row(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SceneText("估算花费", Modifier.weight(1f), style = SceneTheme.type.body)
-                            SceneText(if (ui.estCost < 0.005) "0 元" else "约 ${fmt2(ui.estCost)} 元", style = SceneTheme.type.body, color = c.secondaryLabel)
+                            SceneText(stringResource(Res.string.ledger_est_cost), Modifier.weight(1f), style = SceneTheme.type.body)
+                            SceneText(if (ui.estCost < 0.005) stringResource(Res.string.ledger_cost_zero) else stringResource(Res.string.ledger_cost_about, fmt2(ui.estCost)), style = SceneTheme.type.body, color = c.secondaryLabel)
                         }
                         if (ui.modelMb > 0) {
                             SceneDivider(inset = SceneSpacing.row)
                             Row(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                SceneText("语音包 / 视频下载", Modifier.weight(1f), style = SceneTheme.type.body)
+                                SceneText(stringResource(Res.string.ledger_downloads), Modifier.weight(1f), style = SceneTheme.type.body)
                                 SceneText("${ui.modelMb} MB", style = SceneTheme.type.body, color = c.secondaryLabel)
                             }
                         }
                     }
-                    SceneSectionFooter("只有翻译文字和你选择上传的录音会离开手机")
+                    SceneSectionFooter(stringResource(Res.string.ledger_footer))
                 }
             }
             if (ui.entries.isEmpty()) item {
                 Box(Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
-                    SceneText("这段时间没有数据离开手机", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+                    SceneText(stringResource(Res.string.ledger_empty), style = SceneTheme.type.subheadline, color = c.secondaryLabel)
                 }
             } else {
-                item { SceneText("逐条", Modifier.padding(start = SceneSpacing.row, top = 4.dp), style = SceneTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.secondaryLabel) }
+                item { SceneText(stringResource(Res.string.ledger_entries), Modifier.padding(start = SceneSpacing.row, top = 4.dp), style = SceneTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.secondaryLabel) }
                 item {
                     SceneGroup {
                         ui.entries.forEachIndexed { i, e ->
@@ -138,16 +141,13 @@ private fun EntryRow(e: LedgerEntry) {
     }
 }
 
+@Composable
 private fun kindWord(e: LedgerEntry): String = when (e.kind) {
-    "text" -> if (e.destinationClass == "lan") "文字 · 局域网" else "翻译文字"
-    "audio" -> "录音"
-    "model_asset" -> "语音包下载"
-    "media_url" -> "视频下载"
+    "text" -> stringResource(if (e.destinationClass == "lan") Res.string.ledger_kind_text_lan else Res.string.ledger_kind_text)
+    "audio" -> stringResource(Res.string.ledger_audio)
+    "model_asset" -> stringResource(Res.string.ledger_kind_model)
+    "media_url" -> stringResource(Res.string.ledger_kind_media)
     else -> e.kind
-}
-
-private fun privacyWord(m: PrivacyMode): String = when (m) {
-    PrivacyMode.Locked -> "不联网"; PrivacyMode.LocalWithPerSegmentConsent -> "每次询问"; PrivacyMode.TextOnlyCloud -> "只发文字"; PrivacyMode.AudioCloud -> "文字和录音"
 }
 
 private fun kb(v: Long): String = when {

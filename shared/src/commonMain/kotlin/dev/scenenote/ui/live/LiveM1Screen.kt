@@ -67,6 +67,10 @@ import dev.scenenote.core.settings.AppSettings
 import dev.scenenote.live.LiveLine
 import dev.scenenote.live.Phrases
 import dev.scenenote.live.PipelineHealth
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.i18n.forLang
+import org.jetbrains.compose.resources.StringResource
+import dev.scenenote.core.i18n.stringResource
 import org.koin.compose.koinInject
 
 /**
@@ -80,7 +84,7 @@ import org.koin.compose.koinInject
  * 同一会话、同一个 VM：切模式不重启音频（进页 / 结束由 LiveConversationScreen 与 M0 负责）。
  */
 @Composable
-fun LiveM1Screen(vm: LiveViewModel, onBack: () -> Unit, onOpenModels: () -> Unit) {
+fun LiveM1Screen(vm: LiveViewModel, onBack: () -> Unit, onOpenModels: (List<String>) -> Unit) {
     val ui by vm.ui.collectAsState()
     val c = SceneTheme.colors
     val live = ui.state is LiveState.Live
@@ -96,9 +100,9 @@ fun LiveM1Screen(vm: LiveViewModel, onBack: () -> Unit, onOpenModels: () -> Unit
         topBar = {
             val (label, tone) = m1StatusCapsule(ui.state, ui.health, ui.voiceOut)
             SceneNavBar(
-                title = "面屏",
-                onBack = { vm.switchMode("M0") }, backContentDescription = "回仅听",   // 返回 = 回仅听；结束只留红钮
-                trailing = { SceneCapsule(label, tone = tone) },
+                title = stringResource(Res.string.live_row_facing),
+                onBack = { vm.switchMode("M0") }, backContentDescription = stringResource(Res.string.live_back_to_listen),   // 返回 = 回仅听；结束只留红钮
+                trailing = { SceneCapsule(stringResource(label), tone = tone) },
             )
         },
     ) {
@@ -118,7 +122,7 @@ fun LiveM1Screen(vm: LiveViewModel, onBack: () -> Unit, onOpenModels: () -> Unit
 /** 两块文字（可滚，不把控制条挤出去）→ 玻璃控制条 → 没耳机提示 / 首次引导。 */
 @Composable
 private fun MySection(
-    ui: LiveUiState, firstVisit: Boolean, onOpenModels: () -> Unit,
+    ui: LiveUiState, firstVisit: Boolean, onOpenModels: (List<String>) -> Unit,
     onM0: () -> Unit, onM3: () -> Unit, onEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -133,6 +137,7 @@ private fun MySection(
             OtherSaid(ui.lastOther)
             YouSaid(ui.lastMe)
             EngineNotice(ui.engine, ui.error, onOpenModels)
+            NmtNotice(ui, onOpenModels)
         }
 
         ControlBar(onM0 = onM0, onM3 = onM3, onEnd = onEnd)
@@ -144,14 +149,14 @@ private fun MySection(
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
             ) {
                 SceneIcon(SceneIcons.Headphones, contentDescription = null, size = 14.dp, tint = c.onWarningSoft)
-                SceneText("没有耳机：改用双屏对话", style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), color = c.onWarningSoft, maxLines = 1)
+                SceneText(stringResource(Res.string.live_no_headset_use_split), style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), color = c.onWarningSoft, maxLines = 1)
             }
             firstVisit -> Row(
                 Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
             ) {
                 SceneIcon(SceneIcons.Rotate, contentDescription = null, size = 14.dp, tint = c.secondaryLabel)
-                SceneText("下半屏给对方看", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
+                SceneText(stringResource(Res.string.live_bottom_half_for_them), style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
             }
         }
     }
@@ -163,11 +168,11 @@ private fun OtherSaid(line: LiveLine?) {
     val c = SceneTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            SceneText("对方说", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
+            SceneText(stringResource(Res.string.live_they_said), style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
             if (line != null) LineCapsules(line)
         }
         if (line == null) {
-            SceneText("等对方开口，译文出现在这里", style = SceneTheme.type.subheadline, color = c.tertiaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SceneText(stringResource(Res.string.live_wait_them), style = SceneTheme.type.subheadline, color = c.tertiaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
         } else {
             SceneText(line.translation ?: line.text, style = SceneTheme.type.headline, color = c.label, maxLines = 3, overflow = TextOverflow.Ellipsis)
             if (line.translation != null) SceneText(line.text, style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -181,11 +186,11 @@ private fun YouSaid(line: LiveLine?) {
     val c = SceneTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            SceneText("你说", style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
+            SceneText(stringResource(Res.string.live_you_said), style = SceneTheme.type.caption1, color = c.secondaryLabel, maxLines = 1)
             if (line != null) LineCapsules(line)
         }
         SceneText(
-            line?.text ?: "你开口，译文会大字显示给对方",
+            line?.text ?: stringResource(Res.string.live_you_speak_hint),
             style = SceneTheme.type.footnote, color = if (line == null) c.tertiaryLabel else c.secondaryLabel, maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
     }
@@ -194,23 +199,23 @@ private fun YouSaid(line: LiveLine?) {
 /** 一句话的小胶囊：「未翻译」（没译文且已放弃）/「?」（还没分清谁在说）；正常不显示。 */
 @Composable
 private fun LineCapsules(line: LiveLine) {
-    if (line.translation == null && line.mtDegraded) SceneCapsule("未翻译", tone = CapsuleTone.Destructive)
+    if (line.translation == null && line.mtDegraded) SceneCapsule(stringResource(Res.string.live_flag_untranslated), tone = CapsuleTone.Destructive)
     if (line.dirTentative) SceneCapsule("?", tone = CapsuleTone.Gray)
 }
 
 /** 本机识别的行内提示（不弹窗）：不可用 → 红字 + 「去下载语音包」；加载中 → 灰字；录音出错 → 红字（原因只进诊断页）。 */
 @Composable
-private fun EngineNotice(engine: LocalEngineState, error: String?, onOpenModels: () -> Unit) {
+private fun EngineNotice(engine: LocalEngineState, error: String?, onOpenModels: (List<String>) -> Unit) {
     val c = SceneTheme.colors
     when (engine) {
         is LocalEngineState.Error -> Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneText("本机识别不可用", style = SceneTheme.type.footnote, color = c.destructive)
-            SceneButton("去下载语音包", onClick = onOpenModels, style = ButtonStyle.Tinted, height = 44.dp)
+            SceneText(stringResource(Res.string.live_local_asr_unavailable), style = SceneTheme.type.footnote, color = c.destructive)
+            SceneButton(stringResource(Res.string.live_download_pack), onClick = { onOpenModels(emptyList()) }, style = ButtonStyle.Tinted, height = 44.dp)
         }
-        LocalEngineState.Loading -> SceneText("语音包加载中…", style = SceneTheme.type.footnote, color = c.secondaryLabel)
+        LocalEngineState.Loading -> SceneText(stringResource(Res.string.live_pack_loading), style = SceneTheme.type.footnote, color = c.secondaryLabel)
         else -> {}
     }
-    if (error != null) SceneText("录音出错", style = SceneTheme.type.footnote, color = c.destructive)
+    if (error != null) SceneText(stringResource(Res.string.live_record_error_short), style = SceneTheme.type.footnote, color = c.destructive)
 }
 
 /**
@@ -223,9 +228,9 @@ private fun ControlBar(onM0: () -> Unit, onM3: () -> Unit, onEnd: () -> Unit) {
         Modifier.fillMaxWidth().glass(CircleShape, backdrop = null, elevation = 6.dp).height(52.dp).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
     ) {
-        BarButton("仅听", onClick = onM0, filled = true, modifier = Modifier.weight(1f))
-        BarButton("双屏", onClick = onM3, filled = false, modifier = Modifier.weight(1f))
-        SceneIconButton(SceneIcons.Stop, contentDescription = "结束", onClick = onEnd, size = 44.dp, style = ButtonStyle.Destructive)
+        BarButton(stringResource(Res.string.scene_listen), onClick = onM0, filled = true, modifier = Modifier.weight(1f))
+        BarButton(stringResource(Res.string.live_row_split), onClick = onM3, filled = false, modifier = Modifier.weight(1f))
+        SceneIconButton(SceneIcons.Stop, contentDescription = stringResource(Res.string.live_end), onClick = onEnd, size = 44.dp, style = ButtonStyle.Destructive)
     }
 }
 
@@ -289,7 +294,7 @@ private fun PoliteCard(lang: String) {
             SceneIcon(SceneIcons.Mic, contentDescription = null, size = 16.dp, tint = c.onDestructiveSoft)
             SceneText(recordingNotice(lang), style = SceneTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.onDestructiveSoft, maxLines = 2)
         }
-        SceneText(Phrases.politeCard(lang), style = SceneTheme.type.title1, color = c.label)
+        SceneText(Phrases.politeCard(lang), style = SceneTheme.type.title1.forLang(lang), color = c.label)
     }
 }
 
@@ -312,8 +317,8 @@ private fun Subtitles(ui: LiveUiState, lang: String) {
         }
         // 大字区：短句从上排，长句可滚
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (finalText != null) SceneText(finalText, style = SceneTheme.type.facingScreen, color = c.label)
-            if (partial != null) SceneText(partial, style = SceneTheme.type.title1.copy(fontWeight = FontWeight.Normal), color = c.tertiaryLabel)   // 对方半屏 ≥ 28 pt
+            if (finalText != null) SceneText(finalText, style = SceneTheme.type.facingScreen.forLang(lang), color = c.label)
+            if (partial != null) SceneText(partial, style = SceneTheme.type.title1.copy(fontWeight = FontWeight.Normal).forLang(lang), color = c.tertiaryLabel)   // 对方半屏 ≥ 28 pt
         }
     }
 }
@@ -392,16 +397,16 @@ private fun recordingNotice(lang: String): String = when (lang.substringBefore('
  * 右上状态胶囊：一个词 + 颜色（docs/15 §2）。
  * 进行中：无翻译 > 无语音 > 离线 > 已连接；未进行时显示会话状态词（准备中 / 已暂停 / 点一下继续 / 结束中）。
  */
-private fun m1StatusCapsule(state: LiveState, h: PipelineHealth, voiceOut: Boolean): Pair<String, CapsuleTone> = when (state) {
-    LiveState.Idle -> "待机" to CapsuleTone.Gray
-    LiveState.Arming -> "准备中" to CapsuleTone.Gray
-    is LiveState.Paused -> "已暂停" to CapsuleTone.Gray
-    LiveState.NeedForeground -> "点一下继续" to CapsuleTone.Warning
-    LiveState.Ending -> "结束中" to CapsuleTone.Gray
+internal fun m1StatusCapsule(state: LiveState, h: PipelineHealth, voiceOut: Boolean): Pair<StringResource, CapsuleTone> = when (state) {
+    LiveState.Idle -> Res.string.live_status_standby to CapsuleTone.Gray
+    LiveState.Arming -> Res.string.live_arming to CapsuleTone.Gray
+    is LiveState.Paused -> Res.string.live_state_paused to CapsuleTone.Gray
+    LiveState.NeedForeground -> Res.string.live_state_tap_resume to CapsuleTone.Warning
+    LiveState.Ending -> Res.string.live_ending to CapsuleTone.Gray
     is LiveState.Live, LiveState.Degraded -> when {
-        h.mt == "unavailable" -> "无翻译" to CapsuleTone.Destructive
-        voiceOut && (h.tts == "无" || h.tts == "失败") -> "无语音" to CapsuleTone.Warning
-        h.mt == "fallback" -> "离线" to CapsuleTone.Warning
-        else -> "已连接" to CapsuleTone.Tint
+        h.mt == "unavailable" -> Res.string.live_status_no_mt to CapsuleTone.Destructive
+        voiceOut && (h.tts == "none" || h.tts == "failed") -> Res.string.live_status_no_voice to CapsuleTone.Warning
+        h.mt == "fallback" -> Res.string.live_status_offline to CapsuleTone.Warning
+        else -> Res.string.live_status_connected to CapsuleTone.Tint
     }
 }

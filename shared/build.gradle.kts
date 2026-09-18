@@ -121,6 +121,11 @@ kotlin {
     }
 }
 
+compose.resources {
+    // 界面文案：composeResources/values（英文兜底）/ values-zh / values-ja / values-ko；跟随系统语言
+    packageOfResClass = "dev.scenenote.shared.resources"
+}
+
 sqldelight {
     databases {
         create("SceneNoteDb") {

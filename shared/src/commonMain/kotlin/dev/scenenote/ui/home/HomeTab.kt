@@ -58,7 +58,11 @@ import dev.scenenote.core.settings.KeyWallet
 import dev.scenenote.core.scene.CustomScene
 import dev.scenenote.core.scene.SceneStore
 import dev.scenenote.ui.LocalShellOverlay
+import dev.scenenote.ui.i18n.langName
+import dev.scenenote.ui.i18n.title
 import dev.scenenote.ui.scene.SceneEditSheet
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
 import org.koin.compose.koinInject
 
 /**
@@ -84,7 +88,8 @@ fun HomeTab(onOpenScene: (String) -> Unit, onOpenOnboarding: () -> Unit, onOpenL
     val overlayContent: @Composable BoxScope.() -> Unit = { SceneEditOverlay(store, editState) }
     DisposableEffect(overlayHost) {
         overlayHost?.value = overlayContent
-        onDispose { overlayHost?.value = null }
+        // Tab 切换有过渡动画，旧 Tab 退场晚于新 Tab 进场：只清自己挂上去的，别把新 Tab 的清掉
+        onDispose { if (overlayHost?.value === overlayContent) overlayHost.value = null }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -98,14 +103,15 @@ fun HomeTab(onOpenScene: (String) -> Unit, onOpenOnboarding: () -> Unit, onOpenL
             MeetingCard(scene = Scenes.meeting, onClick = { onOpenScene(Scenes.meeting.id) })
             custom.forEach { cs -> CustomSceneCard(cs, onOpen = { onOpenScene(cs.id) }, onEdit = { editState.value = true to cs }) }
             Box(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page), contentAlignment = Alignment.Center) {
-                SceneButton("复制一张再改", onClick = { editState.value = true to null }, style = ButtonStyle.Plain)
+                SceneButton(stringResource(Res.string.home_copy_scene), onClick = { editState.value = true to null }, style = ButtonStyle.Plain)
             }
         }
-        if (overlayHost == null) SceneEditOverlay(store, editState)
+        // 不在壳里时内联渲染：sheet 处在取样层内部，不能取样自己，关掉 backdrop 走不透明回退
+        if (overlayHost == null) CompositionLocalProvider(LocalGlassBackdrop provides null) { SceneEditOverlay(store, editState) }
         // 右上玻璃胶囊「新手引导」。本 Tab 的内容已被壳录进玻璃取样层，这里不能再取样自己，故关掉 backdrop 走高填充回退
         CompositionLocalProvider(LocalGlassBackdrop provides null) {
             SceneGlassCapsuleButton(
-                "新手引导", onClick = onOpenOnboarding, icon = SceneIcons.Headphones,
+                stringResource(Res.string.home_onboarding), onClick = onOpenOnboarding, icon = SceneIcons.Headphones,
                 modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(end = SceneSpacing.m),
             )
         }
@@ -126,12 +132,12 @@ private fun CustomSceneCard(cs: CustomScene, onOpen: () -> Unit, onEdit: () -> U
     SceneCard(onClick = onOpen) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
             SceneText(cs.name, style = SceneTheme.type.title3, modifier = Modifier.weight(1f))
-            SceneText("改", Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onEdit).padding(4.dp), style = SceneTheme.type.subheadline, color = c.tint)
+            SceneText(stringResource(Res.string.home_edit), Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onEdit).padding(4.dp), style = SceneTheme.type.subheadline, color = c.tint)
         }
-        SceneText("基于「${base?.name ?: cs.baseId}」", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+        SceneText(stringResource(Res.string.home_based_on, base?.title() ?: cs.baseId), style = SceneTheme.type.subheadline, color = c.secondaryLabel)
         ChipRow {
-            SceneCapsule("我 · ${Lang.displayName(cs.myLang)}")
-            SceneCapsule("对方 · ${Lang.displayName(cs.otherLang)}")
+            SceneCapsule(stringResource(Res.string.common_me_lang, langName(cs.myLang)))
+            SceneCapsule(stringResource(Res.string.common_other_lang, langName(cs.otherLang)))
         }
     }
 }
@@ -141,9 +147,9 @@ private fun CustomSceneCard(cs: CustomScene, onOpen: () -> Unit, onEdit: () -> U
 private fun HomeHeader(hasKey: Boolean) {
     Column(Modifier.padding(start = SceneSpacing.page, end = SceneSpacing.page, bottom = SceneSpacing.xs), verticalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
         // 右侧留出「新手引导」胶囊的位置，避免大字号下标题钻到胶囊底下
-        SceneText("场记", Modifier.padding(end = 140.dp), style = SceneTheme.type.largeTitle)
+        SceneText(stringResource(Res.string.app_name), Modifier.padding(end = 140.dp), style = SceneTheme.type.largeTitle)
         ChipRow {
-            if (hasKey) SceneCapsule("云翻译已连接", tone = CapsuleTone.Tint) else SceneCapsule("离线")
+            if (hasKey) SceneCapsule(stringResource(Res.string.home_cloud_connected), tone = CapsuleTone.Tint) else SceneCapsule(stringResource(Res.string.home_offline))
         }
     }
 }
@@ -153,8 +159,8 @@ private fun HomeHeader(hasKey: Boolean) {
 private fun FlagshipCard(scene: ScenePreset, myLang: String, otherLang: String, onOpenScene: (String) -> Unit, onOpenLiveTab: () -> Unit) {
     val c = SceneTheme.colors
     SceneCard(outline = c.tint) {
-        SceneText(scene.name, style = SceneTheme.type.title2)
-        SceneText("对方说话，你在耳机里听译文", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+        SceneText(scene.title(), style = SceneTheme.type.title2)
+        SceneText(stringResource(Res.string.home_flagship_desc), style = SceneTheme.type.subheadline, color = c.secondaryLabel)
         val interaction = remember { MutableInteractionSource() }
         Row(
             Modifier
@@ -166,13 +172,13 @@ private fun FlagshipCard(scene: ScenePreset, myLang: String, otherLang: String, 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            SceneCapsule("我 · ${Lang.displayName(myLang)}")
+            SceneCapsule(stringResource(Res.string.common_me_lang, langName(myLang)))
             SceneText("⇄", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
-            SceneCapsule("对方 · ${Lang.displayName(otherLang)}")
+            SceneCapsule(stringResource(Res.string.common_other_lang, langName(otherLang)))
         }
         Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneButton("开始仅听", onClick = { onOpenScene(Scenes.listenOnly.id) }, style = ButtonStyle.Prominent, modifier = Modifier.weight(1f))
-            SceneButton("速译", onClick = { onOpenScene(Scenes.quickPhrase.id) }, style = ButtonStyle.Gray, modifier = Modifier.width(96.dp))
+            SceneButton(stringResource(Res.string.home_start_listen), onClick = { onOpenScene(Scenes.listenOnly.id) }, style = ButtonStyle.Prominent, modifier = Modifier.weight(1f))
+            SceneButton(stringResource(Res.string.home_quick_phrase), onClick = { onOpenScene(Scenes.quickPhrase.id) }, style = ButtonStyle.Gray, modifier = Modifier.width(96.dp))
         }
     }
 }
@@ -184,10 +190,10 @@ private fun ScreenSubtitleCard(scene: ScenePreset, onClick: () -> Unit) {
     val source = scene.langChips.firstOrNull { it.default }?.tag ?: Lang.EN
     val target = scene.translationTargets.firstOrNull() ?: Lang.ZH_CN
     SceneCard(onClick = onClick) {
-        CardTitleRow(title = "视频字幕")
-        SceneText("相册里的视频，边看边出字幕", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+        CardTitleRow(title = scene.title())
+        SceneText(stringResource(Res.string.home_video_desc), style = SceneTheme.type.subheadline, color = c.secondaryLabel)
         ChipRow {
-            SceneCapsule("${Lang.displayName(source)} → ${Lang.displayName(target)}")
+            SceneCapsule(stringResource(Res.string.common_lang_pair, langName(source), langName(target)))
         }
     }
 }
@@ -198,11 +204,11 @@ private fun MeetingCard(scene: ScenePreset, onClick: () -> Unit) {
     val c = SceneTheme.colors
     val source = scene.langChips.firstOrNull { it.default }?.tag ?: Lang.ZH_CN
     SceneCard(onClick = onClick) {
-        CardTitleRow(title = scene.name)
-        SceneText("一按即录，十分钟出纪要", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+        CardTitleRow(title = scene.title())
+        SceneText(stringResource(Res.string.home_meeting_desc), style = SceneTheme.type.subheadline, color = c.secondaryLabel)
         ChipRow {
-            SceneCapsule(Lang.displayName(source))
-            SceneCapsule("录音不出手机")
+            SceneCapsule(langName(source))
+            SceneCapsule(stringResource(Res.string.home_audio_stays_local))
         }
     }
 }

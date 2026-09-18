@@ -13,8 +13,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.StringResource
 
-data class ProviderRow(val id: String, val name: String, val masked: String?, val baseUrl: String?, val needsBaseUrl: Boolean, val keyHint: String, val docUrl: String)
+data class ProviderRow(val id: String, val name: StringResource, val masked: String?, val baseUrl: String?, val needsBaseUrl: Boolean, val keyHint: StringResource, val docUrl: String)
 data class SettingsUiState(
     val privacy: PrivacyMode, val monthlyLimit: Double, val providers: List<ProviderRow>,
     val myLang: String, val otherLang: String, val ttsPreference: TtsPreference, val mtModel: String,
@@ -61,7 +63,7 @@ class SettingsViewModel(private val settings: AppSettings, private val wallet: K
         if (_ui.value.testing != null) return
         _ui.value = _ui.value.copy(testing = providerId)
         viewModelScope.launch {
-            val r = if (providerId == Providers.bailian.id) tester.testBailian() else KeyTestResult(false, "暂不支持")
+            val r = if (providerId == Providers.bailian.id) tester.testBailian() else KeyTestResult(false, "provider not supported yet")
             _ui.value = _ui.value.copy(testing = null, keyTest = _ui.value.keyTest + (providerId to r))
         }
     }

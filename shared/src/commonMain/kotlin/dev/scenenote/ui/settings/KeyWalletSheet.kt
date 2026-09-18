@@ -73,12 +73,14 @@ import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
 import dev.scenenote.core.settings.Providers
 import dev.scenenote.translate.KeyTestResult
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
 
 /** 每月上限步进：每次 ± ¥5，0 = 不限。 */
 private const val LIMIT_STEP = 5.0
 
 /** 空 Key 时输入框上方的三步引导（≤ 3 行）。 */
-private val KEY_STEPS = listOf("1  打开 bailian.console.aliyun.com", "2  新建 API Key", "3  复制粘贴到这里")
+private val KEY_STEPS = listOf(Res.string.key_step_1, Res.string.key_step_2, Res.string.key_step_3)
 
 /**
  * 翻译 Key sheet：厂商一行（只接百炼）→ API Key / 端点 / 测试连接 → 每月上限 → 页脚。
@@ -117,7 +119,7 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
     SceneSheet(
         visible = visible,
         onDismiss = { keyDraft = ""; baseDraft = p?.baseUrl.orEmpty(); focus.clearFocus(); onDismiss() },
-        title = "翻译 Key",
+        title = stringResource(Res.string.settings_key_header),
         onDone = { saveKey(); saveBaseUrl(); onDismiss() },
     ) {
         Column(
@@ -127,9 +129,9 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
             // ---- 厂商（只有百炼）----
             if (p != null) {
                 Column {
-                    SceneSectionHeader("厂商")
+                    SceneSectionHeader(stringResource(Res.string.key_provider))
                     SceneGroup {
-                        SceneRow(p.name, value = if (p.masked != null) "已填写" else "未填写")
+                        SceneRow(stringResource(p.name), value = stringResource(if (p.masked != null) Res.string.settings_key_filled else Res.string.settings_key_empty))
                     }
                 }
 
@@ -137,12 +139,12 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
                 val testing = ui.testing == p.id
                 val result = ui.keyTest[p.id]
                 Column {
-                    SceneSectionHeader("API Key")
+                    SceneSectionHeader(stringResource(Res.string.key_label))
                     SceneGroup {
                         // 空 Key：输入框上方三步引导
                         if (p.masked == null) {
                             Column(Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.row, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                KEY_STEPS.forEach { SceneText(it, style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                KEY_STEPS.forEach { SceneText(stringResource(it), style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                             }
                             SceneDivider()
                         }
@@ -151,13 +153,13 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
                             Modifier.fillMaxWidth().defaultMinSize(minHeight = SceneSize.rowMinHeight).padding(horizontal = SceneSpacing.row, vertical = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            SceneText("Key", style = SceneTheme.type.subheadline, color = c.label)
+                            SceneText(stringResource(Res.string.key_label), style = SceneTheme.type.subheadline, color = c.label)
                             InlineField(
                                 value = keyDraft, onValueChange = { keyDraft = it },
-                                placeholder = p.masked ?: "粘贴或输入", secure = true,
+                                placeholder = p.masked ?: stringResource(Res.string.key_paste_or_type), secure = true,
                                 modifier = Modifier.weight(1f), onDone = ::saveKey,
                             )
-                            if (keyDraft.isBlank()) SmallPill("粘贴", onClick = ::paste) else SmallPill("保存", onClick = ::saveKey, tinted = true)
+                            if (keyDraft.isBlank()) SmallPill(stringResource(Res.string.key_paste), onClick = ::paste) else SmallPill(stringResource(Res.string.key_save), onClick = ::saveKey, tinted = true)
                         }
                         SceneDivider()
                         // 端点：留空 = 官方端点
@@ -165,10 +167,10 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
                             Modifier.fillMaxWidth().defaultMinSize(minHeight = SceneSize.rowMinHeight).padding(horizontal = SceneSpacing.row, vertical = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            SceneText("端点", style = SceneTheme.type.subheadline, color = c.label)
+                            SceneText(stringResource(Res.string.key_endpoint), style = SceneTheme.type.subheadline, color = c.label)
                             InlineField(
                                 value = baseDraft, onValueChange = { baseDraft = it },
-                                placeholder = "默认，可不填",
+                                placeholder = stringResource(Res.string.key_endpoint_placeholder),
                                 modifier = Modifier.weight(1f), onDone = ::saveBaseUrl,
                             )
                         }
@@ -177,7 +179,7 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
                             SceneDivider()
                             TestRow(enabled = ui.testing == null, testing = testing, tested = result != null, onClick = { vm.testKey(p.id) })
                             SceneDivider()
-                            SceneRow("清除 Key", titleColor = c.destructive, onClick = { confirmClear = true })
+                            SceneRow(stringResource(Res.string.key_clear), titleColor = c.destructive, onClick = { confirmClear = true })
                         }
                     }
                     TestResultFooter(result)
@@ -186,21 +188,21 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
 
             // ---- 每月上限 ----
             Column {
-                SceneSectionHeader("每月上限")
+                SceneSectionHeader(stringResource(Res.string.key_monthly_limit))
                 SceneGroup {
-                    SceneRow("金额", trailing = {
-                        StepButton("−", contentDescription = "减少", enabled = ui.monthlyLimit > 0.0) { vm.setMonthlyLimit((ui.monthlyLimit - LIMIT_STEP).coerceAtLeast(0.0)) }
-                        SceneText(fmtLimit(ui.monthlyLimit), Modifier.widthIn(min = 48.dp), style = SceneTheme.type.body, color = c.label, textAlign = TextAlign.Center, maxLines = 1)
-                        StepButton("+", contentDescription = "增加") { vm.setMonthlyLimit(ui.monthlyLimit + LIMIT_STEP) }
+                    SceneRow(stringResource(Res.string.key_amount), trailing = {
+                        StepButton("−", contentDescription = stringResource(Res.string.key_decrease), enabled = ui.monthlyLimit > 0.0) { vm.setMonthlyLimit((ui.monthlyLimit - LIMIT_STEP).coerceAtLeast(0.0)) }
+                        SceneText(if (ui.monthlyLimit <= 0.0) stringResource(Res.string.key_unlimited) else fmtLimit(ui.monthlyLimit), Modifier.widthIn(min = 48.dp), style = SceneTheme.type.body, color = c.label, textAlign = TextAlign.Center, maxLines = 1)
+                        StepButton("+", contentDescription = stringResource(Res.string.key_increase)) { vm.setMonthlyLimit(ui.monthlyLimit + LIMIT_STEP) }
                     })
                     SceneDivider()
-                    SceneRow("超限后", value = "停止联网翻译")
+                    SceneRow(stringResource(Res.string.key_over_limit), value = stringResource(Res.string.key_over_limit_action))
                 }
             }
 
             // ---- 页脚 ----
             SceneText(
-                "Key 只存在本机，不上传",
+                stringResource(Res.string.key_footer),
                 Modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page + SceneSpacing.row),
                 style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center,
             )
@@ -209,11 +211,11 @@ fun BoxScope.KeyWalletSheet(visible: Boolean, ui: SettingsUiState, vm: SettingsV
 
     if (confirmClear && p != null) {
         SceneAlert(
-            title = "清除 Key？",
-            message = "清除后将无法联网翻译。",
+            title = stringResource(Res.string.key_clear_title),
+            message = stringResource(Res.string.key_clear_message),
             actions = listOf(
-                AlertAction("取消", onClick = { confirmClear = false }, isDefault = true),
-                AlertAction("清除", onClick = { vm.setKey(p.id, ""); confirmClear = false }, destructive = true),
+                AlertAction(stringResource(Res.string.common_cancel), onClick = { confirmClear = false }, isDefault = true),
+                AlertAction(stringResource(Res.string.key_clear_confirm), onClick = { vm.setKey(p.id, ""); confirmClear = false }, destructive = true),
             ),
             onDismissRequest = { confirmClear = false },
         )
@@ -306,9 +308,9 @@ private fun TestRow(enabled: Boolean, testing: Boolean, tested: Boolean, onClick
     ) {
         if (testing) {
             Spinner()
-            SceneText("正在连接…", style = SceneTheme.type.headline, color = c.secondaryLabel)
+            SceneText(stringResource(Res.string.key_connecting), style = SceneTheme.type.headline, color = c.secondaryLabel)
         } else {
-            SceneText(if (tested) "再测一次" else "测试连接", style = SceneTheme.type.headline, color = c.tint)
+            SceneText(stringResource(if (tested) Res.string.key_test_again else Res.string.key_test), style = SceneTheme.type.headline, color = c.tint)
         }
     }
 }
@@ -323,10 +325,10 @@ private fun TestResultFooter(r: KeyTestResult?) {
             Modifier.padding(start = SceneSpacing.page + SceneSpacing.row, end = SceneSpacing.page, top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
         ) {
-            SceneIcon(SceneIcons.Check, contentDescription = "已连接", size = 14.dp, tint = c.onTintSoft)
-            SceneText("已连接 · ${fmtSeconds(r.latencyMs)}", style = SceneTheme.type.footnote, color = c.onTintSoft, maxLines = 1)
+            SceneIcon(SceneIcons.Check, contentDescription = stringResource(Res.string.key_connected), size = 14.dp, tint = c.onTintSoft)
+            SceneText(stringResource(Res.string.key_connected_latency, fmtSeconds(r.latencyMs)), style = SceneTheme.type.footnote, color = c.onTintSoft, maxLines = 1)
         }
-        else -> SceneSectionFooter("连接失败 · 检查 Key 或网络", color = c.destructive)   // 原始原因只进诊断
+        else -> SceneSectionFooter(stringResource(Res.string.key_test_failed), color = c.destructive)   // 原始原因只进诊断
     }
 }
 
@@ -342,7 +344,7 @@ private fun Spinner(size: Dp = 16.dp) {
     }
 }
 
-private fun fmtLimit(v: Double): String = if (v <= 0.0) "不限" else "¥ ${fmtNumber(v)}"
+private fun fmtLimit(v: Double): String = "¥ ${fmtNumber(v)}"
 
 /** 通用数字：整数不带小数，否则保留两位。 */
 private fun fmtNumber(v: Double): String {

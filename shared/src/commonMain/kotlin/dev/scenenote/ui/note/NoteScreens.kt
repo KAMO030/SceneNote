@@ -36,6 +36,7 @@ import dev.scenenote.core.designsystem.GlassScaffold
 import dev.scenenote.core.designsystem.SceneButton
 import dev.scenenote.core.designsystem.SceneDivider
 import dev.scenenote.core.designsystem.SceneGlassCapsuleButton
+import dev.scenenote.core.designsystem.SceneIconButton
 import dev.scenenote.core.designsystem.SceneIcons
 import dev.scenenote.core.designsystem.SceneNavBar
 import dev.scenenote.core.designsystem.SceneSpacing
@@ -56,6 +57,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.core.i18n.string
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import dev.scenenote.core.i18n.stringResource
 import org.koin.compose.getKoin
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -69,7 +76,7 @@ data class NoteUiState(
     val backend: String = "",
     val candidates: List<GlossaryCandidate> = emptyList(),
     val working: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val exportedPath: String? = null,
 )
 
@@ -82,7 +89,7 @@ class NoteViewModel(private val repo: SessionRepository, private val slow: SlowP
     fun load(sessionId: String, style: Style = Style.BUSINESS, force: Boolean = false) {
         runCatching { dev.scenenote.meeting.Reminders.opened(notifier, sessionId) }   // 看过就不再催「还没分享」
         viewModelScope.launch {
-            val s = repo.byId(sessionId) ?: run { _ui.value = NoteUiState(error = "找不到这条记录"); return@launch }
+            val s = repo.byId(sessionId) ?: run { _ui.value = NoteUiState(error = UiText.Res(Res.string.common_record_missing)); return@launch }
             _ui.value = NoteUiState(session = s, working = true)   // 换会话 / 重跑时清掉旧产物
             runCatching {
                 when (s.kind) {
@@ -97,16 +104,17 @@ class NoteViewModel(private val repo: SessionRepository, private val slow: SlowP
                         _ui.value = _ui.value.copy(utterances = utts, card = json.decodeFromString<ConversationCard>(out.json), markdown = out.markdown, backend = out.backend, candidates = repo.candidates(sessionId), working = false)
                     }
                 }
-            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; _ui.value = _ui.value.copy(working = false, error = "整理失败") }
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; _ui.value = _ui.value.copy(working = false, error = UiText.Res(Res.string.note_process_failed)) }
         }
     }
     /** 有 Key 后重新成稿 / 换风格（追加新版本，不覆盖原文）。 */
     fun regenerate(style: Style = Style.BUSINESS) { _ui.value.session?.let { load(it.id, style, force = true) } }
 
-    fun shareMarkdown() { val s = _ui.value.session ?: return; viewModelScope.launch { val p = exports.markdown(s, _ui.value.markdown); sharer.shareFile(p, "text/markdown", s.title ?: "场记"); _ui.value = _ui.value.copy(exportedPath = p) } }
-    fun shareText() { val s = _ui.value.session ?: return; sharer.shareText(_ui.value.markdown, s.title ?: "场记") }
-    fun exportVoxnote() { val s = _ui.value.session ?: return; viewModelScope.launch { val p = exports.voxnote(s); sharer.shareFile(p, "application/json", s.title ?: "场记"); _ui.value = _ui.value.copy(exportedPath = p) } }
-    fun sharePng(bytes: ByteArray) { val s = _ui.value.session ?: return; viewModelScope.launch { val p = exports.bytes("${s.title ?: "card"}.png", bytes); sharer.shareFile(p, "image/png", s.title ?: "场记") } }
+    private suspend fun shareTitle(s: SessionRow) = s.title ?: getString(Res.string.app_name)
+    fun shareMarkdown() { val s = _ui.value.session ?: return; viewModelScope.launch { val p = exports.markdown(s, _ui.value.markdown); sharer.shareFile(p, "text/markdown", shareTitle(s)); _ui.value = _ui.value.copy(exportedPath = p) } }
+    fun shareText() { val s = _ui.value.session ?: return; viewModelScope.launch { sharer.shareText(_ui.value.markdown, shareTitle(s)) } }
+    fun exportVoxnote() { val s = _ui.value.session ?: return; viewModelScope.launch { val p = exports.voxnote(s); sharer.shareFile(p, "application/json", shareTitle(s)); _ui.value = _ui.value.copy(exportedPath = p) } }
+    fun sharePng(bytes: ByteArray) { val s = _ui.value.session ?: return; viewModelScope.launch { val p = exports.bytes("${s.title ?: "card"}.png", bytes); sharer.shareFile(p, "image/png", shareTitle(s)) } }
     /** 新词候选：确认 → 进术语表（词袋按场景；译名挂在我的语言下），忽略 → 只改状态。 */
     fun setCandidate(term: String, status: String) {
         val s = _ui.value.session ?: return
@@ -150,7 +158,7 @@ fun LiveEndScreen(sessionId: String, onBack: () -> Unit, vm: NoteViewModel = koi
     val encoder = remember(koin) { koin.getOrNull<PngEncoder>() }   // 平台没接 PNG 编码时按钮仍可点，只提示分享失败
     val scope = rememberCoroutineScope()
     val cardLayer = rememberGraphicsLayer()
-    var shareError by remember { mutableStateOf<String?>(null) }
+    var shareError by remember { mutableStateOf<StringResource?>(null) }
     val session = ui.session
     val cardReady = session != null && !ui.working && ui.error == null
     val shareCard: () -> Unit = {
@@ -161,22 +169,22 @@ fun LiveEndScreen(sessionId: String, onBack: () -> Unit, vm: NoteViewModel = koi
                 val bitmap = cardLayer.toImageBitmap()
                 val bytes = withContext(Dispatchers.Default) { enc.encode(bitmap) }
                 vm.sharePng(bytes)
-            }.onFailure { shareError = "分享失败，请重试" }
+            }.onFailure { shareError = Res.string.note_share_failed }
         }
     }
-    // VM 的错误可能带异常原文；只有「找不到这条记录」是给用户看的，其余统一成一句
-    val loadError = ui.error?.let { if (it == "找不到这条记录") it else "整理失败" }
+    val loadError = ui.error?.string()
     val pending = ui.candidates.filter { it.status == "pending" }
 
     GlassScaffold(
         background = c.groupedBackground,
         topBar = {
             SceneNavBar(
-                title = "对话卡片",
-                leading = { SceneGlassCapsuleButton("资料库", onClick = onBack, icon = SceneIcons.ChevronLeft) },
+                title = stringResource(Res.string.note_card_title),
+                leading = { SceneGlassCapsuleButton(stringResource(Res.string.tab_library), onClick = onBack, icon = SceneIcons.ChevronLeft) },
                 trailing = {
-                    SceneGlassCapsuleButton("重新整理", onClick = { if (!ui.working) vm.regenerate() })
-                    SceneGlassCapsuleButton("完成", onClick = onBack, prominentText = true)
+                    // 左「资料库」+ 中标题 + 右两枚胶囊在手机宽度上放不下，重新整理用圆形图标按钮
+                    SceneIconButton(SceneIcons.Rotate, contentDescription = stringResource(Res.string.note_regenerate), onClick = { if (!ui.working) vm.regenerate() }, glass = true, enabled = !ui.working)
+                    SceneGlassCapsuleButton(stringResource(Res.string.common_done), onClick = onBack, prominentText = true)
                 },
             )
         },
@@ -188,7 +196,7 @@ fun LiveEndScreen(sessionId: String, onBack: () -> Unit, vm: NoteViewModel = koi
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 104.dp, bottom = 140.dp),
             verticalArrangement = Arrangement.spacedBy(SceneSpacing.l),
         ) {
-            NoteStatusLine(working = ui.working, error = shareError ?: loadError, onRetry = if (session != null && ui.error != null) ({ vm.regenerate() }) else null)
+            NoteStatusLine(working = ui.working, error = shareError?.let { stringResource(it) } ?: loadError, onRetry = if (session != null && ui.error != null) ({ vm.regenerate() }) else null)
 
             // ---- 卡片：整块录进 graphicsLayer，「分享卡片」时截成 PNG ----
             Box(Modifier.padding(horizontal = SceneSpacing.page)) {
@@ -205,14 +213,14 @@ fun LiveEndScreen(sessionId: String, onBack: () -> Unit, vm: NoteViewModel = koi
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     CardHeader(
-                        title = ui.card?.title?.takeIf { it.isNotBlank() } ?: session?.title?.takeIf { it.isNotBlank() } ?: "对话",
+                        title = ui.card?.title?.takeIf { it.isNotBlank() } ?: session?.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.library_kind_talk),
                         meta = session?.let { sessionMeta(it, ui.utterances) } ?: "",
                     )
                     if (ui.utterances.isNotEmpty()) {
                         SceneDivider(inset = 0.dp)
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { ui.utterances.forEach { UtteranceLine(it) } }
                     } else if (cardReady) {
-                        SceneText("没有记下对话", style = SceneTheme.type.subheadline, color = c.tertiaryLabel)
+                        SceneText(stringResource(Res.string.note_no_utterances), style = SceneTheme.type.subheadline, color = c.tertiaryLabel)
                     }
                     val points = ui.card?.keyPoints.orEmpty()
                     if (points.isNotEmpty()) KeyPointsBlock(points, cloud = ui.card?.backend.orEmpty().startsWith("cloud:"))
@@ -221,7 +229,7 @@ fun LiveEndScreen(sessionId: String, onBack: () -> Unit, vm: NoteViewModel = koi
 
             CandidatesSection(pending, onAccept = { vm.setCandidate(it, "accepted") }, onReject = { vm.setCandidate(it, "rejected") })
 
-            NoteFooter("对方的声音没有保存")
+            NoteFooter(stringResource(Res.string.note_footer_no_audio))
         }
     }
 }

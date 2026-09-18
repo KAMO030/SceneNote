@@ -68,6 +68,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import dev.scenenote.meeting.Reminders
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.settings.privacyLabel
+import org.jetbrains.compose.resources.StringResource
+import dev.scenenote.core.i18n.stringResource
 
 /** 会议录音 VM：一按即录；停止后回调 sessionId 进纪要页，并排两条本地提醒（10 分钟「纪要好了」/ 3 天「还没分享」）。 */
 class MeetingViewModel(private val recorder: MeetingRecorder, private val settings: AppSettings, private val notifier: dev.scenenote.core.platform.Notifier) : ViewModel() {
@@ -115,12 +119,12 @@ fun MeetingScreen(onBack: () -> Unit, onDone: (sessionId: String) -> Unit, autos
 
     GlassScaffold(
         background = c.systemBackground,
-        topBar = { SceneNavBar(title = "会议", onBack = leave, backContentDescription = "返回") },
+        topBar = { SceneNavBar(title = stringResource(Res.string.scene_meeting), onBack = leave) },
         bottomBar = {
             SceneDock {
                 MarkButton(count = s.bookmarks, enabled = inSession, onClick = vm::mark)
                 MainButton(state = s.state, onStart = { vm.start() }, onPause = vm::pause, onResume = vm::resume)
-                SceneIconButton(SceneIcons.Stop, contentDescription = "停止成稿", onClick = { vm.stop(onDone) }, size = 56.dp, style = ButtonStyle.Destructive, enabled = inSession)
+                SceneIconButton(SceneIcons.Stop, contentDescription = stringResource(Res.string.meeting_stop_finish), onClick = { vm.stop(onDone) }, size = 56.dp, style = ButtonStyle.Destructive, enabled = inSession)
             }
         },
     ) {
@@ -144,19 +148,20 @@ private fun Header(s: MeetingState) {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
             RecDot(active = recording)
-            SceneText(stateWord(s.state), style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
+            SceneText(stringResource(stateWord(s.state)), style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
         }
         val clock = SlowPath.mmss(s.elapsedMs)
+        val clockDesc = stringResource(Res.string.meeting_recorded_cd, clock)
         SceneText(
             clock,
-            Modifier.semantics { contentDescription = "已录 $clock" },
+            Modifier.semantics { contentDescription = clockDesc },
             style = SceneTheme.type.largeTitle.copy(fontSize = 46.sp, lineHeight = 54.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, fontFeatureSettings = "tnum"),
             color = c.label, maxLines = 1,
         )
         Waveform(rmsDb = s.rmsDb, active = recording)
         Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            SceneCapsule("录音不出手机", tone = CapsuleTone.Tint, icon = SceneIcons.Lock)
-            SceneCapsule(privacyWord(org.koin.compose.koinInject<AppSettings>().privacy.collectAsState().value), tone = CapsuleTone.Gray)
+            SceneCapsule(stringResource(Res.string.home_audio_stays_local), tone = CapsuleTone.Tint, icon = SceneIcons.Lock)
+            SceneCapsule(privacyLabel(org.koin.compose.koinInject<AppSettings>().privacy.collectAsState().value), tone = CapsuleTone.Gray)
         }
     }
 }
@@ -248,7 +253,7 @@ private fun DraftList(s: MeetingState, modifier: Modifier = Modifier) {
             }
         }
         val notice = noticeText(s)
-        if (notice != null) item(key = "notice") { SceneText(notice, style = SceneTheme.type.footnote, color = c.secondaryLabel) }
+        if (notice != null) item(key = "notice") { SceneText(stringResource(notice), style = SceneTheme.type.footnote, color = c.secondaryLabel) }
     }
 }
 
@@ -271,15 +276,15 @@ private fun DraftRow(time: String, text: String, color: Color) {
 private fun EmptyOrError(s: MeetingState) {
     val c = SceneTheme.colors
     val notice = noticeText(s)
-    if (notice != null) SceneText(notice, style = SceneTheme.type.footnote, color = c.secondaryLabel)
-    else SceneText("开始后边说边出字，停止后自动整理成纪要", style = SceneTheme.type.title3.copy(fontWeight = FontWeight.Normal), color = c.tertiaryLabel)
+    if (notice != null) SceneText(stringResource(notice), style = SceneTheme.type.footnote, color = c.secondaryLabel)
+    else SceneText(stringResource(Res.string.meeting_empty_hint), style = SceneTheme.type.title3.copy(fontWeight = FontWeight.Normal), color = c.tertiaryLabel)
 }
 
 /** 出错一行：还没开始就失败 = 语音包没下载；录音中出错 = 识别出错。 */
-private fun noticeText(s: MeetingState): String? = when {
+private fun noticeText(s: MeetingState): StringResource? = when {
     s.error == null -> null
-    s.state == RecState.IDLE && s.sessionId == null -> "语音包未下载"
-    else -> "识别出错，请重试"
+    s.state == RecState.IDLE && s.sessionId == null -> Res.string.live_pack_missing
+    else -> Res.string.meeting_asr_error
 }
 
 // ---------- dock ----------
@@ -287,7 +292,7 @@ private fun noticeText(s: MeetingState): String? = when {
 /** 标记要点：黄圆 56 pt，已标记数显示在图标下方。 */
 @Composable
 private fun MarkButton(count: Int, enabled: Boolean, onClick: () -> Unit) {
-    val desc = if (count > 0) "标记要点，已标记 $count 处" else "标记要点"
+    val desc = if (count > 0) stringResource(Res.string.meeting_mark_cd_count, count) else stringResource(Res.string.meeting_mark_cd)
     SceneButton(
         onClick = onClick, modifier = Modifier.size(56.dp).semantics { contentDescription = desc },
         style = ButtonStyle.Warning, enabled = enabled, height = 56.dp, shape = CircleShape, contentPadding = 0.dp,
@@ -303,11 +308,11 @@ private fun MarkButton(count: Int, enabled: Boolean, onClick: () -> Unit) {
 @Composable
 private fun MainButton(state: RecState, onStart: () -> Unit, onPause: () -> Unit, onResume: () -> Unit) {
     val (label, icon, enabled) = when (state) {
-        RecState.RECORDING -> Triple("暂停", SceneIcons.Pause, true)
-        RecState.PAUSED -> Triple("继续", SceneIcons.Play, true)
-        RecState.IDLE -> Triple("开始", SceneIcons.Play, true)
-        RecState.PREPARING -> Triple("准备中", SceneIcons.Play, false)
-        RecState.FINISHING -> Triple("整理中", SceneIcons.Stop, false)
+        RecState.RECORDING -> Triple(Res.string.live_pause, SceneIcons.Pause, true)
+        RecState.PAUSED -> Triple(Res.string.live_resume, SceneIcons.Play, true)
+        RecState.IDLE -> Triple(Res.string.live_start, SceneIcons.Play, true)
+        RecState.PREPARING -> Triple(Res.string.live_arming, SceneIcons.Play, false)
+        RecState.FINISHING -> Triple(Res.string.meeting_finishing, SceneIcons.Stop, false)
     }
     SceneButton(
         onClick = { when (state) { RecState.RECORDING -> onPause(); RecState.PAUSED -> onResume(); RecState.IDLE -> onStart(); else -> Unit } },
@@ -315,24 +320,16 @@ private fun MainButton(state: RecState, onStart: () -> Unit, onPause: () -> Unit
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             SceneIcon(icon, contentDescription = null, size = 26.dp)
-            SceneText(label, style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+            SceneText(stringResource(label), style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
         }
     }
 }
 
 /** 状态行的一个词。 */
-private fun stateWord(s: RecState): String = when (s) {
-    RecState.IDLE -> "未开始"
-    RecState.PREPARING -> "准备中…"
-    RecState.RECORDING -> "录音中"
-    RecState.PAUSED -> "已暂停"
-    RecState.FINISHING -> "整理中…"
-}
-
-/** 联网权限一词（docs/15 词表）。 */
-private fun privacyWord(p: dev.scenenote.core.model.PrivacyMode): String = when (p) {
-    dev.scenenote.core.model.PrivacyMode.Locked -> "不联网"
-    dev.scenenote.core.model.PrivacyMode.LocalWithPerSegmentConsent -> "每次询问"
-    dev.scenenote.core.model.PrivacyMode.TextOnlyCloud -> "只发文字"
-    dev.scenenote.core.model.PrivacyMode.AudioCloud -> "文字和录音"
+private fun stateWord(s: RecState): StringResource = when (s) {
+    RecState.IDLE -> Res.string.live_state_idle
+    RecState.PREPARING -> Res.string.live_state_arming
+    RecState.RECORDING -> Res.string.meeting_recording
+    RecState.PAUSED -> Res.string.live_state_paused
+    RecState.FINISHING -> Res.string.meeting_finishing_ellipsis
 }

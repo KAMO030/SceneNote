@@ -1,0 +1,160 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Start Listening": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始仅听"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聞くだけを開始"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "듣기 시작"
+          }
+        }
+      }
+    },
+    "Quick Phrase": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "速译一句"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ひとこと翻訳"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "한마디 번역"
+          }
+        }
+      }
+    },
+    "Face-to-face Conversation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "面对面对话"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対面会話"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대면 대화"
+          }
+        }
+      }
+    },
+    "Face-to-face": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "面对面对话"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対面"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대면"
+          }
+        }
+      }
+    },
+    "Opens SceneNote and starts listening right away: hear the translation in your earbuds as they talk.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开场记并立即开始仅听：对方说什么，耳机里听译文。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SceneNote を開いてすぐに聞くだけを開始：相手が話すと、イヤホンで訳文が聞こえます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SceneNote를 열고 바로 듣기를 시작해요: 상대가 말하면 이어폰으로 번역이 들려요."
+          }
+        }
+      }
+    },
+    "Opens SceneNote's quick phrase: say a line and show it in big text.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开场记的速译一句：说一句，大字朝向对方。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SceneNote のひとこと翻訳を開く：一言話すと、大きな文字で相手に見せます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SceneNote의 한마디 번역을 열어요: 한마디 하면 큰 글자로 상대에게 보여줘요."
+          }
+        }
+      }
+    },
+    "Opens SceneNote and starts a face-to-face conversation: listen through your earbuds and hand over half the screen.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开场记并开始面对面对话：戴上耳机就能听，掏出手机对方看半屏。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SceneNote を開いて対面会話を開始：イヤホンで聞き、スマホの半画面を相手に見せます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SceneNote를 열고 대면 대화를 시작해요: 이어폰으로 듣고 폰 반 화면을 상대에게 보여줘요."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

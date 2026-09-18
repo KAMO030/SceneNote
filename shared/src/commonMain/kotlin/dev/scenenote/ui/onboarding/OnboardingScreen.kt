@@ -53,6 +53,8 @@ import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
 import dev.scenenote.core.platform.PlatformInfo
 import dev.scenenote.core.platform.isIos
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
 
 private const val PAGE_COUNT = 3
 
@@ -68,7 +70,7 @@ fun OnboardingScreen(initialPage: Int, onDone: () -> Unit, onOpenModels: () -> U
     val next = { page = (page + 1).coerceAtMost(PAGE_COUNT - 1) }
     GlassScaffold(
         background = c.systemBackground,
-        topBar = { SceneNavBar(trailing = { SceneGlassCapsuleButton("跳过", onClick = onDone) }) },
+        topBar = { SceneNavBar(trailing = { SceneGlassCapsuleButton(stringResource(Res.string.onb_skip), onClick = onDone) }) },
         bottomBar = {
             SceneDock(height = 72.dp) {
                 Row(Modifier.padding(start = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -76,7 +78,7 @@ fun OnboardingScreen(initialPage: Int, onDone: () -> Unit, onOpenModels: () -> U
                 }
                 Spacer(Modifier.width(12.dp))
                 SceneButton(
-                    if (last) "开始使用" else "继续",
+                    stringResource(if (last) Res.string.onb_get_started else Res.string.onb_continue),
                     onClick = { if (last) onDone() else next() },
                     style = ButtonStyle.Prominent, height = 56.dp, modifier = Modifier.weight(1f),
                 )
@@ -104,12 +106,12 @@ fun OnboardingScreen(initialPage: Int, onDone: () -> Unit, onOpenModels: () -> U
 private fun HowToPage() {
     val c = SceneTheme.colors
     Column(Modifier.padding(horizontal = SceneSpacing.page), verticalArrangement = Arrangement.spacedBy(SceneSpacing.m)) {
-        SceneText("戴上耳机，\n对方说话，你听译文", style = SceneTheme.type.title1)
-        SceneText("手机放胸前，不用举、不用看", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+        SceneText(stringResource(Res.string.onb_howto_title), style = SceneTheme.type.title1)
+        SceneText(stringResource(Res.string.onb_howto_sub), style = SceneTheme.type.subheadline, color = c.secondaryLabel)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PostureCard(Posture.Pocket, "胸前口袋", Modifier.weight(1f))
-            PostureCard(Posture.Hand, "手持胸前", Modifier.weight(1f))
-            PostureCard(Posture.Lanyard, "挂绳", Modifier.weight(1f))
+            PostureCard(Posture.Pocket, stringResource(Res.string.onb_posture_pocket), Modifier.weight(1f))
+            PostureCard(Posture.Hand, stringResource(Res.string.onb_posture_hand), Modifier.weight(1f))
+            PostureCard(Posture.Lanyard, stringResource(Res.string.onb_posture_lanyard), Modifier.weight(1f))
         }
     }
 }
@@ -172,23 +174,23 @@ private fun PostureIllustration(posture: Posture) {
 @Composable
 private fun KeyPage(onOpenModels: () -> Unit, onLater: () -> Unit, onOpenKey: () -> Unit) {
     Column(Modifier.padding(horizontal = SceneSpacing.page), verticalArrangement = Arrangement.spacedBy(SceneSpacing.m)) {
-        SceneText("要不要填翻译 Key", style = SceneTheme.type.title1)
+        SceneText(stringResource(Res.string.onb_key_title), style = SceneTheme.type.title1)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CapabilityColumn(
-                "不填也能", SceneIcons.Check,
-                listOf("识别普通话", "识别英文", "识别四川话", "本机朗读"),
+                stringResource(Res.string.onb_without_key), SceneIcons.Check,
+                listOf(stringResource(Res.string.onb_cap_zh), stringResource(Res.string.onb_cap_en), stringResource(Res.string.onb_cap_sichuan), stringResource(Res.string.onb_cap_offline_mt), stringResource(Res.string.onb_cap_local_tts)),
                 Modifier.weight(1f),
             )
             CapabilityColumn(
-                "填了才能", SceneIcons.Key,
-                listOf("翻译", "更多语言"),
+                stringResource(Res.string.onb_with_key), SceneIcons.Key,
+                listOf(stringResource(Res.string.onb_cap_translate), stringResource(Res.string.onb_cap_more_langs)),
                 Modifier.weight(1f),
             )
         }
-        SceneButton("去填 Key", onClick = onOpenKey, style = ButtonStyle.Prominent, modifier = Modifier.fillMaxWidth())
+        SceneButton(stringResource(Res.string.onb_go_key), onClick = onOpenKey, style = ButtonStyle.Prominent, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneButton("稍后", onClick = onLater, style = ButtonStyle.Gray, modifier = Modifier.weight(1f))
-            SceneButton("先下载语音包", onClick = onOpenModels, style = ButtonStyle.Tinted, modifier = Modifier.weight(1f))
+            SceneButton(stringResource(Res.string.onb_later), onClick = onLater, style = ButtonStyle.Gray, modifier = Modifier.weight(1f))
+            SceneButton(stringResource(Res.string.onb_download_packs_first), onClick = onOpenModels, style = ButtonStyle.Tinted, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -218,23 +220,20 @@ private fun EntryPage() {
     val c = SceneTheme.colors
     val ios = PlatformInfo.isIos
     Column(Modifier.padding(horizontal = SceneSpacing.page)) {
-        SceneText("一键开始", style = SceneTheme.type.title1)
+        SceneText(stringResource(Res.string.onb_entry_title), style = SceneTheme.type.title1)
     }
     Column {
         SceneGroup(background = c.secondarySystemBackground) {
             if (ios) {
-                SceneRow("快捷指令", value = "仅听 · 速译 · 面对面")
+                SceneRow(stringResource(Res.string.onb_shortcuts), value = stringResource(Res.string.onb_shortcuts_value))
                 SceneDivider()
-                SceneRow("操作按钮", value = "仅听")
+                SceneRow(stringResource(Res.string.onb_action_button), value = stringResource(Res.string.scene_listen))
             } else {
-                SceneRow("快捷设置磁贴", value = "仅听 · 速译")
+                SceneRow(stringResource(Res.string.settings_entry_tile), value = stringResource(Res.string.onb_tile_value))
             }
             SceneDivider()
-            SceneRow("耳机按键", value = "开始 / 暂停")
+            SceneRow(stringResource(Res.string.settings_entry_headset), value = stringResource(Res.string.onb_headset_value))
         }
-        SceneSectionFooter(
-            if (ios) "设置 → 操作按钮 → 快捷指令，选「场记」"
-            else "下拉通知栏 → 编辑磁贴，拖入「场记」",
-        )
+        SceneSectionFooter(stringResource(if (ios) Res.string.onb_footer_ios else Res.string.onb_footer_android, stringResource(Res.string.app_name)))
     }
 }

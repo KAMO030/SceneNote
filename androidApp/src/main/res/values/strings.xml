@@ -1,4 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">场记</string>
-    <string name="widget_desc">一按开始仅听或会议</string>
+    <string name="app_name">SceneNote</string>
+    <string name="widget_desc">One tap to start listening or a meeting</string>
+    <string name="tile_listen">Listen only</string>
+    <string name="tile_quick_phrase">Quick phrase</string>
+    <string name="tile_screen_caption">Screen captions</string>
+    <string name="widget_listen">Listen</string>
+    <string name="widget_meeting">Meeting</string>
+    <string name="capture_channel_name">System captions</string>
+    <string name="capture_channel_desc">Shown while capturing audio from other apps for captions</string>
+    <string name="capture_notification_title">System captions</string>
+    <string name="capture_notification_text">Listening…</string>
+    <string name="capture_notification_stop">Stop</string>
 </resources>

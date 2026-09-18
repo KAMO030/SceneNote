@@ -76,7 +76,7 @@ class BailianMtTranslator(
     override fun supports(src: String, tgt: String): Boolean = hasKey() && src != tgt
 
     override suspend fun translate(req: MtRequest): MtResult {
-        val key = wallet.key(provider.id) ?: throw MtFailed("未填写百炼 API Key", retryable = false)
+        val key = wallet.key(provider.id) ?: throw MtFailed("Bailian API key not set", retryable = false)
         val base = wallet.baseUrl(provider.id)?.trimEnd('/')?.takeIf { it.isNotBlank() } ?: "https://${provider.host}/compatible-mode/v1"
         val url = "$base/chat/completions"
         val m = model
@@ -105,13 +105,13 @@ class BailianMtTranslator(
             if (status !in 200..299) {
                 val msg = runCatching { EgressGate.json.parseToJsonElement(text).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content }.getOrNull()
                 throw MtFailed(
-                    when (status) { 401 -> "百炼 Key 无效或未开通（401）"; 429 -> "百炼限流（429）"; else -> "百炼 HTTP $status${msg?.let { "：$it" } ?: ""}" },
+                    when (status) { 401 -> "Bailian key invalid or not enabled (401)"; 429 -> "Bailian rate limited (429)"; else -> "Bailian HTTP $status${msg?.let { ": $it" } ?: ""}" },
                     retryable = status != 401,
                 )
             }
             val j = EgressGate.json.parseToJsonElement(text).jsonObject
             val content = j["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content
-                ?: throw MtFailed("百炼响应缺少 choices[0].message.content")
+                ?: throw MtFailed("Bailian response missing choices[0].message.content")
             val usage = j["usage"]?.jsonObject
             val inTok = usage?.get("prompt_tokens")?.jsonPrimitive?.content?.toIntOrNull() ?: 0
             val outTok = usage?.get("completion_tokens")?.jsonPrimitive?.content?.toIntOrNull() ?: 0
@@ -130,11 +130,11 @@ class BailianMtTranslator(
 class KeyTester(private val bailian: BailianMtTranslator, private val consent: dev.scenenote.core.egress.ConsentRegistry) {
     /** 用户主动点"测试"= 对这一次请求的显式授权（逐段授权档下也放行；锁定档仍由 EgressGate 拒绝）。 */
     suspend fun testBailian(): KeyTestResult {
-        if (!bailian.hasKey()) return KeyTestResult(false, "还没有填写 Key")
+        if (!bailian.hasKey()) return KeyTestResult(false, "key not set")
         consent.grantSession(SESSION)
         return try {
             val r = bailian.translate(MtRequest("你好，很高兴见到你。", Lang.ZH_CN, Lang.EN, sessionId = SESSION))
-            KeyTestResult(true, "连接正常", r.latencyMs, r.model, r.text, r.estCost)
+            KeyTestResult(true, "ok", r.latencyMs, r.model, r.text, r.estCost)
         } catch (e: Exception) { KeyTestResult(false, e.message ?: e.toString()) }
         finally { consent.revokeSession(SESSION) }
     }

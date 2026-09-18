@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_channel_name">알림</string>
+    <string name="notif_channel_desc">녹음 후 회의록 및 되돌아보기 알림</string>
+</resources>

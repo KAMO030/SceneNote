@@ -45,7 +45,7 @@ class AndroidNotifier(context: Context) : Notifier {
         fun ensureChannel(ctx: Context) {
             if (Build.VERSION.SDK_INT < 26) return
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (nm.getNotificationChannel(CHANNEL) == null) nm.createNotificationChannel(NotificationChannel(CHANNEL, "提醒", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "录音后的纪要与回顾提醒" })
+            if (nm.getNotificationChannel(CHANNEL) == null) nm.createNotificationChannel(NotificationChannel(CHANNEL, ctx.getString(dev.scenenote.shared.R.string.notif_channel_name), NotificationManager.IMPORTANCE_DEFAULT).apply { description = ctx.getString(dev.scenenote.shared.R.string.notif_channel_desc) })
         }
     }
 }

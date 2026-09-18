@@ -43,7 +43,7 @@ class BailianLlm(private val egress: EgressGate, private val wallet: KeyWallet, 
     val model: String get() = settings.llmModel
 
     suspend fun complete(system: String, user: String, sessionId: String?, jsonMode: Boolean = true, maxTokens: Int = 2048): LlmResult {
-        val key = wallet.key(provider.id) ?: throw LlmFailed("未填写 Key", 401)
+        val key = wallet.key(provider.id) ?: throw LlmFailed("key not set", 401)
         val base = wallet.baseUrl(provider.id)?.trimEnd('/')?.takeIf { it.isNotBlank() } ?: "https://${provider.host}/compatible-mode/v1"
         val m = model
         val body: JsonObject = buildJsonObject {
@@ -67,10 +67,10 @@ class BailianLlm(private val egress: EgressGate, private val wallet: KeyWallet, 
             val status = resp.status.value
             if (status !in 200..299) {
                 val msg = runCatching { EgressGate.json.parseToJsonElement(text).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content }.getOrNull()
-                throw LlmFailed(when (status) { 401, 403 -> "Key 无效或未开通"; 429 -> "云端限流，稍后重试"; else -> "云端出错 $status${msg?.let { "：$it" } ?: ""}" }, status)
+                throw LlmFailed(when (status) { 401, 403 -> "key invalid or not enabled"; 429 -> "rate limited, retry later"; else -> "cloud error $status${msg?.let { ": $it" } ?: ""}" }, status)
             }
             val j = EgressGate.json.parseToJsonElement(text).jsonObject
-            val content = j["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content ?: throw LlmFailed("响应缺少内容")
+            val content = j["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content ?: throw LlmFailed("response has no content")
             val usage = j["usage"]?.jsonObject
             val inTok = usage?.get("prompt_tokens")?.jsonPrimitive?.content?.toIntOrNull() ?: 0
             val outTok = usage?.get("completion_tokens")?.jsonPrimitive?.content?.toIntOrNull() ?: 0

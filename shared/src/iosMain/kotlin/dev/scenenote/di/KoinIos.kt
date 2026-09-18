@@ -32,6 +32,7 @@ fun iosPlatformModule(): Module = module {
     single<AppPaths> { IosAppPaths() }
     // 平台能力：姿态（CoreMotion + 近距离）/ 热与电量（ProcessInfo + UIDevice）/ 媒体键（MPRemoteCommandCenter）/ 常亮最亮（UIKit）
     single<PostureSensor> { IosPostureSensor() }
+    single<dev.scenenote.core.platform.AppLocale> { dev.scenenote.core.platform.IosAppLocale() }
     single<ThermalMonitor> { IosThermalMonitor() }
     single<MediaKeys> { IosMediaKeys() }
     single<ScreenKeeper> { IosScreenKeeper() }

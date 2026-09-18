@@ -59,7 +59,7 @@ class KeychainSecureStore(private val service: String = "dev.scenenote.secure") 
         val status = SecItemAdd(query, null)
         CFRelease(query)
         CFRelease(dataRef)
-        if (status != errSecSuccess) error("Keychain 写入失败（OSStatus $status）")
+        if (status != errSecSuccess) error("Keychain write failed (OSStatus $status)")
     }
 
     override fun remove(key: String) {

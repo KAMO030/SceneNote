@@ -23,12 +23,13 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name="dev.scenenote.android.MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|locale|layoutDirection"
             android:supportsPictureInPicture="true"
             android:launchMode="singleTask">
             <intent-filter>
@@ -106,7 +107,6 @@
             </intent-filter>
             <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
         </service>
-
         <!-- 「屏内翻译」（屏内 S1）：在 YouTube 等 App 里下拉点一下 → 系统投屏弹窗 → 抓取开始 → 切回视频时自动进画中画字幕条 -->
         <service
             android:name="dev.scenenote.android.ScreenCaptionTileService"
@@ -119,6 +119,7 @@
             </intent-filter>
             <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="false" />
         </service>
+
         <!-- 系统分享（I5 会议卡 / 资料库导出）：把 filesDir / cacheDir 下的 .md / .voxnote / .png 以 content:// 交给分享面板 -->
         <provider
             android:name="androidx.core.content.FileProvider"

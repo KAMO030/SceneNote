@@ -13,7 +13,7 @@ import org.koin.compose.viewmodel.koinViewModel
  */
 @Composable
 fun LiveConversationScreen(
-    sceneId: String, onBack: () -> Unit, onOpenModels: () -> Unit, autostart: Boolean, otherLang: String, myLang: String, feed: String,
+    sceneId: String, onBack: () -> Unit, onOpenModels: (List<String>) -> Unit, autostart: Boolean, otherLang: String, myLang: String, feed: String,
     onOpenQuickPhrase: () -> Unit,
     initialMode: String = "",
     /** 结束会话后的去向：有落库的会话 → 对话卡片页，否则返回。 */

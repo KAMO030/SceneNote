@@ -1,6 +1,8 @@
 package dev.scenenote.core.model
 
+import dev.scenenote.shared.resources.*
 import kotlinx.serialization.Serializable
+import org.jetbrains.compose.resources.StringResource
 
 // ---------- 模式矩阵（附录 A.2；03 篇 §3.2） ----------
 @Serializable enum class InputSource { MIC, SYSTEM_AUDIO, SCREEN_TEXT, MEDIA_FILE, REMOTE_STREAM }
@@ -64,6 +66,18 @@ object ModeSpecs {
     private val byId = all.associateBy { it.id }
     fun byId(id: String): ModeSpec = byId[id] ?: error("unknown mode $id")
     val mvp: List<ModeSpec> get() = all.filter { it.stage == "P0" }
+
+    /** 模式名 / 一句话说明按界面语言显示；`name` / `summary` 字段是文档对齐的中文源。 */
+    fun nameRes(id: String): StringResource = when (id) {
+        "M0" -> Res.string.mode_m0; "M1" -> Res.string.mode_m1; "M2" -> Res.string.mode_m2; "M3" -> Res.string.mode_m3; "M4" -> Res.string.mode_m4
+        "M5" -> Res.string.mode_m5; "M6" -> Res.string.mode_m6; "M7" -> Res.string.mode_m7; "M8" -> Res.string.mode_m8; "M9" -> Res.string.mode_m9
+        "M10" -> Res.string.mode_m10; "M11" -> Res.string.mode_m11; else -> Res.string.mode_m12
+    }
+    fun summaryRes(id: String): StringResource = when (id) {
+        "M0" -> Res.string.mode_m0_summary; "M1" -> Res.string.mode_m1_summary; "M2" -> Res.string.mode_m2_summary; "M3" -> Res.string.mode_m3_summary; "M4" -> Res.string.mode_m4_summary
+        "M5" -> Res.string.mode_m5_summary; "M6" -> Res.string.mode_m6_summary; "M7" -> Res.string.mode_m7_summary; "M8" -> Res.string.mode_m8_summary; "M9" -> Res.string.mode_m9_summary
+        "M10" -> Res.string.mode_m10_summary; "M11" -> Res.string.mode_m11_summary; else -> Res.string.mode_m12_summary
+    }
 }
 
 @Serializable enum class Speaker { ME, OTHER, REMOTE, UNKNOWN }

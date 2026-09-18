@@ -39,10 +39,10 @@ class AndroidSystemTts private constructor(private val context: Context, private
         tts.language = localeFor(req.lang)
         tts.setSpeechRate(req.rate)
         val r = tts.synthesizeToFile(req.text, null, file, req.utteranceId)
-        if (r != TextToSpeech.SUCCESS) throw TtsFailed("系统 TTS 拒绝合成（$r）")
+        if (r != TextToSpeech.SUCCESS) throw TtsFailed("system TTS refused synthesis ($r)")
         val ok = withTimeoutOrNull(15_000) { done.await() } ?: false
-        if (!ok) { file.delete(); throw TtsFailed("系统 TTS 合成失败或超时") }
-        val pcm = withContext(Dispatchers.IO) { runCatching { WavIo.readPcm16k(file.absolutePath) }.also { file.delete() }.getOrElse { throw TtsFailed("读取系统 TTS 输出失败：${it.message}", it) } }
+        if (!ok) { file.delete(); throw TtsFailed("system TTS synthesis failed or timed out") }
+        val pcm = withContext(Dispatchers.IO) { runCatching { WavIo.readPcm16k(file.absolutePath) }.also { file.delete() }.getOrElse { throw TtsFailed("failed to read system TTS output: ${it.message}", it) } }
         val firstMs = t0.elapsedNow().inWholeMilliseconds
         var off = 0; var sent = 0
         while (off < pcm.size) {

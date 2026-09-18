@@ -46,6 +46,11 @@ import platform.posix.fopen
 import platform.posix.fseek
 import platform.posix.fwrite
 import kotlin.coroutines.coroutineContext
+import dev.scenenote.core.i18n.UiException
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.core.i18n.uiError
+import dev.scenenote.core.i18n.uiText
+import dev.scenenote.shared.resources.*
 
 /**
  * iOS 抽音频（S4 快路径前置）：AVURLAsset → AVAssetReader + AVAssetReaderAudioMixOutput（多音轨自动混成一路）
@@ -59,27 +64,27 @@ class IosAudioExtractor : AudioExtractor {
 
     override suspend fun extractPcm16k(videoPath: String, onProgress: (Float) -> Unit): String = withContext(Dispatchers.Default) {
         if (videoPath.endsWith(".m3u8", ignoreCase = true) || videoPath.endsWith(".movpkg", ignoreCase = true)) {
-            error("暂不支持流媒体链接：可改用已保存的视频文件。")
+            uiError(Res.string.media_stream_unsupported)
         }
         val asset = AVURLAsset(uRL = NSURL.fileURLWithPath(videoPath), options = null)
         val totalSec = asset.duration.useContents { if (timescale == 0) 0.0 else value.toDouble() / timescale }
         val tracks = asset.tracksWithMediaType(AVMediaTypeAudio).filterIsInstance<AVAssetTrack>()
-        if (tracks.isEmpty()) error("这个视频没有声音轨道。")
+        if (tracks.isEmpty()) uiError(Res.string.media_no_audio)
 
         val reader = memScoped {
             val err = alloc<ObjCObjectVar<NSError?>>()
             AVAssetReader.assetReaderWithAsset(asset, error = err.ptr)
-                ?: error("视频无法读取${err.value?.localizedDescription?.let { "：$it" } ?: "。"}")
+                ?: uiError(Res.string.media_cannot_read_video, err.value?.localizedDescription?.let { ": $it" } ?: "")
         }
         val output = AVAssetReaderAudioMixOutput(audioTracks = tracks, audioSettings = pcmSettings()).apply {
             alwaysCopiesSampleData = false
         }
-        if (!reader.canAddOutput(output)) error("这个视频的声音格式暂不支持。")
+        if (!reader.canAddOutput(output)) uiError(Res.string.media_unsupported_audio)
         reader.addOutput(output)
-        if (!reader.startReading()) error("视频无法读取：${reader.error?.localizedDescription ?: "未知原因"}")
+        if (!reader.startReading()) uiError(Res.string.media_cannot_read_video, reader.error?.localizedDescription?.let { ": $it" } ?: "")
 
         val outPath = NSTemporaryDirectory().trimEnd('/') + "/scenenote-pcm16k-" + NSUUID().UUIDString + ".wav"
-        val file = fopen(outPath, "wb") ?: run { reader.cancelReading(); error("无法写入临时文件。") }
+        val file = fopen(outPath, "wb") ?: run { reader.cancelReading(); uiError(Res.string.media_cannot_write_temp, "") }
         var dataBytes = 0L
         var scratch = ByteArray(64 * 1024)
         try {
@@ -97,7 +102,7 @@ class IosAudioExtractor : AudioExtractor {
                             if (len > 0) {
                                 if (scratch.size < len) scratch = ByteArray(len)
                                 val status = scratch.usePinned { CMBlockBufferCopyDataBytes(block, 0u, len.toULong(), it.addressOf(0)) }
-                                if (status != 0) error("读取声音数据失败（$status）。")
+                                if (status != 0) uiError(Res.string.media_undecodable)
                                 scratch.usePinned { fwrite(it.addressOf(0), 1u, len.toULong(), file) }
                                 dataBytes += len
                             }
@@ -110,7 +115,7 @@ class IosAudioExtractor : AudioExtractor {
                         CFRelease(sample)
                     }
                 }
-                if (reader.status == AVAssetReaderStatusFailed) error("视频无法读取：${reader.error?.localizedDescription ?: "未知原因"}")
+                if (reader.status == AVAssetReaderStatusFailed) uiError(Res.string.media_cannot_read_video, reader.error?.localizedDescription?.let { ": $it" } ?: "")
                 // 回填 RIFF / data 长度
                 fseek(file, 0, SEEK_SET)
                 wavHeader(dataBytes.toInt()).usePinned { fwrite(it.addressOf(0), 1u, WAV_HEADER_SIZE.toULong(), file) }

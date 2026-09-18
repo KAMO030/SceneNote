@@ -36,6 +36,11 @@ import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import dev.scenenote.core.i18n.UiException
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.core.i18n.uiError
+import dev.scenenote.core.i18n.uiText
+import dev.scenenote.shared.resources.*
 
 /**
  * iOS 选视频（S4 入口）：
@@ -58,7 +63,7 @@ class IosMediaPicker : MediaPicker {
     // ---------- 相册 ----------
 
     private suspend fun pickFromGallery(): MediaItem? = withContext(Dispatchers.Main) {
-        val host = topViewController() ?: error("现在无法打开相册，请稍后再试。")
+        val host = topViewController() ?: uiError(Res.string.media_cannot_open_gallery)
         suspendCancellableCoroutine { cont ->
             val config = PHPickerConfiguration().apply {
                 filter = PHPickerFilter.videosFilter
@@ -82,25 +87,25 @@ class IosMediaPicker : MediaPicker {
             picker.dismissViewControllerAnimated(true, completion = null)
             val provider = didFinishPicking.filterIsInstance<PHPickerResult>().firstOrNull()?.itemProvider
             if (provider == null) { finish(null); return }
-            if (!provider.hasItemConformingToTypeIdentifier(TYPE_MOVIE)) { fail("选中的不是视频。"); return }
+            if (!provider.hasItemConformingToTypeIdentifier(TYPE_MOVIE)) { fail(UiText.res(Res.string.media_not_a_video)); return }
             // 回调里的 url 只在回调期间有效，必须同步拷走
             provider.loadFileRepresentationForTypeIdentifier(TYPE_MOVIE) { url, error ->
-                if (url == null) { fail("无法读取这段视频${error?.localizedDescription?.let { "：$it" } ?: ""}"); return@loadFileRepresentationForTypeIdentifier }
+                if (url == null) { fail(UiText.res(Res.string.media_cannot_read_video, error?.localizedDescription?.let { ": $it" } ?: "")); return@loadFileRepresentationForTypeIdentifier }
                 val name = provider.suggestedName?.takeIf { it.isNotBlank() }?.let { n -> url.pathExtension?.takeIf { it.isNotBlank() && !n.endsWith(".$it") }?.let { "$n.$it" } ?: n }
                     ?: url.lastPathComponent ?: "video.mov"
                 val copied = runCatching { copyToTmp(url, name) }
                 copied.onSuccess { finish(mediaItem(it, name, MediaSource.GALLERY)) }
-                    .onFailure { fail(it.message ?: "无法读取这段视频。") }
+                    .onFailure { fail(it.uiText()) }
             }
         }
         private fun finish(item: MediaItem?) { done(); if (cont.isActive) cont.resume(item) }
-        private fun fail(msg: String) { done(); if (cont.isActive) cont.resumeWithException(IllegalStateException(msg)) }
+        private fun fail(msg: UiText) { done(); if (cont.isActive) cont.resumeWithException(UiException(msg)) }
     }
 
     // ---------- 文件 ----------
 
     private suspend fun pickFromFiles(): MediaItem? = withContext(Dispatchers.Main) {
-        val host = topViewController() ?: error("现在无法打开文件，请稍后再试。")
+        val host = topViewController() ?: uiError(Res.string.media_cannot_open_files)
         suspendCancellableCoroutine { cont ->
             val picker = UIDocumentPickerViewController(forOpeningContentTypes = listOf(platform.UniformTypeIdentifiers.UTTypeAudiovisualContent), asCopy = true)   // 视频 + 纯音频（网课 MP3）
             picker.allowsMultipleSelection = false
@@ -126,11 +131,11 @@ class IosMediaPicker : MediaPicker {
             if (secured) url.stopAccessingSecurityScopedResource()
             url.path?.let { NSFileManager.defaultManager.removeItemAtPath(it, error = null) }
             copied.onSuccess { finish(mediaItem(it, name, MediaSource.FILE)) }
-                .onFailure { fail(it.message ?: "无法读取这个文件。") }
+                .onFailure { fail(it.uiText()) }
         }
         override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) { finish(null) }
         private fun finish(item: MediaItem?) { done(); if (cont.isActive) cont.resume(item) }
-        private fun fail(msg: String) { done(); if (cont.isActive) cont.resumeWithException(IllegalStateException(msg)) }
+        private fun fail(msg: UiText) { done(); if (cont.isActive) cont.resumeWithException(UiException(msg)) }
     }
 
     private companion object {
@@ -144,10 +149,10 @@ class IosMediaPicker : MediaPicker {
             memScoped {
                 val err = alloc<ObjCObjectVar<NSError?>>()
                 if (!fm.createDirectoryAtPath(dir, withIntermediateDirectories = true, attributes = null, error = err.ptr)) {
-                    error("无法写入临时文件${err.value?.localizedDescription?.let { "：$it" } ?: ""}")
+                    uiError(Res.string.media_cannot_write_temp, err.value?.localizedDescription?.let { ": $it" } ?: "")
                 }
                 if (!fm.copyItemAtURL(src, toURL = NSURL.fileURLWithPath(dst), error = err.ptr)) {
-                    error("无法读取这段视频${err.value?.localizedDescription?.let { "：$it" } ?: ""}")
+                    uiError(Res.string.media_cannot_read_video, err.value?.localizedDescription?.let { ": $it" } ?: "")
                 }
             }
             return dst

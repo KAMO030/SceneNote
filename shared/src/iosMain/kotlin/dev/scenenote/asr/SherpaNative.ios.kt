@@ -97,9 +97,9 @@ actual object SherpaNative {
             c.hotwords_score = spec.hotwordsScore
             c.rule_fsts = "".cstr.ptr; c.rule_fars = "".cstr.ptr
             SherpaOnnxCreateOnlineRecognizer(c.ptr)
-        } ?: throw IllegalStateException("流式识别器创建失败（检查模型路径）")
+        } ?: throw IllegalStateException("OnlineRecognizer create failed (check model paths)")
         return object : NativeOnlineRecognizer {
-            override fun createStream(): NativeOnlineStream = IosOnlineStream(SherpaOnnxCreateOnlineStream(rec) ?: error("创建流失败"))
+            override fun createStream(): NativeOnlineStream = IosOnlineStream(SherpaOnnxCreateOnlineStream(rec) ?: error("create stream failed"))
             override fun isReady(stream: NativeOnlineStream) = SherpaOnnxIsOnlineStreamReady(rec, (stream as IosOnlineStream).s) != 0
             override fun decode(stream: NativeOnlineStream) = SherpaOnnxDecodeOnlineStream(rec, (stream as IosOnlineStream).s)
             override fun result(stream: NativeOnlineStream): NativeOnlineResult {
@@ -143,7 +143,7 @@ actual object SherpaNative {
             c.max_active_paths = 4
             c.hotwords_file = "".cstr.ptr; c.rule_fsts = "".cstr.ptr; c.rule_fars = "".cstr.ptr
             SherpaOnnxCreateOfflineRecognizer(c.ptr)
-        } ?: throw IllegalStateException("SenseVoice 创建失败（检查模型路径）")
+        } ?: throw IllegalStateException("SenseVoice create failed (check model paths)")
         return IosOffline(rec)
     }
 
@@ -162,13 +162,13 @@ actual object SherpaNative {
             c.max_active_paths = 4
             c.hotwords_file = "".cstr.ptr; c.rule_fsts = "".cstr.ptr; c.rule_fars = "".cstr.ptr
             SherpaOnnxCreateOfflineRecognizer(c.ptr)
-        } ?: throw IllegalStateException("Paraformer 创建失败（检查模型路径）")
+        } ?: throw IllegalStateException("Paraformer create failed (check model paths)")
         return IosOffline(rec)
     }
 
     private class IosOffline(private val rec: CPointer<cnames.structs.SherpaOnnxOfflineRecognizer>) : NativeOfflineRecognizer {
         override fun transcribe(samples: FloatArray, sampleRate: Int): NativeOfflineResult {
-            val s = SherpaOnnxCreateOfflineStream(rec) ?: error("创建离线流失败")
+            val s = SherpaOnnxCreateOfflineStream(rec) ?: error("create offline stream failed")
             try {
                 samples.usePinned { p -> SherpaOnnxAcceptWaveformOffline(s, sampleRate, p.addressOf(0), samples.size) }
                 SherpaOnnxDecodeOfflineStream(rec, s)
@@ -197,7 +197,7 @@ actual object SherpaNative {
             c.silero_vad.max_speech_duration = spec.maxSpeechSec
             c.sample_rate = 16_000; c.num_threads = spec.numThreads; c.provider = "cpu".cstr.ptr; c.debug = 0
             SherpaOnnxCreateVoiceActivityDetector(c.ptr, spec.bufferSec)
-        } ?: throw IllegalStateException("VAD 创建失败（检查模型路径）")
+        } ?: throw IllegalStateException("VAD create failed (check model paths)")
         return object : NativeVad {
             override fun accept(samples: FloatArray) { samples.usePinned { p -> SherpaOnnxVoiceActivityDetectorAcceptWaveform(vad, p.addressOf(0), samples.size) } }
             override fun isSpeechDetected() = SherpaOnnxVoiceActivityDetectorDetected(vad) != 0
@@ -225,16 +225,16 @@ actual object SherpaNative {
             zeroed(kotlinx.cinterop.sizeOf<SherpaOnnxSpeakerEmbeddingExtractorConfig>(), c.ptr)
             c.model = spec.model.cstr.ptr; c.num_threads = spec.numThreads; c.debug = 0; c.provider = spec.provider.cstr.ptr
             SherpaOnnxCreateSpeakerEmbeddingExtractor(c.ptr)
-        } ?: throw IllegalStateException("声纹模型创建失败（检查模型路径）")
+        } ?: throw IllegalStateException("speaker model create failed (check model paths)")
         return object : NativeSpeakerExtractor {
             override val dim: Int = SherpaOnnxSpeakerEmbeddingExtractorDim(ex)
             override fun embed(samples: FloatArray, sampleRate: Int): FloatArray {
-                val s = SherpaOnnxSpeakerEmbeddingExtractorCreateStream(ex) ?: error("创建声纹流失败")
+                val s = SherpaOnnxSpeakerEmbeddingExtractorCreateStream(ex) ?: error("create speaker stream failed")
                 try {
                     samples.usePinned { p -> SherpaOnnxOnlineStreamAcceptWaveform(s, sampleRate, p.addressOf(0), samples.size) }
                     SherpaOnnxOnlineStreamInputFinished(s)
-                    check(SherpaOnnxSpeakerEmbeddingExtractorIsReady(ex, s) != 0) { "声纹：语音太短" }
-                    val e = SherpaOnnxSpeakerEmbeddingExtractorComputeEmbedding(ex, s) ?: error("声纹计算失败")
+                    check(SherpaOnnxSpeakerEmbeddingExtractorIsReady(ex, s) != 0) { "speaker embedding: utterance too short" }
+                    val e = SherpaOnnxSpeakerEmbeddingExtractorComputeEmbedding(ex, s) ?: error("speaker embedding failed")
                     try { return FloatArray(dim) { i -> e[i] } } finally { SherpaOnnxSpeakerEmbeddingExtractorDestroyEmbedding(e) }
                 } finally { SherpaOnnxDestroyOnlineStream(s) }
             }
@@ -273,7 +273,7 @@ actual object SherpaNative {
             c.rule_fars = "".cstr.ptr
             c.max_num_sentences = 1
             c.silence_scale = 0.2f
-            SherpaOnnxCreateOfflineTts(c.ptr) ?: error("TTS 创建失败（模型文件缺失或损坏）")
+            SherpaOnnxCreateOfflineTts(c.ptr) ?: error("TTS create failed (model files missing or corrupt)")
         }
         return object : NativeTts {
             override val sampleRate: Int = SherpaOnnxOfflineTtsSampleRate(handle)

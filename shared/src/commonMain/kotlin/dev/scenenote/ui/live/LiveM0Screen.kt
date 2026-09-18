@@ -50,7 +50,6 @@ import dev.scenenote.core.designsystem.SceneSize
 import dev.scenenote.core.designsystem.SceneSpacing
 import dev.scenenote.core.designsystem.SceneText
 import dev.scenenote.core.designsystem.SceneTheme
-import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.LiveState
 import dev.scenenote.core.model.PlaybackStatus
 import dev.scenenote.core.model.Speaker
@@ -58,6 +57,10 @@ import dev.scenenote.core.settings.AppSettings
 import dev.scenenote.core.settings.KeyWallet
 import dev.scenenote.live.LiveLine
 import dev.scenenote.live.PipelineHealth
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.i18n.langName
+import org.jetbrains.compose.resources.StringResource
+import dev.scenenote.core.i18n.stringResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -69,7 +72,7 @@ import org.koin.compose.viewmodel.koinViewModel
  */
 @Composable
 fun LiveM0Screen(
-    sceneId: String, onBack: () -> Unit, onOpenModels: () -> Unit, autostart: Boolean, otherLang: String, myLang: String, feed: String,
+    sceneId: String, onBack: () -> Unit, onOpenModels: (List<String>) -> Unit, autostart: Boolean, otherLang: String, myLang: String, feed: String,
     onOpenQuickPhrase: () -> Unit,
     vm: LiveViewModel = koinViewModel(),
 ) {
@@ -95,17 +98,17 @@ fun LiveM0Screen(
         topBar = {
             val (label, tone) = statusCapsule(ui.health, ui.voiceOut, hasKey)
             SceneNavBar(
-                title = "仅听",
-                onBack = finish, backContentDescription = "返回",
-                trailing = { SceneCapsule(label, tone = tone) },
+                title = stringResource(Res.string.scene_listen),
+                onBack = finish,
+                trailing = { SceneCapsule(stringResource(label), tone = tone) },
             )
         },
         bottomBar = {
             SceneDock {
-                SceneIconButton(SceneIcons.Mic, contentDescription = "速译一句", onClick = { vm.end(); onOpenQuickPhrase() }, size = 56.dp)   // 先结束本会话再切速译（单例状态机 / 麦克风）
+                SceneIconButton(SceneIcons.Mic, contentDescription = stringResource(Res.string.live_quick_phrase_cd), onClick = { vm.end(); onOpenQuickPhrase() }, size = 56.dp)   // 先结束本会话再切速译（单例状态机 / 麦克风）
                 PauseResumeButton(ui.state, onPause = vm::pause, onResume = vm::trigger)
-                SceneIconButton(SceneIcons.Speaker, contentDescription = if (ui.voiceOut) "语音：开" else "语音：关", onClick = { vm.setVoiceOut(!ui.voiceOut) }, size = 56.dp, style = if (ui.voiceOut) ButtonStyle.Tinted else ButtonStyle.Gray)
-                SceneIconButton(SceneIcons.Stop, contentDescription = "结束", onClick = finish, size = 56.dp, style = ButtonStyle.Destructive)
+                SceneIconButton(SceneIcons.Speaker, contentDescription = stringResource(if (ui.voiceOut) Res.string.live_voice_on else Res.string.live_voice_off), onClick = { vm.setVoiceOut(!ui.voiceOut) }, size = 56.dp, style = if (ui.voiceOut) ButtonStyle.Tinted else ButtonStyle.Gray)
+                SceneIconButton(SceneIcons.Stop, contentDescription = stringResource(Res.string.live_end), onClick = finish, size = 56.dp, style = ButtonStyle.Destructive)
             }
         },
     ) {
@@ -127,12 +130,13 @@ fun LiveM0Screen(
 
             if (ui.partial.isNotBlank()) {
                 Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.xs)) {
-                    SceneText("对方在说…", style = SceneTheme.type.footnote, color = c.secondaryLabel)
+                    SceneText(stringResource(Res.string.live_other_speaking), style = SceneTheme.type.footnote, color = c.secondaryLabel)
                     SceneText(ui.partial, style = SceneTheme.type.title3.copy(fontWeight = FontWeight.Normal), color = c.tertiaryLabel)
                 }
             }
 
             EngineNotice(ui.engine, ui.error, onOpenModels)
+            NmtNotice(ui, onOpenModels)
             PostureHint(onEnter = { vm.switchMode("M1") })
         }
     }
@@ -145,7 +149,7 @@ private const val HINT_KEY = "m0"
 private fun StatusRow(state: LiveState, live: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
         PulseDot(active = live)
-        SceneText(stateWord(state), Modifier.weight(1f), style = SceneTheme.type.footnote, color = SceneTheme.colors.secondaryLabel, maxLines = 1)
+        SceneText(stringResource(stateWord(state)), Modifier.weight(1f), style = SceneTheme.type.footnote, color = SceneTheme.colors.secondaryLabel, maxLines = 1)
     }
 }
 
@@ -199,24 +203,22 @@ private fun EmptyGuide(bubble: Boolean) {
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
         ) {
             SceneIcon(SceneIcons.Headphones, contentDescription = null, size = 22.dp, tint = c.onTintSoft)
-            SceneText(GUIDE, style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.onTintSoft)
+            SceneText(stringResource(Res.string.live_m0_guide), style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.onTintSoft)
         }
     } else {
-        SceneText(GUIDE, style = SceneTheme.type.title3.copy(fontWeight = FontWeight.Normal), color = c.tertiaryLabel)
+        SceneText(stringResource(Res.string.live_m0_guide), style = SceneTheme.type.title3.copy(fontWeight = FontWeight.Normal), color = c.tertiaryLabel)
     }
 }
-
-private const val GUIDE = "对方说话，译文会出现在这里并从耳机播放"
 
 /** 一句的方向行：「对方」/「我」（当前句附语言对）+ 播放中的小喇叭。 */
 @Composable
 private fun LineHeader(line: LiveLine, color: Color, showLangs: Boolean = false) {
     val c = SceneTheme.colors
-    val who = if (line.speaker == Speaker.ME) "我" else "对方"
-    val direction = if (showLangs) "$who · ${Lang.displayName(line.srcLang)} → ${Lang.displayName(line.tgtLang)}" else who
+    val who = stringResource(if (line.speaker == Speaker.ME) Res.string.common_me else Res.string.common_other)
+    val direction = if (showLangs) stringResource(Res.string.live_direction_langs, who, langName(line.srcLang), langName(line.tgtLang)) else who
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         SceneText(direction, style = SceneTheme.type.footnote, color = color, maxLines = 1)
-        if (line.tts == PlaybackStatus.PLAYING) SceneIcon(SceneIcons.Speaker, contentDescription = "播放中", size = 14.dp, tint = c.tint)
+        if (line.tts == PlaybackStatus.PLAYING) SceneIcon(SceneIcons.Speaker, contentDescription = stringResource(Res.string.live_playing), size = 14.dp, tint = c.tint)
     }
 }
 
@@ -226,22 +228,22 @@ private fun LineFlags(line: LiveLine) {
     val untranslated = line.translation == null && line.mtDegraded
     if (!line.interrupted && !untranslated) return
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (untranslated) SceneCapsule("未翻译", tone = CapsuleTone.Destructive)
-        if (line.interrupted) SceneCapsule("没播完", tone = CapsuleTone.Warning)
+        if (untranslated) SceneCapsule(stringResource(Res.string.live_flag_untranslated), tone = CapsuleTone.Destructive)
+        if (line.interrupted) SceneCapsule(stringResource(Res.string.live_flag_interrupted), tone = CapsuleTone.Warning)
     }
 }
 
 /** 语音包缺失：一句话 + 「去下载」；录音出错：一句话。其余引擎状态不显示。 */
 @Composable
-private fun EngineNotice(engine: LocalEngineState, error: String?, onOpenModels: () -> Unit) {
+private fun EngineNotice(engine: LocalEngineState, error: String?, onOpenModels: (List<String>) -> Unit) {
     val c = SceneTheme.colors
     if (engine is LocalEngineState.Error) {
         Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically) {
-            SceneText("语音包未下载", Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.destructive)
-            SceneButton("去下载", onClick = onOpenModels, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
+            SceneText(stringResource(Res.string.live_pack_missing), Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.destructive)
+            SceneButton(stringResource(Res.string.live_download), onClick = { onOpenModels(emptyList()) }, style = ButtonStyle.Tinted, height = SceneSize.glassButton)
         }
     }
-    if (error != null) SceneText("录音出错，请重试", style = SceneTheme.type.footnote, color = c.destructive)
+    if (error != null) SceneText(stringResource(Res.string.live_record_error), style = SceneTheme.type.footnote, color = c.destructive)
 }
 
 /** 一行轻提示「举起手机朝向对方 → 面屏」：可点手动进入面屏。 */
@@ -255,7 +257,7 @@ private fun PostureHint(onEnter: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically,
     ) {
         SceneIcon(SceneIcons.Rotate, contentDescription = null, size = 18.dp, tint = c.secondaryLabel)
-        SceneText("举起手机朝向对方 → 面屏", Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
+        SceneText(stringResource(Res.string.live_posture_hint), Modifier.weight(1f), style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
         SceneIcon(SceneIcons.ChevronRight, contentDescription = null, size = 16.dp, tint = c.tertiaryLabel)
     }
 }
@@ -264,11 +266,11 @@ private fun PostureHint(onEnter: () -> Unit) {
 @Composable
 private fun PauseResumeButton(state: LiveState, onPause: () -> Unit, onResume: () -> Unit) {
     val (label, icon, enabled) = when (state) {
-        is LiveState.Live -> Triple("暂停", SceneIcons.Pause, true)
-        LiveState.Idle -> Triple("开始", SceneIcons.Play, true)
-        LiveState.Arming -> Triple("准备中", SceneIcons.Play, false)
-        LiveState.Ending -> Triple("结束中", SceneIcons.Stop, false)
-        else -> Triple("继续", SceneIcons.Play, true)
+        is LiveState.Live -> Triple(Res.string.live_pause, SceneIcons.Pause, true)
+        LiveState.Idle -> Triple(Res.string.live_start, SceneIcons.Play, true)
+        LiveState.Arming -> Triple(Res.string.live_arming, SceneIcons.Play, false)
+        LiveState.Ending -> Triple(Res.string.live_ending, SceneIcons.Stop, false)
+        else -> Triple(Res.string.live_resume, SceneIcons.Play, true)
     }
     SceneButton(
         onClick = { if (state is LiveState.Live) onPause() else onResume() },
@@ -276,26 +278,26 @@ private fun PauseResumeButton(state: LiveState, onPause: () -> Unit, onResume: (
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             SceneIcon(icon, contentDescription = null, size = 26.dp)
-            SceneText(label, style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+            SceneText(stringResource(label), style = SceneTheme.type.caption1.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
         }
     }
 }
 
 /** 导航栏状态胶囊，只有一个词：无翻译 > 无语音 > 离线（未填 Key）> 已连接。 */
-private fun statusCapsule(h: PipelineHealth, voiceOut: Boolean, hasKey: Boolean): Pair<String, CapsuleTone> = when {
-    h.mt == "unavailable" -> "无翻译" to CapsuleTone.Destructive
-    voiceOut && (h.tts == "无" || h.tts == "失败") -> "无语音" to CapsuleTone.Warning
-    h.mt == "fallback" || !hasKey -> "离线" to CapsuleTone.Gray
-    else -> "已连接" to CapsuleTone.Tint
+private fun statusCapsule(h: PipelineHealth, voiceOut: Boolean, hasKey: Boolean): Pair<StringResource, CapsuleTone> = when {
+    h.mt == "unavailable" -> Res.string.live_status_no_mt to CapsuleTone.Destructive
+    voiceOut && (h.tts == "none" || h.tts == "failed") -> Res.string.live_status_no_voice to CapsuleTone.Warning
+    h.mt == "fallback" || !hasKey -> Res.string.live_status_offline to CapsuleTone.Gray
+    else -> Res.string.live_status_connected to CapsuleTone.Tint
 }
 
 /** 状态行的一个词（不用 VM 的 hint：那里有工程措辞）。 */
-private fun stateWord(s: LiveState): String = when (s) {
-    LiveState.Idle -> "未开始"
-    LiveState.Arming -> "准备中…"
-    is LiveState.Live -> "正在听对方"
-    is LiveState.Paused -> "已暂停"
-    LiveState.NeedForeground -> "点一下继续"
-    LiveState.Degraded -> "请戴上耳机"
-    LiveState.Ending -> "结束中…"
+private fun stateWord(s: LiveState): StringResource = when (s) {
+    LiveState.Idle -> Res.string.live_state_idle
+    LiveState.Arming -> Res.string.live_state_arming
+    is LiveState.Live -> Res.string.live_state_listening
+    is LiveState.Paused -> Res.string.live_state_paused
+    LiveState.NeedForeground -> Res.string.live_state_tap_resume
+    LiveState.Degraded -> Res.string.live_state_wear_earbuds
+    LiveState.Ending -> Res.string.live_state_ending
 }

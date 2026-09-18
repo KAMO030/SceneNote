@@ -58,6 +58,11 @@ import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.core.i18n.string
+import dev.scenenote.shared.resources.*
+import dev.scenenote.core.i18n.stringResource
+import kotlin.time.Clock
 
 // ---------- 纪要页（MeetingResult.dc.html）的内容与私有子组件；壳在 NoteScreens.kt 的 MeetingResultScreen ----------
 
@@ -81,18 +86,18 @@ internal fun MeetingResultContent(
         background = c.groupedBackground,
         topBar = {
             SceneNavBar(
-                title = "纪要",
+                title = stringResource(Res.string.note_minutes_title),
                 onBack = onBack,
-                trailing = { SceneGlassCapsuleButton("重新整理", onClick = { if (!ui.working) onRegenerate() }, icon = SceneIcons.Rotate) },
+                trailing = { SceneGlassCapsuleButton(stringResource(Res.string.note_regenerate), onClick = { if (!ui.working) onRegenerate() }, icon = SceneIcons.Rotate) },
             )
         },
         bottomBar = {
             SceneDock(height = 72.dp) {
                 SceneButton(onClick = onShare, modifier = Modifier.weight(1f).padding(end = 12.dp), style = ButtonStyle.Prominent, enabled = ready, height = 56.dp) {
                     SceneIcon(SceneIcons.Share, contentDescription = null, size = 20.dp)
-                    SceneText("分享", style = SceneTheme.type.headline)
+                    SceneText(stringResource(Res.string.note_share), style = SceneTheme.type.headline)
                 }
-                SceneIconButton(SceneIcons.Doc, contentDescription = "导出", onClick = onExport, size = 56.dp, enabled = ready)
+                SceneIconButton(SceneIcons.Doc, contentDescription = stringResource(Res.string.note_export), onClick = onExport, size = 56.dp, enabled = ready)
             }
         },
     ) {
@@ -101,7 +106,7 @@ internal fun MeetingResultContent(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Box(Modifier.padding(horizontal = SceneSpacing.page)) {
-                SceneSegmentedControl(options = listOf("整理稿", "原文"), selectedIndex = tab, onSelect = { tab = it })
+                SceneSegmentedControl(options = listOf(stringResource(Res.string.note_seg_minutes), stringResource(Res.string.note_seg_transcript)), selectedIndex = tab, onSelect = { tab = it })
             }
             StatusLine(working = ui.working, error = ui.error)
             if (tab == 0) MinutesPane(ui) else TranscriptPane(ui.segments)
@@ -111,12 +116,12 @@ internal fun MeetingResultContent(
 
 /** 分段下方一行状态：整理中… / 错误；都没有就不占位。 */
 @Composable
-private fun StatusLine(working: Boolean, error: String?) {
+private fun StatusLine(working: Boolean, error: UiText?) {
     val c = SceneTheme.colors
     val inset = Modifier.padding(horizontal = SceneSpacing.page + SceneSpacing.row)
     when {
-        working -> SceneText("整理中…", inset, style = SceneTheme.type.footnote, color = c.secondaryLabel)
-        error != null -> SceneText(error, inset, style = SceneTheme.type.footnote, color = c.destructive)
+        working -> SceneText(stringResource(Res.string.note_minutes_working), inset, style = SceneTheme.type.footnote, color = c.secondaryLabel)
+        error != null -> SceneText(error.string(), inset, style = SceneTheme.type.footnote, color = c.destructive)
     }
 }
 
@@ -128,7 +133,7 @@ private fun MinutesPane(ui: NoteUiState) {
     val c = SceneTheme.colors
     val m = ui.minutes
     if (m == null) {
-        if (!ui.working && ui.error == null) SceneText("还没有整理稿", Modifier.padding(horizontal = SceneSpacing.page + SceneSpacing.row), style = SceneTheme.type.footnote, color = c.tertiaryLabel)
+        if (!ui.working && ui.error == null) SceneText(stringResource(Res.string.note_no_minutes), Modifier.padding(horizontal = SceneSpacing.page + SceneSpacing.row), style = SceneTheme.type.footnote, color = c.tertiaryLabel)
         return
     }
     val cloud = ui.backend.startsWith("cloud:")
@@ -137,22 +142,22 @@ private fun MinutesPane(ui: NoteUiState) {
 
     SceneCard {
         Column(verticalArrangement = Arrangement.spacedBy(SceneSpacing.xs)) {
-            SceneText(m.title.ifBlank { ui.session?.title ?: "纪要" }, style = SceneTheme.type.title2)
+            SceneText(m.title.ifBlank { ui.session?.title ?: stringResource(Res.string.note_minutes_title) }, style = SceneTheme.type.title2)
             metaLine(ui.session)?.let { SceneText(it, style = SceneTheme.type.footnote, color = c.secondaryLabel) }
         }
         Row {
-            if (cloud) SceneCapsule("云端整理", tone = CapsuleTone.Tint, icon = SceneIcons.Sparkle)
-            else SceneCapsule("本机整理", tone = CapsuleTone.Gray)
+            if (cloud) SceneCapsule(stringResource(Res.string.note_backend_cloud), tone = CapsuleTone.Tint, icon = SceneIcons.Sparkle)
+            else SceneCapsule(stringResource(Res.string.note_backend_local), tone = CapsuleTone.Gray)
         }
         if (m.flags.isNotEmpty()) WarningNotice(flagText(m.flags))
-        if (empty) SceneText("没有可整理的内容", style = SceneTheme.type.subheadline, color = c.tertiaryLabel)
-        if (m.topics.isNotEmpty()) Section("议题") { m.topics.forEach { Bullet(it) } }
-        if (m.conclusions.isNotEmpty()) Section("结论") { m.conclusions.forEach { Bullet(it) } }
-        if (m.todos.isNotEmpty()) Section(if (zeroKey) "待办候选" else "待办") { m.todos.forEach { TodoRow(it) } }
-        if (m.commitments.isNotEmpty()) Section("承诺") { m.commitments.forEach { Quote(it) } }
-        if (m.timeline.isNotEmpty()) Section("时间轴要点") { m.timeline.forEach { TimelineRow(it) } }
+        if (empty) SceneText(stringResource(Res.string.note_nothing_to_process), style = SceneTheme.type.subheadline, color = c.tertiaryLabel)
+        if (m.topics.isNotEmpty()) Section(stringResource(Res.string.md_topics)) { m.topics.forEach { Bullet(it) } }
+        if (m.conclusions.isNotEmpty()) Section(stringResource(Res.string.md_conclusions)) { m.conclusions.forEach { Bullet(it) } }
+        if (m.todos.isNotEmpty()) Section(stringResource(if (zeroKey) Res.string.note_todos_candidates else Res.string.md_todos)) { m.todos.forEach { TodoRow(it) } }
+        if (m.commitments.isNotEmpty()) Section(stringResource(Res.string.md_commitments)) { m.commitments.forEach { Quote(it) } }
+        if (m.timeline.isNotEmpty()) Section(stringResource(Res.string.md_timeline)) { m.timeline.forEach { TimelineRow(it) } }
     }
-    if (zeroKey) SceneSectionFooter("填翻译 Key 后可用云端整理")
+    if (zeroKey) SceneSectionFooter(stringResource(Res.string.note_fill_key_for_cloud))
 }
 
 /** 卡内小节：15 pt 半粗标题 + 内容。 */
@@ -232,7 +237,7 @@ private fun WarningNotice(text: String) {
 private fun TranscriptPane(segments: List<Segment>) {
     val c = SceneTheme.colors
     if (segments.isEmpty()) {
-        SceneText("没有原文", Modifier.padding(horizontal = SceneSpacing.page + SceneSpacing.row), style = SceneTheme.type.footnote, color = c.tertiaryLabel)
+        SceneText(stringResource(Res.string.note_no_transcript), Modifier.padding(horizontal = SceneSpacing.page + SceneSpacing.row), style = SceneTheme.type.footnote, color = c.tertiaryLabel)
         return
     }
     SceneCard {
@@ -248,14 +253,15 @@ private fun TranscriptPane(segments: List<Segment>) {
 // ---------- 纯函数 ----------
 
 /** 元信息一行：「9月17日 13:10 · 32 分钟」。 */
+@Composable
 private fun metaLine(s: SessionRow?): String? {
     s ?: return null
-    val dt = Instant.fromEpochMilliseconds(s.startedAt).toLocalDateTime(TimeZone.currentSystemDefault())
-    val mins = s.durationMs / 60_000
-    val dur = if (mins < 1) "不到 1 分钟" else "$mins 分钟"
-    return "${dt.month.number}月${dt.day}日 ${dt.hour}:${dt.minute.toString().padStart(2, '0')} · $dur"
+    val mins = (s.durationMs / 60_000).toInt()
+    val dur = if (mins < 1) stringResource(Res.string.note_under_a_minute) else stringResource(Res.string.duration_minutes, mins)
+    return stringResource(Res.string.note_meta_line, formatSessionDate(s.startedAt, Clock.System.now().toEpochMilliseconds()), dur)
 }
 
 /** flags 折成一句用户语言：云端没成功 → 说明这次是本机；其余（事实核对 / 改动幅度）→ 提醒对照原文。 */
+@Composable
 private fun flagText(flags: List<String>): String =
-    if (flags.any { it.startsWith("云端未成稿") }) "云端整理没成功，这次用的本机整理" else "整理结果可能有出入，请对照原文"
+    stringResource(if (flags.any { SlowPath.isCloudFailedFlag(it) }) Res.string.note_flag_cloud_failed else Res.string.note_flag_generic)

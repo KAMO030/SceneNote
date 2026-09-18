@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.scenenote.core.designsystem.ButtonStyle
-import dev.scenenote.core.designsystem.LocalGlassBackdrop
 import dev.scenenote.core.designsystem.SceneButton
 import dev.scenenote.core.designsystem.SceneDivider
 import dev.scenenote.core.designsystem.SceneGroup
@@ -39,6 +37,12 @@ import dev.scenenote.core.scene.SceneRules
 import dev.scenenote.core.scene.SceneStore
 import dev.scenenote.ui.common.InlineField
 import dev.scenenote.ui.common.InlineOptions
+import dev.scenenote.core.i18n.string
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.i18n.langName
+import dev.scenenote.ui.i18n.title
+import org.jetbrains.compose.resources.StringResource
+import dev.scenenote.core.i18n.stringResource
 
 /** 可作底版的内置场景（01 篇：高级选项只在「复制一张再改」里出现）。 */
 internal val BASES: List<ScenePreset> = listOf(Scenes.liveTalk, Scenes.listenOnly, Scenes.quickPhrase, Scenes.meeting)
@@ -46,13 +50,14 @@ private val LANGS = listOf(Lang.ZH_CN, Lang.EN, Lang.YUE_HK, Lang.ZH_SICHUAN, La
 private val STYLES = listOf(Style.NEUTRAL, Style.FORMAL, Style.CASUAL, Style.BUSINESS)
 private val ROUTES = listOf(RoutePolicy.AUTO, RoutePolicy.LOCAL_ONLY, RoutePolicy.CLOUD_FIRST)
 private val PRIVACIES: List<PrivacyMode> = listOf(PrivacyMode.Locked, PrivacyMode.LocalWithPerSegmentConsent, PrivacyMode.TextOnlyCloud, PrivacyMode.AudioCloud)
-private data class Bucket(val id: String, val label: String)
-private val BUCKETS = listOf(Bucket("general", "通用"), Bucket("travel", "出行"), Bucket("work", "工作"))
+private data class Bucket(val id: String, val label: StringResource)
+private val BUCKETS = listOf(Bucket("general", Res.string.bucket_general), Bucket("travel", Res.string.bucket_travel), Bucket("work", Res.string.bucket_work))
 
-internal fun styleLabel(s: Style): String = when (s) { Style.NEUTRAL -> "自然"; Style.FORMAL -> "正式"; Style.CASUAL -> "随意"; Style.BUSINESS -> "商务"; Style.ACADEMIC -> "学术"; Style.SOCIAL -> "社交"; Style.CUSTOM -> "自定义" }
-internal fun routeLabel(r: RoutePolicy): String = when (r) { RoutePolicy.AUTO -> "自动"; RoutePolicy.LOCAL_ONLY -> "只用本机"; RoutePolicy.CLOUD_FIRST -> "优先云端" }
-internal fun privacyLabel(m: PrivacyMode): String = when (m) { PrivacyMode.Locked -> "不联网"; PrivacyMode.LocalWithPerSegmentConsent -> "每次询问"; PrivacyMode.TextOnlyCloud -> "只发文字"; PrivacyMode.AudioCloud -> "文字和录音" }
-internal fun bucketLabel(id: String): String = BUCKETS.firstOrNull { it.id == id }?.label ?: id
+internal fun styleLabelRes(s: Style): StringResource = when (s) { Style.NEUTRAL -> Res.string.style_neutral; Style.FORMAL -> Res.string.style_formal; Style.CASUAL -> Res.string.style_casual; Style.BUSINESS -> Res.string.style_business; Style.ACADEMIC -> Res.string.style_academic; Style.SOCIAL -> Res.string.style_social; Style.CUSTOM -> Res.string.style_custom }
+@Composable internal fun styleLabel(s: Style): String = stringResource(styleLabelRes(s))
+@Composable internal fun routeLabel(r: RoutePolicy): String = stringResource(when (r) { RoutePolicy.AUTO -> Res.string.route_auto; RoutePolicy.LOCAL_ONLY -> Res.string.route_local_only; RoutePolicy.CLOUD_FIRST -> Res.string.route_cloud_first })
+@Composable internal fun privacyLabel(m: PrivacyMode): String = dev.scenenote.ui.settings.privacyLabel(m)
+@Composable internal fun bucketLabel(id: String): String = BUCKETS.firstOrNull { it.id == id }?.let { stringResource(it.label) } ?: id
 
 /**
  * 场景编辑 sheet「复制一张再改」（I7）：名字 / 语言 / 风格 / 识别方式 / 联网权限 / 术语。
@@ -62,70 +67,71 @@ internal fun bucketLabel(id: String): String = BUCKETS.firstOrNull { it.id == id
 fun BoxScope.SceneEditSheet(visible: Boolean, store: SceneStore, editing: CustomScene?, onDismiss: () -> Unit) {
     var draft by remember { mutableStateOf<CustomScene?>(null) }
     var expanded by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(visible, editing) { if (visible) { draft = editing ?: store.copyOf(Scenes.liveTalk); expanded = null } }
+    // 副本默认名按界面语言：「面对面对话 副本」/ “Face-to-face copy”
+    val copyNames = BASES.associate { it.id to stringResource(Res.string.scene_copy_name, it.title()) }
+    LaunchedEffect(visible, editing) { if (visible) { draft = editing ?: store.copyOf(Scenes.liveTalk, copyNames.getValue(Scenes.liveTalk.id)); expanded = null } }
     val d = draft
     val problem = d?.let { SceneRules.problem(it.route, PrivacyMode.fromId(it.privacyId)) }
     val c = SceneTheme.colors
-    CompositionLocalProvider(LocalGlassBackdrop provides null) {
-        SceneSheet(
-            visible = visible, onDismiss = onDismiss, title = if (editing == null) "复制一张再改" else "改场景",
-            doneText = "保存",
-            onDone = { if (d != null && problem == null && d.name.isNotBlank()) { store.upsert(d); onDismiss() } },
-        ) {
-            if (d == null) return@SceneSheet
-            fun toggle(k: String) { expanded = if (expanded == k) null else k }
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = SceneSpacing.s, bottom = 40.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(SceneSpacing.l)) {
-                Column {
-                    SceneSectionHeader("名字")
-                    SceneGroup {
-                        Box(Modifier.padding(horizontal = SceneSpacing.row, vertical = 10.dp)) {
-                            InlineField(d.name, { draft = d.copy(name = it) }, "给这张场景起个名字", Modifier.fillMaxWidth())
+    // 玻璃取样源由宿主决定：壳覆盖层里能取样内容层做模糊；内联在内容层里的宿主要把 LocalGlassBackdrop 置空
+    SceneSheet(
+        visible = visible, onDismiss = onDismiss, title = stringResource(if (editing == null) Res.string.home_copy_scene else Res.string.scene_edit_title),
+        doneText = stringResource(Res.string.key_save),
+        onDone = { if (d != null && problem == null && d.name.isNotBlank()) { store.upsert(d); onDismiss() } },
+    ) {
+        if (d == null) return@SceneSheet
+        fun toggle(k: String) { expanded = if (expanded == k) null else k }
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = SceneSpacing.s, bottom = 40.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(SceneSpacing.l)) {
+            Column {
+                SceneSectionHeader(stringResource(Res.string.scene_edit_name))
+                SceneGroup {
+                    Box(Modifier.padding(horizontal = SceneSpacing.row, vertical = 10.dp)) {
+                        InlineField(d.name, { draft = d.copy(name = it) }, stringResource(Res.string.scene_edit_name_placeholder), Modifier.fillMaxWidth())
+                    }
+                    if (editing == null) {
+                        SceneDivider(inset = SceneSpacing.row)
+                        SceneRow(stringResource(Res.string.scene_edit_based_on), value = Scenes.byId(d.baseId)?.title() ?: d.baseId, chevron = true, onClick = { toggle("base") })
+                        InlineOptions(expanded == "base", BASES, Scenes.byId(d.baseId) ?: Scenes.liveTalk, label = { it.title() }) { b ->
+                            draft = store.copyOf(b, name = d.name.takeIf { it.isNotBlank() && it != copyNames[d.baseId] } ?: copyNames.getValue(b.id)); expanded = null
                         }
-                        if (editing == null) {
-                            SceneDivider(inset = SceneSpacing.row)
-                            SceneRow("基于", value = Scenes.byId(d.baseId)?.name ?: d.baseId, chevron = true, onClick = { toggle("base") })
-                            InlineOptions(expanded == "base", BASES, Scenes.byId(d.baseId) ?: Scenes.liveTalk, label = { it.name }) { b ->
-                                draft = store.copyOf(b, name = d.name.takeIf { it.isNotBlank() && it != "${Scenes.byId(d.baseId)?.name} 副本" } ?: "${b.name} 副本"); expanded = null
-                            }
-                        }
                     }
                 }
-                Column {
-                    SceneSectionHeader("语言")
-                    SceneGroup {
-                        SceneRow("我的", value = Lang.displayName(d.myLang), chevron = true, onClick = { toggle("my") })
-                        InlineOptions(expanded == "my", LANGS, d.myLang, label = { Lang.displayName(it) }) { draft = d.copy(myLang = it); expanded = null }
-                        SceneDivider(inset = SceneSpacing.row)
-                        SceneRow("对方", value = Lang.displayName(d.otherLang), chevron = true, onClick = { toggle("other") })
-                        InlineOptions(expanded == "other", LANGS, d.otherLang, label = { Lang.displayName(it) }) { draft = d.copy(otherLang = it); expanded = null }
-                    }
+            }
+            Column {
+                SceneSectionHeader(stringResource(Res.string.settings_lang_header))
+                SceneGroup {
+                    SceneRow(stringResource(Res.string.settings_lang_mine), value = langName(d.myLang), chevron = true, onClick = { toggle("my") })
+                    InlineOptions(expanded == "my", LANGS, d.myLang, label = { langName(it) }) { draft = d.copy(myLang = it); expanded = null }
+                    SceneDivider(inset = SceneSpacing.row)
+                    SceneRow(stringResource(Res.string.common_other), value = langName(d.otherLang), chevron = true, onClick = { toggle("other") })
+                    InlineOptions(expanded == "other", LANGS, d.otherLang, label = { langName(it) }) { draft = d.copy(otherLang = it); expanded = null }
                 }
-                Column {
-                    SceneSectionHeader("翻译")
-                    SceneGroup {
-                        SceneRow("语气", value = styleLabel(d.style), chevron = true, onClick = { toggle("style") })
-                        InlineOptions(expanded == "style", STYLES, d.style, label = ::styleLabel) { draft = d.copy(style = it); expanded = null }
-                        SceneDivider(inset = SceneSpacing.row)
-                        SceneRow("术语", value = bucketLabel(d.bucket), chevron = true, onClick = { toggle("bucket") })
-                        InlineOptions(expanded == "bucket", BUCKETS, BUCKETS.firstOrNull { it.id == d.bucket } ?: BUCKETS.first(), label = { it.label }) { draft = d.copy(bucket = it.id); expanded = null }
-                    }
-                    SceneSectionFooter("术语表里对应分组的译名会优先使用")
+            }
+            Column {
+                SceneSectionHeader(stringResource(Res.string.scene_edit_translation))
+                SceneGroup {
+                    SceneRow(stringResource(Res.string.scene_edit_tone), value = styleLabel(d.style), chevron = true, onClick = { toggle("style") })
+                    InlineOptions(expanded == "style", STYLES, d.style, label = { styleLabel(it) }) { draft = d.copy(style = it); expanded = null }
+                    SceneDivider(inset = SceneSpacing.row)
+                    SceneRow(stringResource(Res.string.scene_edit_terms), value = bucketLabel(d.bucket), chevron = true, onClick = { toggle("bucket") })
+                    InlineOptions(expanded == "bucket", BUCKETS, BUCKETS.firstOrNull { it.id == d.bucket } ?: BUCKETS.first(), label = { stringResource(it.label) }) { draft = d.copy(bucket = it.id); expanded = null }
                 }
-                Column {
-                    SceneSectionHeader("联网")
-                    SceneGroup {
-                        SceneRow("识别", value = routeLabel(d.route), chevron = true, onClick = { toggle("route") })
-                        InlineOptions(expanded == "route", ROUTES, d.route, label = ::routeLabel) { draft = d.copy(route = it); expanded = null }
-                        SceneDivider(inset = SceneSpacing.row)
-                        SceneRow("联网权限", value = privacyLabel(PrivacyMode.fromId(d.privacyId)), chevron = true, onClick = { toggle("privacy") })
-                        InlineOptions(expanded == "privacy", PRIVACIES, PrivacyMode.fromId(d.privacyId), label = ::privacyLabel) { draft = d.copy(privacyId = PrivacyMode.idOf(it)); expanded = null }
-                    }
-                    if (problem != null) SceneText(problem, Modifier.padding(horizontal = SceneSpacing.page, vertical = 6.dp), style = SceneTheme.type.footnote, color = c.destructive)
-                    else SceneSectionFooter("这张场景自己的设置，不影响别的场景")
+                SceneSectionFooter(stringResource(Res.string.scene_edit_terms_footer))
+            }
+            Column {
+                SceneSectionHeader(stringResource(Res.string.scene_edit_network))
+                SceneGroup {
+                    SceneRow(stringResource(Res.string.scene_edit_recognition), value = routeLabel(d.route), chevron = true, onClick = { toggle("route") })
+                    InlineOptions(expanded == "route", ROUTES, d.route, label = { routeLabel(it) }) { draft = d.copy(route = it); expanded = null }
+                    SceneDivider(inset = SceneSpacing.row)
+                    SceneRow(stringResource(Res.string.settings_net_header), value = privacyLabel(PrivacyMode.fromId(d.privacyId)), chevron = true, onClick = { toggle("privacy") })
+                    InlineOptions(expanded == "privacy", PRIVACIES, PrivacyMode.fromId(d.privacyId), label = { privacyLabel(it) }) { draft = d.copy(privacyId = PrivacyMode.idOf(it)); expanded = null }
                 }
-                if (editing != null) Box(Modifier.padding(horizontal = SceneSpacing.page, vertical = SceneSpacing.m)) {
-                    SceneButton("删除这张场景", onClick = { store.delete(editing.id); onDismiss() }, style = ButtonStyle.Destructive, modifier = Modifier.fillMaxWidth())
-                }
+                if (problem != null) SceneText(problem.string(), Modifier.padding(horizontal = SceneSpacing.page, vertical = 6.dp), style = SceneTheme.type.footnote, color = c.destructive)
+                else SceneSectionFooter(stringResource(Res.string.scene_edit_footer))
+            }
+            if (editing != null) Box(Modifier.padding(horizontal = SceneSpacing.page, vertical = SceneSpacing.m)) {
+                SceneButton(stringResource(Res.string.scene_edit_delete), onClick = { store.delete(editing.id); onDismiss() }, style = ButtonStyle.Destructive, modifier = Modifier.fillMaxWidth())
             }
         }
     }

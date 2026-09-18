@@ -88,16 +88,16 @@ class IosRouteManager : RouteManager {
             val e1 = alloc<ObjCObjectVar<NSError?>>()
             if (!session.setCategory(AVAudioSessionCategoryPlayAndRecord, mode = AVAudioSessionModeDefault,
                     options = AVAudioSessionCategoryOptionDefaultToSpeaker or AVAudioSessionCategoryOptionAllowBluetoothA2DP, error = e1.ptr))
-                error("AVAudioSession.setCategory 失败：${e1.value?.localizedDescription}")
+                error("AVAudioSession.setCategory failed: ${e1.value?.localizedDescription}")
             val builtIn: AVAudioSessionPortDescription? = session.availableInputs
                 ?.filterIsInstance<AVAudioSessionPortDescription>()
                 ?.firstOrNull { port -> port.portType == AVAudioSessionPortBuiltInMic }
             if (builtIn != null) {
                 val e2 = alloc<ObjCObjectVar<NSError?>>()
-                if (!session.setPreferredInput(builtIn, error = e2.ptr)) error("setPreferredInput(内置麦) 失败：${e2.value?.localizedDescription}")
+                if (!session.setPreferredInput(builtIn, error = e2.ptr)) error("setPreferredInput(builtIn) failed: ${e2.value?.localizedDescription}")
             }
             val e3 = alloc<ObjCObjectVar<NSError?>>()
-            if (!session.setActive(true, error = e3.ptr)) error("AVAudioSession.setActive 失败：${e3.value?.localizedDescription}")
+            if (!session.setActive(true, error = e3.ptr)) error("AVAudioSession.setActive failed: ${e3.value?.localizedDescription}")
             sessionActive = true
         }
         if (observers.isEmpty()) observe()
@@ -148,7 +148,7 @@ class IosRouteManager : RouteManager {
             else -> AudioRoute.None
         }
         val note = when {
-            output == AudioRoute.BluetoothHfp || input == AudioRoute.BluetoothHfp -> "通话模式（HFP），音质受限"
+            output == AudioRoute.BluetoothHfp || input == AudioRoute.BluetoothHfp -> "HFP call mode, limited audio quality"
             else -> null
         }
         return RouteState(input = input, output = output, note = note)

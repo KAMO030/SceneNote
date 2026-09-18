@@ -106,6 +106,11 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.time.Clock
 import kotlin.time.Instant
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.core.i18n.string
+import dev.scenenote.shared.resources.*
+import dev.scenenote.ui.i18n.dayLabel
+import dev.scenenote.core.i18n.stringResource
 
 // ============================================================================================
 // 屏内字幕（原型 ScreenIntake / ScreenS4）：入口页 → 播放器页。两页共用一个 ScreenViewModel。
@@ -132,7 +137,7 @@ fun ScreenIntakeScreen(onBack: () -> Unit, onOpenPlayer: () -> Unit, onSystemCap
 
     GlassScaffold(
         background = c.groupedBackground,
-        topBar = { SceneNavBar(title = "视频字幕", onBack = onBack, backContentDescription = "返回") },
+        topBar = { SceneNavBar(title = stringResource(Res.string.scene_screen_file), onBack = onBack) },
     ) {
         Column(
             Modifier.fillMaxSize().verticalScroll(scroll).navigationBarsPadding().padding(top = 104.dp, bottom = 40.dp),
@@ -152,14 +157,14 @@ fun ScreenIntakeScreen(onBack: () -> Unit, onOpenPlayer: () -> Unit, onSystemCap
             ui.downloading?.let { p ->
                 Column(Modifier.padding(horizontal = SceneSpacing.page), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     ProgressTrack(fractions = listOf(p.coerceIn(0f, 1f) to c.tint))
-                    SceneText("下载中 ${(p * 100).toInt()}%", style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
+                    SceneText(stringResource(Res.string.screen_downloading_pct, (p * 100).toInt()), style = SceneTheme.type.footnote, color = c.secondaryLabel, maxLines = 1)
                 }
             }
-            ui.error?.let { SceneText(it, Modifier.padding(horizontal = SceneSpacing.page), style = SceneTheme.type.footnote, color = c.destructive, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            ui.error?.let { SceneText(it.string(), Modifier.padding(horizontal = SceneSpacing.page), style = SceneTheme.type.footnote, color = c.destructive, maxLines = 2, overflow = TextOverflow.Ellipsis) }
 
             if (ui.recent.isNotEmpty()) {
                 Column {
-                    SceneSectionHeader("已处理")
+                    SceneSectionHeader(stringResource(Res.string.screen_processed))
                     SceneGroup {
                         ui.recent.forEachIndexed { i, row ->
                             if (i > 0) SceneDivider()
@@ -171,10 +176,10 @@ fun ScreenIntakeScreen(onBack: () -> Unit, onOpenPlayer: () -> Unit, onSystemCap
 
             // 平台诚实清单：只显示当前平台的一行（docs/15 §1 ③）
             Column {
-                SceneSectionHeader("其他入口")
+                SceneSectionHeader(stringResource(Res.string.screen_other_entries))
                 SceneGroup {
-                    if (PlatformInfo.isAndroid) SceneRow(title = "系统字幕", subtitle = "抓其他 App 的声音，部分 App 禁止", chevron = true, onClick = onSystemCaption)
-                    else SceneRow(title = "其他 App 的视频", subtitle = "先存到相册再选")
+                    if (PlatformInfo.isAndroid) SceneRow(title = stringResource(Res.string.screen_syscap_row), subtitle = stringResource(Res.string.screen_syscap_row_sub), chevron = true, onClick = onSystemCaption)
+                    else SceneRow(title = stringResource(Res.string.screen_other_app_video), subtitle = stringResource(Res.string.screen_other_app_video_sub))
                 }
             }
         }
@@ -189,11 +194,11 @@ private fun ClipboardLinkCard(url: String, onStart: () -> Unit, onDismiss: () ->
         Modifier.padding(horizontal = SceneSpacing.page).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.tintSoft).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(SceneSpacing.s),
     ) {
-        SceneText("检测到视频链接", style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.onTintSoft, maxLines = 1)
+        SceneText(stringResource(Res.string.screen_link_detected), style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.onTintSoft, maxLines = 1)
         SceneText(url, style = SceneTheme.type.footnote, color = c.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneButton("开始", onClick = onStart, modifier = Modifier.weight(1f), style = ButtonStyle.Prominent, height = 40.dp)
-            SceneButton("忽略", onClick = onDismiss, modifier = Modifier.width(88.dp), style = ButtonStyle.Gray, height = 40.dp)
+            SceneButton(stringResource(Res.string.live_start), onClick = onStart, modifier = Modifier.weight(1f), style = ButtonStyle.Prominent, height = 40.dp)
+            SceneButton(stringResource(Res.string.note_ignore), onClick = onDismiss, modifier = Modifier.width(88.dp), style = ButtonStyle.Gray, height = 40.dp)
         }
     }
 }
@@ -211,11 +216,11 @@ private fun PickVideoCard(enabled: Boolean, onGallery: () -> Unit, onFile: () ->
         Box(Modifier.size(56.dp).clip(CircleShape).background(c.tintSoft), contentAlignment = Alignment.Center) {
             SceneIcon(SceneIcons.Play, contentDescription = null, size = 28.dp, tint = c.onTintSoft)
         }
-        SceneText("选择视频", style = SceneTheme.type.headline, color = c.label)
-        SceneText("选好自动开始，边转边看", style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center)
+        SceneText(stringResource(Res.string.live_pick_video), style = SceneTheme.type.headline, color = c.label)
+        SceneText(stringResource(Res.string.screen_pick_hint), style = SceneTheme.type.footnote, color = c.secondaryLabel, textAlign = TextAlign.Center)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s)) {
-            SceneButton("相册", onClick = onGallery, modifier = Modifier.weight(1f), style = ButtonStyle.Prominent, enabled = enabled)
-            SceneButton("文件", onClick = onFile, modifier = Modifier.weight(1f), style = ButtonStyle.Gray, enabled = enabled)
+            SceneButton(stringResource(Res.string.screen_gallery), onClick = onGallery, modifier = Modifier.weight(1f), style = ButtonStyle.Prominent, enabled = enabled)
+            SceneButton(stringResource(Res.string.screen_file), onClick = onFile, modifier = Modifier.weight(1f), style = ButtonStyle.Gray, enabled = enabled)
         }
     }
 }
@@ -241,12 +246,12 @@ private fun LinkRow(value: String, onValueChange: (String) -> Unit, enabled: Boo
                 cursorBrush = SolidColor(c.tint),
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
-                        if (value.isEmpty()) SceneText("粘贴链接", style = style, color = c.secondaryLabel, maxLines = 1)
+                        if (value.isEmpty()) SceneText(stringResource(Res.string.screen_paste_link), style = style, color = c.secondaryLabel, maxLines = 1)
                         inner()
                     }
                 },
             )
-            SceneButton("开始", onClick = go, style = ButtonStyle.Tinted, enabled = enabled && value.isNotBlank(), height = 36.dp)
+            SceneButton(stringResource(Res.string.live_start), onClick = go, style = ButtonStyle.Tinted, enabled = enabled && value.isNotBlank(), height = 36.dp)
         }
     }
 }
@@ -256,7 +261,7 @@ private fun LinkRow(value: String, onValueChange: (String) -> Unit, enabled: Boo
 private fun RecentRow(row: SessionRow, onClick: () -> Unit) {
     val c = SceneTheme.colors
     SceneRow(
-        title = row.title?.takeIf { it.isNotBlank() } ?: "视频",
+        title = row.title?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.screen_video),
         subtitle = whenLabel(row.startedAt),
         leading = { Box(Modifier.width(56.dp).height(36.dp).clip(RoundedCornerShape(8.dp)).background(c.fill)) },
         chevron = true,
@@ -295,14 +300,14 @@ fun ScreenPlayerScreen(onBack: () -> Unit, vm: ScreenViewModel = koinViewModel()
 
         GlassScaffold(
             background = c.systemBackground,
-            topBar = { SceneNavBar(title = shortTitle(job.media?.name), onBack = onBack, backContentDescription = "关闭") },
+            topBar = { SceneNavBar(title = shortTitle(job.media?.name, stringResource(Res.string.scene_screen_file)), onBack = onBack, backContentDescription = stringResource(Res.string.common_close)) },
             bottomBar = {
                 SceneDock {
-                    SceneButton("导出 SRT", onClick = { vm.exportSrt(false) }, modifier = Modifier.weight(1f), style = ButtonStyle.Prominent, enabled = exportable, icon = SceneIcons.Share, height = 56.dp)
+                    SceneButton(stringResource(Res.string.screen_export_srt), onClick = { vm.exportSrt(false) }, modifier = Modifier.weight(1f), style = ButtonStyle.Prominent, enabled = exportable, icon = SceneIcons.Share, height = 56.dp)
                     SceneButton(onClick = { vm.exportSrt(true) }, modifier = Modifier.size(56.dp), style = ButtonStyle.Gray, enabled = exportable, height = 56.dp, contentPadding = 0.dp) {
                         SceneText("VTT", style = SceneTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
                     }
-                    SceneIconButton(SceneIcons.Close, contentDescription = "关闭", onClick = onBack, size = 56.dp)
+                    SceneIconButton(SceneIcons.Close, contentDescription = stringResource(Res.string.common_close), onClick = onBack, size = 56.dp)
                 }
             },
         ) {
@@ -331,17 +336,17 @@ fun ScreenPlayerScreen(onBack: () -> Unit, vm: ScreenViewModel = koinViewModel()
                     horizontalArrangement = Arrangement.spacedBy(SceneSpacing.s), verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (job.translate) SceneSegmentedControl(
-                        options = listOf("译文", "原文"),
+                        options = listOf(stringResource(Res.string.screen_seg_translation), stringResource(Res.string.screen_seg_original)),
                         selectedIndex = if (showTr) 0 else 1,
                         onSelect = { i -> if ((i == 0) != ui.showTranslation) vm.toggleTranslation() },
                         modifier = Modifier.weight(1f),
                     ) else Spacer(Modifier.weight(1f))
-                    phaseWord(job.phase, job.progress)?.let { (label, tone) -> SceneCapsule(label, tone = tone) }
+                    phaseWord(job.phase, job.progress)?.let { (label, tone) -> SceneCapsule(label.string(), tone = tone) }
                 }
 
                 val err = job.error ?: ui.error
-                if (err != null) SceneText(err, Modifier.padding(horizontal = SceneSpacing.page, vertical = 4.dp), style = SceneTheme.type.footnote, color = c.destructive, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (firstVisit) HintBubble("字幕没跟上时会自动暂停")
+                if (err != null) SceneText(err.string(), Modifier.padding(horizontal = SceneSpacing.page, vertical = 4.dp), style = SceneTheme.type.footnote, color = c.destructive, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (firstVisit) HintBubble(stringResource(Res.string.screen_hint_autopause))
 
                 CueList(
                     cues = job.cues, partial = job.partial, current = ui.currentCue, showTranslation = showTr, phase = job.phase,
@@ -364,7 +369,7 @@ private fun VideoArea(vm: ScreenViewModel, player: PlayerController?, playing: B
             vm.playerFactory.View(player, Modifier.matchParentSize())
         } else {
             Box(Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
-                SceneText(if (phase == JobPhase.DONE) "没有画面，只看字幕" else "正在准备…", style = SceneTheme.type.subheadline, color = c.secondaryLabel)
+                SceneText(stringResource(if (phase == JobPhase.DONE) Res.string.screen_no_video_captions_only else Res.string.screen_preparing), style = SceneTheme.type.subheadline, color = c.secondaryLabel)
             }
         }
 
@@ -377,7 +382,7 @@ private fun VideoArea(vm: ScreenViewModel, player: PlayerController?, playing: B
                     .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button) { if (playing) vm.userPause() else vm.userPlay() },
                 contentAlignment = Alignment.Center,
             ) {
-                SceneIcon(if (playing) SceneIcons.Pause else SceneIcons.Play, contentDescription = if (playing) "暂停" else "播放", size = 26.dp, tint = Color.White)
+                SceneIcon(if (playing) SceneIcons.Pause else SceneIcons.Play, contentDescription = stringResource(if (playing) Res.string.live_pause else Res.string.screen_play), size = 26.dp, tint = Color.White)
             }
         }
 
@@ -399,7 +404,7 @@ private fun VideoArea(vm: ScreenViewModel, player: PlayerController?, playing: B
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
             ) {
                 PulseDot()
-                SceneText("字幕还在追，稍等…", style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
+                SceneText(stringResource(Res.string.screen_captions_catching_up), style = SceneTheme.type.subheadline.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
             }
         }
     }
@@ -423,16 +428,16 @@ private fun ProgressTrack(fractions: List<Pair<Float, Color>>, onSeek: ((Float) 
 }
 
 /** 阶段词 + 百分比；空闲不显示。 */
-private fun phaseWord(phase: JobPhase, progress: Float): Pair<String, CapsuleTone>? {
+private fun phaseWord(phase: JobPhase, progress: Float): Pair<UiText, CapsuleTone>? {
     val pct = " ${(progress * 100).toInt().coerceIn(0, 100)}%"
     return when (phase) {
         JobPhase.IDLE -> null
-        JobPhase.DOWNLOADING -> "下载中$pct" to CapsuleTone.Gray
-        JobPhase.EXTRACTING -> "读取声音中$pct" to CapsuleTone.Gray
-        JobPhase.TRANSCRIBING -> "识别中$pct" to CapsuleTone.Gray
-        JobPhase.TRANSLATING -> "翻译中" to CapsuleTone.Gray
-        JobPhase.DONE -> "完成" to CapsuleTone.Tint
-        JobPhase.FAILED -> "失败" to CapsuleTone.Destructive
+        JobPhase.DOWNLOADING -> UiText.res(Res.string.screen_phase_downloading, pct) to CapsuleTone.Gray
+        JobPhase.EXTRACTING -> UiText.res(Res.string.screen_phase_extracting, pct) to CapsuleTone.Gray
+        JobPhase.TRANSCRIBING -> UiText.res(Res.string.screen_phase_transcribing, pct) to CapsuleTone.Gray
+        JobPhase.TRANSLATING -> UiText.res(Res.string.screen_phase_translating) to CapsuleTone.Gray
+        JobPhase.DONE -> UiText.res(Res.string.screen_phase_done) to CapsuleTone.Tint
+        JobPhase.FAILED -> UiText.res(Res.string.screen_phase_failed) to CapsuleTone.Destructive
     }
 }
 
@@ -467,7 +472,7 @@ private fun CueList(cues: List<Cue>, partial: String, current: Cue?, showTransla
     if (total == 0) {
         Box(modifier.fillMaxWidth().padding(horizontal = SceneSpacing.page, vertical = 24.dp), contentAlignment = Alignment.TopCenter) {
             SceneText(
-                when (phase) { JobPhase.FAILED -> "没有生成字幕"; JobPhase.DONE -> "没有识别到人声"; else -> "字幕会出现在这里" },
+                stringResource(when (phase) { JobPhase.FAILED -> Res.string.screen_no_captions; JobPhase.DONE -> Res.string.screen_no_speech; else -> Res.string.screen_captions_here }),
                 style = SceneTheme.type.subheadline, color = c.tertiaryLabel, textAlign = TextAlign.Center,
             )
         }
@@ -578,22 +583,20 @@ private fun mmss(ms: Long): String {
 }
 
 /** 导航胶囊里的标题：文件名去扩展名，过长截断。 */
-private fun shortTitle(name: String?): String {
-    val base = name?.substringBeforeLast('.')?.trim().orEmpty().ifBlank { "视频字幕" }
+private fun shortTitle(name: String?, fallback: String): String {
+    val base = name?.substringBeforeLast('.')?.trim().orEmpty().ifBlank { fallback }
     return if (base.length > 16) base.take(15) + "…" else base
 }
 
 /** 已处理列表的时间：今天 / 昨天 + 时分，更早只给日期。 */
+@Composable
 private fun whenLabel(epochMs: Long): String {
     val tz = TimeZone.currentSystemDefault()
     val dt = Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(tz)
     val today = Clock.System.todayIn(tz)
     val hm = "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
-    return when (today.toEpochDays() - dt.date.toEpochDays()) {
-        0L -> "今天 $hm"
-        1L -> "昨天 $hm"
-        else -> if (dt.year == today.year) "${dt.month.number}月${dt.day}日" else "${dt.year}年${dt.month.number}月${dt.day}日"
-    }
+    val diff = today.toEpochDays() - dt.date.toEpochDays()
+    return if (diff in 0L..1L) "${dayLabel(dt.date, today)} $hm" else dayLabel(dt.date, today)
 }
 
 /** 虚线描边：沿圆角轮廓画，内缩半个线宽避免被 clip 吃掉。 */

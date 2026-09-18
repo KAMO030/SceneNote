@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SceneNote</string>
+    <string name="widget_desc">ワンタップで聞くだけ / 会議を開始</string>
+    <string name="tile_listen">聞くだけ</string>
+    <string name="tile_quick_phrase">ひとこと翻訳</string>
+    <string name="tile_screen_caption">画面内翻訳</string>
+    <string name="widget_listen">聞くだけ</string>
+    <string name="widget_meeting">会議</string>
+    <string name="capture_channel_name">システム字幕</string>
+    <string name="capture_channel_desc">他のアプリの音声をキャプチャして字幕を表示している間、常駐します</string>
+    <string name="capture_notification_title">システム字幕</string>
+    <string name="capture_notification_text">聞いています…</string>
+    <string name="capture_notification_stop">停止</string>
+</resources>

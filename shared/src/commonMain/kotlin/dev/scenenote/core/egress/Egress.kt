@@ -71,18 +71,18 @@ class EgressGate(
     suspend fun verdict(req: EgressRequest): Verdict {
         val privacy: PrivacyMode = settings.privacy.value
         return when (req.destination) {
-            Destination.LAN -> if (privacy.allowsLan) Verdict.Allow else Verdict.Deny("隐私锁定：不向局域网对端发送")
+            Destination.LAN -> if (privacy.allowsLan) Verdict.Allow else Verdict.Deny("privacy locked: no LAN egress")
             Destination.INTERNET -> when {
-                privacy is PrivacyMode.Locked -> Verdict.Deny("隐私锁定：不向第三方发送任何数据")
+                privacy is PrivacyMode.Locked -> Verdict.Deny("privacy locked: no third-party egress")
                 // 模型资产下载：用户显式点击、不含任何用户数据，除锁定档外一律放行（05 篇 §7.4）
                 req.kind == EgressKind.MODEL_ASSET -> Verdict.Allow
                 // 用户粘贴的视频直链：只下载、不上传任何用户数据，除锁定档外放行（I6 屏内 S4）
                 req.kind == EgressKind.MEDIA_URL -> Verdict.Allow
                 privacy is PrivacyMode.LocalWithPerSegmentConsent && !consent.allows(req.segmentId, req.sessionId) ->
-                    Verdict.Deny("需要逐段授权后才能上云")
-                req.kind == EgressKind.AUDIO && !privacy.allowsInternetAudio -> Verdict.Deny("当前隐私档不允许音频上云")
-                req.kind == EgressKind.TEXT && !privacy.allowsInternetText && privacy !is PrivacyMode.LocalWithPerSegmentConsent -> Verdict.Deny("当前隐私档不允许文本上云")
-                spend.shouldBlock() -> Verdict.Deny("已达本月消费上限，已自动切回仅本机")
+                    Verdict.Deny("per-segment consent required")
+                req.kind == EgressKind.AUDIO && !privacy.allowsInternetAudio -> Verdict.Deny("privacy level forbids audio egress")
+                req.kind == EgressKind.TEXT && !privacy.allowsInternetText && privacy !is PrivacyMode.LocalWithPerSegmentConsent -> Verdict.Deny("privacy level forbids text egress")
+                spend.shouldBlock() -> Verdict.Deny("monthly spend limit reached; local only")
                 else -> Verdict.Allow
             }
         }

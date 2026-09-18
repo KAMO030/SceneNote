@@ -17,6 +17,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.lang.ref.WeakReference
+import dev.scenenote.core.i18n.UiException
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.core.i18n.uiError
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.getString
 
 /** Activity 结果（resultCode + data），[PickerBridge] 回传给等待中的协程。 */
 data class ActivityResultData(val resultCode: Int, val data: Intent?)
@@ -109,13 +114,13 @@ class AndroidMediaPicker(context: Context) : MediaPicker {
         /** content:// → cacheDir/media/<时间戳>_<显示名>；返回 MediaItem（时长取不到为 -1）。 */
         suspend fun importUri(context: Context, uri: Uri, source: MediaSource): MediaItem = withContext(Dispatchers.IO) {
             val cr = context.contentResolver
-            val name = displayName(context, uri) ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "视频"
+            val name = displayName(context, uri) ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: getString(Res.string.screen_video)
             val dir = File(context.cacheDir, "media").apply { mkdirs() }
             val safe = name.replace(Regex("[\\\\/:*?\"<>|\\s]+"), "_").take(80)
             val file = File(dir, "${System.currentTimeMillis()}_$safe")
-            val input = cr.openInputStream(uri) ?: error("读不到这个文件")
+            val input = cr.openInputStream(uri) ?: uiError(Res.string.media_unreadable_file)
             input.use { src -> file.outputStream().use { dst -> src.copyTo(dst, 1 shl 16) } }
-            if (file.length() == 0L) { file.delete(); error("文件是空的") }
+            if (file.length() == 0L) { file.delete(); uiError(Res.string.media_empty_file) }
             MediaItem(path = file.absolutePath, name = name, durationMs = durationOf(file), source = source)
         }
 

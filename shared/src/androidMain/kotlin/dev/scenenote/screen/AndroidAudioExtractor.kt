@@ -17,6 +17,11 @@ import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import dev.scenenote.core.i18n.UiException
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.core.i18n.uiError
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.getString
 
 /**
  * Android 抽音频（S4）：MediaExtractor 选第一条音轨 → MediaCodec 解成 PCM → 多声道平均成单声道 → 线性重采样到 16 kHz
@@ -40,14 +45,14 @@ class AndroidAudioExtractor(context: Context) : AudioExtractor {
             setSource(extractor, videoPath)
             val track = (0 until extractor.trackCount).firstOrNull { i ->
                 extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
-            } ?: error("这个视频没有声音")
+            } ?: uiError(Res.string.media_no_audio)
             val format = extractor.getTrackFormat(track)
-            val mime = format.getString(MediaFormat.KEY_MIME) ?: error("这个视频没有声音")
+            val mime = format.getString(MediaFormat.KEY_MIME) ?: uiError(Res.string.media_no_audio)
             extractor.selectTrack(track)
             val durationUs = (if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else -1L)
                 .takeIf { it > 0 } ?: (durationMs(videoPath) * 1000).takeIf { it > 0 } ?: -1L
 
-            val dec = runCatching { MediaCodec.createDecoderByType(mime) }.getOrElse { error("不支持这种声音格式") }
+            val dec = runCatching { MediaCodec.createDecoderByType(mime) }.getOrElse { uiError(Res.string.media_unsupported_audio) }
             codec = dec
             dec.configure(format, null, null, 0)
             dec.start()
@@ -68,7 +73,7 @@ class AndroidAudioExtractor(context: Context) : AudioExtractor {
 
             while (!outputDone) {
                 ensureActive()
-                if (idleRounds > 600) error("这个视频的声音解不出来")   // 输入已送完却 6 s 没有任何输出：解码器卡死
+                if (idleRounds > 600) uiError(Res.string.media_undecodable)   // 输入已送完却 6 s 没有任何输出：解码器卡死
                 if (!inputDone) {
                     val inIdx = dec.dequeueInputBuffer(10_000)
                     if (inIdx >= 0) {
@@ -125,7 +130,7 @@ class AndroidAudioExtractor(context: Context) : AudioExtractor {
             out.delete()
             if (t is MediaCodec.CodecException || t is java.io.IOException) {
                 Diag.log("extract", "failed: ${t.message}")
-                throw IllegalStateException("这个视频的声音解不出来", t)
+                throw UiException(UiText.res(Res.string.media_undecodable), t)
             }
             throw t
         } finally {
