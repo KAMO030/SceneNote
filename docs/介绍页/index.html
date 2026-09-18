@@ -235,7 +235,7 @@
   .formula .op{ font-family:"M PLUS Rounded 1c",sans-serif; font-weight:900; font-size:26px; color:var(--lav-deep); padding-inline:2px; }
   .formula .pill{ font-size:16px; padding:.5em 1.1em; border-color:var(--line); box-shadow:2px 2px 0 var(--line); }
   .formula .result{ display:inline-flex; align-items:center; gap:.5em; padding:.55em 1.3em; border-radius:20px; background:var(--pink-deep); color:#fff; font-family:var(--font-display); font-weight:var(--fw-display); font-size:20px; border:2.5px solid var(--line); box-shadow:4px 4px 0 var(--line); }
-  .cards5{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; }
+  .cards5{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr)); gap:16px; }
   .scene{ background:var(--card); border:2.5px solid var(--line); border-radius:18px; padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px; box-shadow:5px 5px 0 var(--line); transition:transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease; }
   .scene:hover{ transform:translate(-3px,-6px) rotate(-1deg); box-shadow:8px 10px 0 var(--line); }
   .scene .t{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
@@ -262,7 +262,7 @@
   .spread .note{ margin-top:16px; }
 
   /* 四种玩法：漫画分格 */
-  .modes{ display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:22px 18px; }
+  .modes{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(215px,100%),1fr)); gap:22px 18px; }
   .mode{ position:relative; display:flex; flex-direction:column; align-items:center; gap:14px; padding:18px 14px 16px; background:var(--card); border:3px solid var(--line); box-shadow:6px 6px 0 var(--line); }
   .mode:nth-child(odd){ rotate:-1deg; } .mode:nth-child(even){ rotate:1deg; }
   .mode .num{ position:absolute; left:-12px; top:-14px; width:38px; height:38px; display:grid; place-items:center; background:var(--ink); color:var(--card); font-family:"M PLUS Rounded 1c",sans-serif; font-weight:900; font-size:18px; border-radius:6px; rotate:-6deg; }
@@ -277,7 +277,7 @@
   .modes-foot .pill{ white-space:normal; text-align:center; max-width:100%; }
 
   /* 诚实清单 */
-  .honest{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; }
+  .honest{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr)); gap:18px; }
   .honest .col{ background:var(--card); border-radius:20px; border:2.5px solid var(--line); box-shadow:5px 5px 0 var(--line); padding:22px 24px; transition:transform .35s cubic-bezier(.2,.8,.2,1); }
   .honest .col:hover{ transform:translate(-2px,-6px); }
   .honest .col h3{ font-size:24px; display:flex; align-items:center; gap:10px; margin-bottom:12px; }
@@ -358,6 +358,13 @@
     .hero .fan .sticker.a{ left:-4%; } .hero .fan .sticker.b{ right:-2%; } .hero .fan .sticker.c{ right:0; }
     .formula .op{ font-size:20px; }
     .outlined,.sec-head h2,.hero .tag,.hero .brand .latin{ -webkit-text-stroke-width:3px; }
+  }
+  @media (max-width:360px){
+    .hero .stage{ --mascot-w:94px; }
+    .hero .fan{ padding-inline:0; }
+    .hero .fan .phone{ --pw:86px; margin-inline:-11px; padding:4px; border-radius:20px; } .hero .fan .phone img{ border-radius:15px; }
+    .hero .fan .phone:nth-of-type(2){ --pw:95px; }
+    .hero .fan .sticker{ font-size:10.5px; padding:.25em .6em; }
   }
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{ animation:none !important; transition:none !important; }
@@ -555,7 +562,7 @@
         <span class="pill intro pop" style="--d:1"><svg class="ico"><use href="#i-headset"/></svg><span data-i18n="hero.badge3">什么耳机都行</span></span>
       </div>
       <div class="cta">
-        <a class="btn primary intro" style="--d:1.05" href="#demo" data-i18n="hero.cta1">看一分钟演示</a>
+        <a class="btn primary intro" style="--d:1.05" href="#demo" data-i18n="hero.cta1">看演示</a>
         <a class="btn ghost intro" style="--d:1.15" href="#privacy" data-i18n="hero.cta2">我的数据安全吗？</a>
       </div>
     </div>
@@ -598,8 +605,8 @@
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="ribbon" data-i18n="demo.ribbon">SCENE 00 · 演示</span>
-      <h2 data-i18n="demo.h2">一分钟，<em>看它怎么用</em></h2>
-      <p class="lead" data-i18n="demo.lead">在国外问路：对方说英语，你耳机里听到的是普通话；你说普通话，Ta 在屏幕上看到英文。不用联网，不用注册。</p>
+      <h2 data-i18n="demo.h2">九十秒，<em>能干的都过一遍</em></h2>
+      <p class="lead" data-i18n="demo.lead">在国外问路、举起手机给对方看一句大字、给相册里的视频配字幕、开完会出纪要，顺手换个主题色和界面语言。全程不联网、不用注册，东西不出手机。</p>
     </div>
     <div class="video-wrap reveal pop">
       <div class="video-stage" id="demo-stage">
@@ -946,7 +953,7 @@
   </div>
 </footer>
 
-<script src="i18n.js"></script>
+<script src="i18n.js?v=2026-09-18"></script>
 <script>
 (function(){
   var reduce = false;
