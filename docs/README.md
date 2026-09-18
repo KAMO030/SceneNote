@@ -4,6 +4,10 @@
 
 ## 变更记录
 
+- **2026-09-18 · 翻译管线实现对照**
+  - 新增 [翻译管线-实现对照](翻译管线-实现对照.md)：按代码现状梳理三条管线（实时快路径 / 录音慢路径 / 屏内字幕）的逐段流程、每步调用的模型与降级链、7 类端侧模型清单与许可、换模型的四档代价（设置项 → 换权重 → 换实现 → 改硬编码）。
+  - 末节「规格与实现的差距」记录四项：云端 ASR 引擎只有接口与选路矩阵、尚无实现类（`cloudEngines` 全仓库无赋值点）；方言不能自动识别（同脚本，LID 只分 zh/en/yue/ja/ko，四川话等靠手动选标签驱动模型加载）；`ScenePreset.dialectPriority` 定义后未被读取；系统引擎插件仍只在接口层预留。
+
 - **2026-09-17 · 页面原型、core/design-system 与 I2.5 壳迁移**
   - 新增 14 篇《页面原型与设计系统》与 `docs/原型/`（17 张可点击画板源文件，画布 https://claude.ai/artifact/MAj8d8pkjFPWt5AHG3DZpd ）；`core/designsystem` 落地（Tokens / SceneTheme / Liquid Glass / 全部组件 / `scenenote://gallery` 预览页 / 对比度单测），验收见 `验收记录/design-system.md`。
   - 13 篇：里程碑表在 I2 与 I3 之间加入 **I2.5 壳迁移**（material3 占位壳 → 设计系统四 Tab 壳），各里程碑交付物标注对应原型画板，新增"页面落地对照"小节；`Library` 列表页归 I5，`SceneEdit` 归 I7（待决策 34）。
