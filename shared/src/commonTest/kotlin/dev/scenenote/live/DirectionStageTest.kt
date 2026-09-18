@@ -24,6 +24,17 @@ class DirectionStageTest {
         assertEquals(Speaker.OTHER, d.decideByText("It is sunny today").speaker)
     }
 
+    @Test fun autoOtherLangGuessesByScriptAndFamily() {
+        val d = DirectionStage(Lang.ZH_CN, Lang.AUTO)
+        assertEquals(Speaker.ME, d.decideByText("今天天气怎么样啊").speaker)
+        assertEquals(Speaker.OTHER, d.decideByText("It is sunny today").speaker)
+        assertEquals(Speaker.OTHER, d.decideByText("こんにちは、よろしくお願いします").speaker)
+        val o = d.overrideBy(Speaker.OTHER, 0.9f, "lid")
+        assertNotNull(o); assertEquals("lid", o.basis)
+        d.fixed = Speaker.OTHER
+        assertNull(d.overrideBy(Speaker.ME, 0.9f, "lid"))   // 固定方向不改
+    }
+
     @Test fun debounceHoldsOneWeakFlip() {
         val d = DirectionStage(Lang.ZH_CN, Lang.EN)
         assertEquals(Speaker.OTHER, d.decideByText("Where is the station please").speaker)

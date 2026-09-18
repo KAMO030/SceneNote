@@ -2,6 +2,7 @@ package dev.scenenote.live
 
 import dev.scenenote.asr.NativeSpeakerExtractor
 import dev.scenenote.asr.cosine
+import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.Speaker
 import dev.scenenote.translate.Script
 
@@ -12,6 +13,7 @@ data class DirectionDecision(val speaker: Speaker, val confidence: Float, val te
  * 判向阶段（规格 §3.2）：① ASR 输出脚本（中 ↔ 英零体积主判据）；② 声纹投票（3D-Speaker CAM++，会话内注册「我」，余弦 ≥ 0.6）；
  * ③ 两句防抖：方向翻转需连续两句同向，或单句高置信；④ 用户纠错（翻转 / 固定）在线调高声纹权重。
  * 同脚本（普通话 vs 方言、两人都说中文）时纯靠声纹；没有声纹模型 / 未注册时退化为脚本 + 防抖。
+ * [otherLang] = [Lang.AUTO] 时按脚本猜语种（中 / 英 / 日 / 韩），不是我的家族就算对方；定稿 LID 到后由快路径 [overrideBy] 改判。
  */
 class DirectionStage(
     private val myLang: String,
@@ -59,8 +61,8 @@ class DirectionStage(
     fun decideByText(text: String): DirectionDecision {
         fixed?.let { return DirectionDecision(it, 1f, false, "fixed") }
         if (sameScript(myLang, otherLang)) return DirectionDecision(last ?: Speaker.OTHER, 0.3f, tentative = true, basis = "same-script")   // 无声纹证据前一律标「?」
-        val lang = Script.pick(text, myLang, otherLang)
-        val guess = if (lang == myLang) Speaker.ME else Speaker.OTHER
+        val lang = if (otherLang == Lang.AUTO) Script.guessLang(text, Lang.EN) else Script.pick(text, myLang, otherLang)
+        val guess = if (Lang.family(lang) == Lang.family(myLang)) Speaker.ME else Speaker.OTHER
         val letters = text.count { it.isLetter() }
         val conf = if (letters >= 6) 0.85f else 0.55f
         return debounce(guess, conf, "script")
@@ -77,6 +79,13 @@ class DirectionStage(
         if (voice == current.speaker) return null
         // 声纹与脚本相反：声纹更有把握或脚本本来就弱 → 改判
         return if (voiceConf >= current.confidence || sameScript(myLang, otherLang)) DirectionDecision(voice, voiceConf.coerceAtMost(1f), false, "voice").also { last = voice; pendingFlip = null } else null
+    }
+
+    /** 更强的证据（定稿语种识别）直接改判并落定防抖状态；固定方向时不改。 */
+    fun overrideBy(speaker: Speaker, confidence: Float, basis: String): DirectionDecision? {
+        if (fixed != null) return null
+        last = speaker; pendingFlip = null
+        return DirectionDecision(speaker, confidence, false, basis)
     }
 
     /** 用户纠错（翻转）：记入统计并上调声纹权重；连续 3 次返回 true 建议固定方向。 */

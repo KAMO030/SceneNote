@@ -53,7 +53,9 @@ internal fun AudioDeviceInfo.toRoute(): AudioRoute = when (type) {
 internal fun AudioDeviceInfo.isHeadsetOut(): Boolean = toRoute() == AudioRoute.BluetoothA2dp || toRoute() == AudioRoute.Wired
 
 /**
- * AudioRecord 16 kHz 单声道 PCM16；VOICE_RECOGNITION 源不带 AGC/AEC 后处理；MEASUREMENT 用 UNPROCESSED（有支持时）。
+ * AudioRecord 16 kHz 单声道 PCM16；MEASUREMENT 用 UNPROCESSED（有支持时），其余用 MIC。
+ * 不用 VOICE_RECOGNITION：vivo（V2436A 实测）在该源上做重度降噪 + 门限，人声只剩 −45 ～ −60 dBFS、底噪压到 −87 dBFS，
+ * VAD / zipformer 经常判不出；同一声源换 MIC 源高 20 dB 以上（−15 ～ −25 dBFS）。
  * 铁律：setPreferredDevice(内置麦)，绝不启动 SCO；真实输入设备经 routedDevice 上报给 RouteManager。
  */
 class AndroidAudioSource(private val context: Context, private val routeManager: AndroidRouteManager) : AudioSource {
@@ -67,15 +69,11 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
 
     override suspend fun start(config: CaptureConfig) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-            throw SecurityException("未授予麦克风权限")
+            throw SecurityException("microphone permission not granted")
         stop()
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val unprocessedOk = config.mode == AudioMode.MEASUREMENT && am.getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
-        // 诊断开关（adb shell run-as dev.scenenote.app touch files/diag-mic / files/diag-nopref）：换 MIC 源 / 不指定首选设备
-        val diagMic = java.io.File(context.filesDir, "diag-mic").exists()
-        val diagNoPref = java.io.File(context.filesDir, "diag-nopref").exists()
-        val source = if (unprocessedOk) MediaRecorder.AudioSource.UNPROCESSED else if (diagMic) MediaRecorder.AudioSource.MIC else MediaRecorder.AudioSource.VOICE_RECOGNITION
-        dev.scenenote.core.Diag.log("mic", "inputs=" + am.getDevices(AudioManager.GET_DEVICES_INPUTS).joinToString { "${it.id}:type${it.type}:${it.address}:${it.productName}" } + " diagMic=$diagMic diagNoPref=$diagNoPref")
+        val source = if (unprocessedOk) MediaRecorder.AudioSource.UNPROCESSED else MediaRecorder.AudioSource.MIC
         val minBuf = AudioRecord.getMinBufferSize(config.sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val bufBytes = maxOf(minBuf, config.frameSamples * 2 * 8)
         val rec = AudioRecord.Builder()
@@ -83,34 +81,14 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
             .setAudioFormat(AudioFormat.Builder().setSampleRate(config.sampleRate).setChannelMask(AudioFormat.CHANNEL_IN_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
             .setBufferSizeInBytes(bufBytes)
             .build()
-        check(rec.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord 初始化失败" }
+        check(rec.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord init failed" }
         // 铁律：输入固定内置麦（有线 / USB / LE 耳机麦不接管输入）
-        if (!diagNoPref) am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }?.let { rec.preferredDevice = it }
+        am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }?.let { rec.preferredDevice = it }
         record = rec
         running = true
         rec.startRecording()
-        check(rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "AudioRecord 未进入录音状态（可能被其他 App 占用）" }
+        check(rec.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "AudioRecord not recording (mic may be held by another app)" }
         routeManager.reportInputDevice(rec.routedDevice)
-        // 诊断回环：files/diag-play.wav 存在时，采集开始 1.5 s 后用扬声器播放它（16 kHz 单声道 WAV），对照麦克风拾到的电平
-        java.io.File(context.filesDir, "diag-play.wav").takeIf { it.exists() }?.let { wav ->
-            thread(name = "scenenote-diag-play") {
-                runCatching {
-                    val bytes = wav.readBytes()
-                    val pcm = ShortArray((bytes.size - 44) / 2) { i -> ((bytes[44 + 2 * i].toInt() and 0xff) or (bytes[45 + 2 * i].toInt() shl 8)).toShort() }
-                    val t = AudioTrack.Builder()
-                        .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                        .setAudioFormat(AudioFormat.Builder().setSampleRate(16_000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
-                        .setBufferSizeInBytes(pcm.size * 2).setTransferMode(AudioTrack.MODE_STATIC).build()
-                    t.write(pcm, 0, pcm.size)
-                    SystemClock.sleep(1500)
-                    t.play()
-                    dev.scenenote.core.Diag.log("mic", "diag-play started samples=${pcm.size} routed=${t.routedDevice?.let { "${it.type}:${it.address}" }}")
-                    SystemClock.sleep(pcm.size * 1000L / 16_000 + 300)
-                    t.stop(); t.release()
-                    dev.scenenote.core.Diag.log("mic", "diag-play done")
-                }.onFailure { dev.scenenote.core.Diag.log("mic", "diag-play failed: $it") }
-            }
-        }
         dev.scenenote.core.Diag.log("mic", "start source=$source sr=${config.sampleRate} buf=$bufBytes routed=${rec.routedDevice?.let { "${it.id}:type${it.type}:${it.address}" }} preferred=${rec.preferredDevice?.let { "${it.id}:${it.address}" }}")
         worker = thread(name = "scenenote-capture", priority = Thread.MAX_PRIORITY) {
             val frame = ShortArray(config.frameSamples)
@@ -127,12 +105,12 @@ class AndroidAudioSource(private val context: Context, private val routeManager:
                 if (filled == frame.size) {
                     if (!_frames.tryEmit(frame.copyOf())) dropped++
                     for (v in frame) { val a = if (v < 0) -v.toInt() else v.toInt(); if (a > peak) peak = a; sumSq += v.toDouble() * v; nSamples++ }
-                    if (++reads % 50 == 0L) {
+                    if (++reads % 250 == 0L) {
                         val rms = kotlin.math.sqrt(sumSq / nSamples.coerceAtLeast(1)); val db = 20 * kotlin.math.log10(rms / 32768.0 + 1e-9)
                         dev.scenenote.core.Diag.log("mic", "frames=$reads dropped=$dropped peak=$peak rms=${"%.0f".format(rms)} (${"%.1f".format(db)} dBFS) routed=${rec.routedDevice?.type}")
                         peak = 0; sumSq = 0.0; nSamples = 0
+                        routeManager.reportInputDevice(rec.routedDevice)  // 每 5 s 复核一次真实输入
                     }
-                    if (reads % 250 == 0L) routeManager.reportInputDevice(rec.routedDevice)  // 每 5 s 复核一次真实输入
                 }
             }
             dev.scenenote.core.Diag.log("mic", "stop frames=$reads dropped=$dropped")
@@ -237,7 +215,7 @@ class AndroidRouteManager(private val context: Context) : RouteManager {
         val output = reportedOutput ?: when { sco -> AudioRoute.BluetoothHfp; a2dp -> AudioRoute.BluetoothA2dp; wired -> AudioRoute.Wired; else -> AudioRoute.Speaker }
         val input = reportedInput ?: if (sco) AudioRoute.BluetoothHfp else AudioRoute.BuiltIn
         val note = when {
-            output == AudioRoute.BluetoothHfp || input == AudioRoute.BluetoothHfp -> "通话模式（HFP），音质受限"
+            output == AudioRoute.BluetoothHfp || input == AudioRoute.BluetoothHfp -> "HFP call mode, limited audio quality"
             else -> null
         }
         return RouteState(input = input, output = output, note = note)

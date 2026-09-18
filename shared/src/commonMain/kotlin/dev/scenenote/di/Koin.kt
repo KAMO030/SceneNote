@@ -81,7 +81,7 @@ val commonModule: Module = module {
     single { TtsRouter(system = { get<SystemTtsProvider>().get() }, local = { get<SherpaTts>() }) }
     single { PlaybackQueue(get<AudioSink>(), get()) }
     single { FastPath(get(), get(), get(), get<AudioSink>(), get(), get()) }
-    viewModel { LiveViewModel(get(), get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { LiveViewModel(get(), get<AudioFactory>(), get<AppPaths>(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     // I7：术语表 / 通知 / 场景编辑 / 账本
     single { dev.scenenote.core.db.GlossaryRepository(get()) }
     single { dev.scenenote.core.scene.SceneStore(get()) }

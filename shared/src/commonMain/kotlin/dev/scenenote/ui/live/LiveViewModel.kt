@@ -9,10 +9,16 @@ import dev.scenenote.audio.AudioFactory
 import dev.scenenote.audio.RouteState
 import dev.scenenote.core.egress.ConsentRegistry
 import dev.scenenote.core.model.Interaction
+import dev.scenenote.core.model.Lang
 import dev.scenenote.core.model.LiveState
 import dev.scenenote.core.model.ModeSpec
 import dev.scenenote.core.model.ModeSpecs
 import dev.scenenote.core.model.PrivacyMode
+import dev.scenenote.core.settings.KeyWallet
+import dev.scenenote.core.settings.Providers
+import dev.scenenote.models.ModelStore
+import dev.scenenote.nmt.NmtRoutes
+import dev.scenenote.nmt.OnnxNmtTranslator
 import dev.scenenote.core.model.ScenePreset
 import dev.scenenote.core.model.Scenes
 import dev.scenenote.core.model.Speaker
@@ -40,11 +46,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
+import dev.scenenote.core.i18n.UiText
+import dev.scenenote.shared.resources.*
+import org.jetbrains.compose.resources.getString
 
 data class LiveUiState(
     val scene: ScenePreset? = null,
@@ -52,8 +62,12 @@ data class LiveUiState(
     val state: LiveState = LiveState.Idle,
     val route: RouteState? = null,
     val myLang: String = "zh-CN",
+    /** 当前生效的对方语言（自动识别时 = 已识别到的；未识别前先按英语）。 */
     val otherLang: String = "en",
-    val hint: String = "",
+    /** 对方语言由定稿语种识别自动学（设置 / 语言对卡选了「自动」）。 */
+    val otherLangAuto: Boolean = false,
+    /** 状态一句话（诊断 / 无障碍用；会话页自己有更短的状态词）。 */
+    val hint: UiText? = null,
     val engine: LocalEngineState = LocalEngineState.Unloaded,
     val lines: List<LiveLine> = emptyList(),
     val partial: String = "",
@@ -75,6 +89,10 @@ data class LiveUiState(
     val suggestFixed: Boolean = false,
     /** M3 外放（黄标）开关：等价 voiceOut，但命名与原型一致。 */
     val speakerOut: Boolean = false,
+    /** 零 Key 时本场景语言对还缺的离线翻译包 id（空 = 不缺或走云端）；「去下载」直接带着它们进语音包页。 */
+    val nmtMissing: List<String> = emptyList(),
+    /** 零 Key 且这对语言根本没有端侧模型（如英 → 韩）：提示只能填 Key。 */
+    val nmtUnsupported: Boolean = false,
 ) {
     /** 当前句（最新一行）与历史句，供 M0 / M4 布局。 */
     val current: LiveLine? get() = lines.lastOrNull()
@@ -102,10 +120,15 @@ class LiveViewModel(
     private val repo: dev.scenenote.core.db.SessionRepository,
     private val glossary: dev.scenenote.core.db.GlossaryRepository,
     private val scenes: dev.scenenote.core.scene.SceneStore,
+    private val store: ModelStore,
+    private val wallet: KeyWallet,
+    private val nmt: OnnxNmtTranslator,
 ) : ViewModel() {
     private val routeManager = audio.routeManager()
     private val transcriber = LiveTranscriber(audio, engine, viewModelScope) { onAsr(it) }
-    private val _ui = MutableStateFlow(LiveUiState(myLang = settings.myLang, otherLang = settings.otherLang, autoPosture = settings.autoPosture))
+    private val _ui = MutableStateFlow(LiveUiState(myLang = settings.myLang, otherLang = settings.otherLang, otherLangAuto = settings.otherLang == Lang.AUTO, autoPosture = settings.autoPosture))
+    /** 对方语言的设定值（可能是 [Lang.AUTO]）；`ui.otherLang` 永远是解析后的具体语言。 */
+    private var otherLangSetting: String = settings.otherLang
     val ui: StateFlow<LiveUiState> = _ui.asStateFlow()
     private var sessionId = Uuid.random().toString()
     /** 验收：用 bench 目录里的 WAV 代替麦克风。 */
@@ -116,7 +139,7 @@ class LiveViewModel(
     init {
         machine.state.onEach { s ->
             _ui.value = _ui.value.copy(state = s, hint = hintFor(s))
-            if (s is LiveState.Live) { startTranscribing(); mediaKeys.activate(_ui.value.scene?.name ?: "场记"); if (pendingPoliteCard) startPoliteCard() }
+            if (s is LiveState.Live) { startTranscribing(); mediaKeys.activate(_ui.value.scene?.let { sc -> Scenes.nameRes(sc.id)?.let { getString(it) } ?: sc.name } ?: getString(Res.string.app_name)); if (pendingPoliteCard) startPoliteCard() }
             else if (s == LiveState.Idle || s is LiveState.Paused) { transcriber.stop(); transcribing = false }   // 暂停期间媒体键仍接管（单击 = 继续）；只在 end() 释放
         }.launchIn(viewModelScope)
         routeManager.current.onEach { r -> _ui.value = _ui.value.copy(route = r) }.launchIn(viewModelScope)
@@ -126,10 +149,46 @@ class LiveViewModel(
         fastPath.health.onEach { h -> _ui.value = _ui.value.copy(health = h) }.launchIn(viewModelScope)
         fastPath.playing.onEach { p -> _ui.value = _ui.value.copy(playing = p) }.launchIn(viewModelScope)
         fastPath.speaking.onEach { s -> _ui.value = _ui.value.copy(speaking = s) }.launchIn(viewModelScope)
+        fastPath.resolvedOtherLang.onEach { l -> if (l != _ui.value.otherLang) { _ui.value = _ui.value.copy(otherLang = l); refreshGlossary(); refreshNmtNeeds(); viewModelScope.launch { warmNmt() } } }.launchIn(viewModelScope)
+        fastPath.meVoice.drop(1).onEach { settings.meVoice = it }.launchIn(viewModelScope)   // 注册 / 重置「我」的声纹都落盘（跳过初始值，别把已存的清掉）
         transcriber.error.onEach { e -> if (e != null) _ui.value = _ui.value.copy(error = e) }.launchIn(viewModelScope)
         combine(thermal.level, thermal.lowBattery) { l, b -> l to b }.onEach { (l, b) -> fastPath.setThermal(l, b) }.launchIn(viewModelScope)
         posture.posture.onEach { p -> _ui.value = _ui.value.copy(posture = p); onPosture(p) }.launchIn(viewModelScope)
         mediaKeys.events.onEach { onMediaKey(it) }.launchIn(viewModelScope)
+        store.states.onEach { refreshNmtNeeds() }.launchIn(viewModelScope)   // 下载完成 → 提示消失
+    }
+
+    /** 本场景要翻的方向：仅听只有对方 → 我，速译只有我 → 对方，对话两个方向都要。 */
+    private fun mtDirections(): List<Pair<String, String>> {
+        val u = _ui.value
+        return when (u.mode?.interaction) {
+            Interaction.SIMPLEX_IN -> listOf(u.otherLang to u.myLang)
+            Interaction.SIMPLEX_OUT -> listOf(u.myLang to u.otherLang)
+            else -> listOf(u.otherLang to u.myLang, u.myLang to u.otherLang)
+        }
+    }
+
+    /** 云端译员此刻能不能用：有百炼 Key 且隐私档没锁死文本出站（逐段授权档按可用算，拒绝时自然降级到端侧）。 */
+    private fun cloudMtPossible(): Boolean {
+        val privacy = settings.privacy.value
+        return wallet.hasKey(Providers.bailian.id) && (privacy.allowsInternetText || privacy is PrivacyMode.LocalWithPerSegmentConsent)
+    }
+
+    /** 零 Key 时算一下离线翻译还缺什么包；有 Key 不提示（云端为主，端侧只是降级）。 */
+    private fun refreshNmtNeeds() {
+        val u = _ui.value
+        if (u.mode == null || cloudMtPossible()) { if (u.nmtMissing.isNotEmpty() || u.nmtUnsupported) _ui.value = u.copy(nmtMissing = emptyList(), nmtUnsupported = false); return }
+        val dirs = mtDirections()
+        val missing = dirs.flatMap { (a, b) -> NmtRoutes.packsFor(a, b, store::isInstalled) }.map { it.id }.distinct()
+        val unsupported = dirs.any { (a, b) -> !NmtRoutes.possible(a, b) }
+        if (missing != u.nmtMissing || unsupported != u.nmtUnsupported) _ui.value = _ui.value.copy(nmtMissing = missing, nmtUnsupported = unsupported)
+    }
+
+    /** 端侧翻译预热：零 Key（或逐段授权档，云端随时可能被拒）时把本场景方向的模型装进内存，首句不用等加载。 */
+    private suspend fun warmNmt() {
+        val privacy = settings.privacy.value
+        if (cloudMtPossible() && privacy !is PrivacyMode.LocalWithPerSegmentConsent) return
+        for ((a, b) in mtDirections()) runCatching { nmt.warm(a, b) }.onFailure { dev.scenenote.core.Diag.log("live", "nmt warm $a→$b failed: ${it.message}") }
     }
 
     private fun onAsr(ev: dev.scenenote.asr.AsrEvent) = fastPath.onAsr(ev)
@@ -181,11 +240,13 @@ class LiveViewModel(
         feedFile = feed.takeIf { it.isNotBlank() }
         // 深链 / 验收传入的语言只作用于本场会话，不改用户设置
         if (myLang.isNotBlank()) _ui.value = _ui.value.copy(myLang = myLang)
-        if (otherLang.isNotBlank()) _ui.value = _ui.value.copy(otherLang = otherLang)
+        if (otherLang.isNotBlank()) otherLangSetting = otherLang
         if (myLang.isNotBlank() || otherLang.isNotBlank()) configureFastPath()
         if (voiceOut != null) setVoiceOut(voiceOut)
         thermal.start()
-        if (autostart) trigger() else prepare()
+        // 实时 Tab 直接选「面屏 / 双屏」（initialMode）：这两个布局没有「开始」键（规格里它们是从 M0 翻手机 / 摘耳机升级来的，
+        // 那时会话已在跑），直接开始；仅听 / 速译保持进页只预热、用户按一下再开
+        if (autostart || initialMode.isNotBlank()) trigger() else prepare()
     }
 
     /** 进页预热：装载识别模型（对话模式带声纹）+ 等系统 TTS 探测完，按下「开始 / 按住说话」时不再等 1–2 s。 */
@@ -194,6 +255,7 @@ class LiveViewModel(
         viewModelScope.launch {
             engine.load(plan(src))
             systemTts.awaitReady()
+            warmNmt()
         }
     }
 
@@ -204,16 +266,18 @@ class LiveViewModel(
         fastPath.clear()
         val scene = scenes.resolve(sceneId)   // 内置或自定义（复制一张再改）
         val mode = scene?.liveModeId?.let { ModeSpecs.byId(it) }
-        val other = scene?.langChips?.firstOrNull { it.default }?.tag?.takeIf { mode?.interaction == Interaction.SIMPLEX_IN } ?: settings.otherLang
-        _ui.value = _ui.value.copy(scene = scene, mode = mode, myLang = settings.myLang, otherLang = other, fixedDirection = if (settings.directionAuto) null else Speaker.OTHER)
+        otherLangSetting = scene?.langChips?.firstOrNull { it.default }?.tag?.takeIf { mode?.interaction == Interaction.SIMPLEX_IN } ?: settings.otherLang
+        _ui.value = _ui.value.copy(scene = scene, mode = mode, myLang = settings.myLang, fixedDirection = if (settings.directionAuto) null else Speaker.OTHER)
         configureFastPath()
         mode?.id?.let { applyModeEffects(it, entering = false) }   // 场景初始就是 M1 时同样常亮 / 礼貌卡（礼貌卡在进入 Live 时起计时）
     }
 
     private fun configureFastPath() {
         val mode = _ui.value.mode ?: return
-        fastPath.configure(mode, _ui.value.myLang, _ui.value.otherLang, _ui.value.voiceOut, TtsPreference.of(settings.ttsPreference), sessionId, engine.speakerExtractor)
+        fastPath.configure(mode, _ui.value.myLang, otherLangSetting, _ui.value.voiceOut, TtsPreference.of(settings.ttsPreference), sessionId, engine.speakerExtractor, initialMe = settings.meVoice)
         fastPath.fixDirection(_ui.value.fixedDirection)
+        _ui.value = _ui.value.copy(otherLang = fastPath.resolvedOtherLang.value, otherLangAuto = otherLangSetting == Lang.AUTO)
+        refreshNmtNeeds()
     }
 
     /**
@@ -279,9 +343,10 @@ class LiveViewModel(
     }
 
     fun setAutoPosture(on: Boolean) { settings.autoPosture = on; _ui.value = _ui.value.copy(autoPosture = on) }
-    fun setOtherLang(lang: String) { _ui.value = _ui.value.copy(otherLang = lang); configureFastPath() }
+    fun setOtherLang(lang: String) { otherLangSetting = lang; configureFastPath() }
     fun setMyLang(lang: String) { _ui.value = _ui.value.copy(myLang = lang); settings.myLang = lang; configureFastPath() }
-    fun swapLangs() { val u = _ui.value; _ui.value = u.copy(myLang = u.otherLang, otherLang = u.myLang); configureFastPath() }
+    /** 交换语言：对方语言按当前生效值交换（自动识别时交换后变成固定）。 */
+    fun swapLangs() { val u = _ui.value; otherLangSetting = u.myLang; _ui.value = u.copy(myLang = u.otherLang); configureFastPath() }
     fun setVoiceOut(on: Boolean) { _ui.value = _ui.value.copy(voiceOut = on); fastPath.setVoiceOut(on) }
     /** M3 黄标外放：开 = 对方译文也出声（默认关，规格：外放只作显式黄标降级）。 */
     fun setSpeakerOut(on: Boolean) { _ui.value = _ui.value.copy(speakerOut = on); fastPath.setVoiceOut(on) }
@@ -314,20 +379,25 @@ class LiveViewModel(
         dev.scenenote.core.Diag.log("live", "vm.trigger scene=${_ui.value.scene?.id} mode=${_ui.value.mode?.id} state=${_ui.value.state}")
         applyScenePrivacy()
         viewModelScope.launch {
-            // 术语表按场景词袋注入（我 → 对方 与 对方 → 我 两个方向）+ 纠错映射
-            runCatching {
-                val bucket = _ui.value.scene?.hotwordBucket ?: "general"
-                val my = _ui.value.myLang; val other = _ui.value.otherLang
-                fastPath.setGlossary(mapOf(other to glossary.termsFor(bucket, other), my to glossary.termsFor(bucket, my)), glossary.corrections(bucket).map { it.wrong to it.right })
-            }
+            refreshGlossary()
             val es = engine.load(plan(src))
             val tgt = if (_ui.value.mode?.interaction == Interaction.SIMPLEX_OUT) _ui.value.otherLang else _ui.value.myLang
             systemTts.awaitReady()
             // 系统没有该语言的语音时才预热端侧包（只驻留一个 TTS）
             if (_ui.value.voiceOut && systemTts.get()?.supports(tgt) != true) runCatching { sherpaTts.preload(tgt) }
             configureFastPath()
+            launch { warmNmt() }   // 与开始并行：两方向 ≈ 1–2 s，首句翻译会等它装完（译员内部串行）
             posture.start()
             machine.trigger()
+        }
+    }
+
+    /** 术语表按场景词袋注入（我 → 对方 与 对方 → 我 两个方向）+ 纠错映射；对方语言被自动识别改掉时重注入。 */
+    private fun refreshGlossary() = viewModelScope.launch {
+        runCatching {
+            val bucket = _ui.value.scene?.hotwordBucket ?: "general"
+            val my = _ui.value.myLang; val other = _ui.value.otherLang
+            fastPath.setGlossary(mapOf(other to glossary.termsFor(bucket, other), my to glossary.termsFor(bucket, my)), glossary.corrections(bucket).map { it.wrong to it.right })
         }
     }
 
@@ -362,7 +432,7 @@ class LiveViewModel(
         runCatching {
             repo.create(id, dev.scenenote.core.db.SessionKind.LIVE, scene?.id ?: "listen", mode?.id, _ui.value.otherLang, _ui.value.myLang, _ui.value.otherLang, engine.info, startedAt = sessionStartedAt)
             repo.addUtterances(id, lines)
-            repo.end(id, title = "对话 · $title", summary = null)
+            repo.end(id, title = getString(Res.string.session_title_talk, title), summary = null)
         }.onFailure { persisted = false; persistedId = null }
         return persistedId
     }
@@ -371,19 +441,20 @@ class LiveViewModel(
     fun end() {
         transcribing = false; transcriber.stop(); fastPath.flush("end"); machine.end(); consent.revokeSession(sessionId)
         viewModelScope.launch { persist() }
+        viewModelScope.launch { nmt.unloadAll() }   // 每方向 ≈ 130 MB，会话结束就还给系统；下次进页 prepare() 再预热
         posture.stop(); postureJob?.cancel(); politeJob?.cancel(); screen.keepAwake(false); screen.maxBrightness(false); mediaKeys.deactivate()
     }
     fun clear() { fastPath.clear() }
 
-    private fun hintFor(s: LiveState): String = when (s) {
-        LiveState.Idle -> "按一下开始；戴耳机或外放都可以"
-        LiveState.Arming -> "准备中…"
-        is LiveState.Live -> when (_ui.value.mode?.interaction) { Interaction.SIMPLEX_IN -> "正在听对方"; Interaction.SIMPLEX_OUT -> "说一句，松手出字"; else -> "正在听" }
-        is LiveState.Paused -> when (s.reason) { "call" -> "来电 / 系统打断，稍后继续"; else -> "已暂停" }
-        LiveState.NeedForeground -> "预热已失效，解锁并点一下继续"
-        LiveState.Degraded -> "请戴上耳机，或改用双屏"
-        LiveState.Ending -> "正在整理会话…"
-    }
+    private fun hintFor(s: LiveState): UiText = UiText.Res(when (s) {
+        LiveState.Idle -> Res.string.live_hint_idle
+        LiveState.Arming -> Res.string.live_state_arming
+        is LiveState.Live -> when (_ui.value.mode?.interaction) { Interaction.SIMPLEX_IN -> Res.string.live_state_listening; Interaction.SIMPLEX_OUT -> Res.string.live_hint_simplex_out; else -> Res.string.live_hint_listening }
+        is LiveState.Paused -> when (s.reason) { "call" -> Res.string.live_hint_interrupted; else -> Res.string.live_state_paused }
+        LiveState.NeedForeground -> Res.string.live_hint_need_foreground
+        LiveState.Degraded -> Res.string.live_hint_degraded
+        LiveState.Ending -> Res.string.live_hint_ending
+    })
 
     override fun onCleared() { end(); thermal.stop() }
 }

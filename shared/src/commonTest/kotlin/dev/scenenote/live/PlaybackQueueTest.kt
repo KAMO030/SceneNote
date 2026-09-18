@@ -25,8 +25,10 @@ private class QueueFakeSink : AudioSink {
 }
 private class FakeTts(val chunks: Int = 3, val chunkDelayMs: Long = 5) : TtsEngine {
     override val id = "fake"
+    val rates = mutableListOf<Float>()
     override fun supports(lang: String) = true
     override suspend fun synthesize(req: TtsRequest, onChunk: suspend (ShortArray) -> Boolean): TtsStats {
+        rates += req.rate
         var sent = 0
         repeat(chunks) { i -> delay(chunkDelayMs); if (!onChunk(ShortArray(160 * (i + 1)))) return TtsStats(id, 16_000, sent, 0, 0); sent += 160 * (i + 1) }
         return TtsStats(id, 16_000, sent, chunkDelayMs, chunkDelayMs * chunks)
@@ -44,6 +46,14 @@ class PlaybackQueueTest {
         assertEquals(listOf(160, 320, 480, 160, 320, 480), sink.played)
         assertEquals(listOf("u1", "u2"), events.filterIsInstance<PlaybackEvent.Done>().map { it.utteranceId })
         assertTrue(events.filterIsInstance<PlaybackEvent.Started>().map { it.utteranceId }.containsAll(listOf("u1", "u2")))
+    }
+
+    @Test fun backlogOfTwoOrMoreSpeedsUp() = runTest {
+        val sink = QueueFakeSink(); val q = PlaybackQueue(sink, backgroundScope)
+        val tts = FakeTts()
+        (1..4).forEach { q.enqueue(TtsRequest("s$it", "en", "u$it"), tts) }
+        advanceTimeBy(2_000); runCurrent()
+        assertEquals(listOf(1.2f, 1.2f, 1f, 1f), tts.rates)   // u1/u2 后面各排着 ≥ 2 句；u3/u4 不加速
     }
 
     @Test fun flushDropsPendingAndStopsCurrent() = runTest {

@@ -75,7 +75,7 @@ class FastPathTest {
 
     @Test fun otherInterruptionDucksThenFlushes() = runTest {
         val (fp, sink, queue) = build(backgroundScope)
-        fp.configure(ModeSpecs.byId("M0"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        fp.configure(ModeSpecs.byId("M1"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
         fp.onAsr(AsrEvent.Final(seg("u1", "a long sentence to play")))
         advanceTimeBy(400); runCurrent()
         assertEquals("u1", queue.playing.value)
@@ -90,7 +90,7 @@ class FastPathTest {
 
     @Test fun shortInterruptionRestoresAfter500ms() = runTest {
         val (fp, sink, _) = build(backgroundScope)
-        fp.configure(ModeSpecs.byId("M0"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        fp.configure(ModeSpecs.byId("M1"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
         fp.onAsr(AsrEvent.Final(seg("u1", "a long sentence to play")))
         advanceTimeBy(400); runCurrent()
         fp.onAsr(AsrEvent.SpeechStart(0)); advanceTimeBy(600); runCurrent()
@@ -139,7 +139,7 @@ class FastPathTest {
 
     @Test fun restoreIsCancelledByNewSpeechStart() = runTest {
         val (fp, sink, _) = build(backgroundScope)
-        fp.configure(ModeSpecs.byId("M0"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        fp.configure(ModeSpecs.byId("M1"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
         fp.onAsr(AsrEvent.Final(seg("u1", "a long sentence to play")))
         advanceTimeBy(400); runCurrent()
         fp.onAsr(AsrEvent.SpeechStart(0)); advanceTimeBy(400); runCurrent()
@@ -150,12 +150,80 @@ class FastPathTest {
 
     @Test fun playbackStartedWhileSpeakingGetsDucked() = runTest {
         val (fp, sink, _) = build(backgroundScope)
-        fp.configure(ModeSpecs.byId("M0"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        fp.configure(ModeSpecs.byId("M1"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
         fp.onAsr(AsrEvent.SpeechStart(0)); runCurrent()                    // 队列还空：不计时
         fp.onAsr(AsrEvent.Final(seg("u1", "a long sentence to play")))    // 译文开播时对方仍在说
         advanceTimeBy(400); runCurrent()
         advanceTimeBy(350); runCurrent()
         assertEquals(-12f, sink.volumeDb)
+    }
+
+    @Test fun listenModeKeepsPlayingWhileOtherKeepsTalking() = runTest {
+        val (fp, sink, queue) = build(backgroundScope)
+        fp.configure(ModeSpecs.byId("M0"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        fp.onAsr(AsrEvent.SpeechStart(0)); runCurrent()                    // 讲座：对方从头说到尾
+        fp.onAsr(AsrEvent.Final(seg("u1", "a long sentence to play")))
+        advanceTimeBy(400); runCurrent()
+        assertEquals("u1", queue.playing.value)
+        fp.onAsr(AsrEvent.SpeechEnd(400)); fp.onAsr(AsrEvent.SpeechStart(420))   // VAD 句间断开又续上
+        advanceTimeBy(1_500); runCurrent()                                        // 早已过了 300 ms / 1.5 s 两道门槛
+        assertEquals(0f, sink.volumeDb)                // 不压低
+        assertEquals(0, sink.stops)                    // 不丢弃
+        assertEquals("u1", queue.playing.value)
+    }
+
+    @Test fun draftWaitsForRefineAndTranslatesRefinedText() = runTest {
+        val (fp, _, _) = build(backgroundScope)
+        fp.configure(ModeSpecs.byId("M0"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        fp.onAsr(AsrEvent.Final(seg("u1", "hello hello there"), refining = true))     // 流式草稿（叠字）
+        advanceTimeBy(300); runCurrent()
+        assertEquals("hello hello there", fp.lines.value.single().text)
+        assertEquals(null, fp.lines.value.single().translation)                           // 还在等定稿
+        fp.onAsr(AsrEvent.Final(seg("u1", "hello there").copy(revision = 1)))             // 定稿到了
+        advanceTimeBy(200); runCurrent()
+        val line = fp.lines.value.single()
+        assertEquals("hello there", line.text)
+        assertEquals("[zh-CN] hello there", line.translation)                             // 播出去的是定稿的译文
+    }
+
+    @Test fun draftTranslatesAfterRefineTimeout() = runTest {
+        val (fp, _, _) = build(backgroundScope)
+        fp.configure(ModeSpecs.byId("M0"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        fp.onAsr(AsrEvent.Final(seg("u1", "hello there"), refining = true))
+        advanceTimeBy(FastPath.REFINE_WAIT_MS + 200); runCurrent()
+        assertEquals("[zh-CN] hello there", fp.lines.value.single().translation)          // 定稿没来：超时照草稿翻
+    }
+
+    @Test fun lidFlipsGarbageDraftToOtherAndLearnsTheirLanguage() = runTest {
+        val (fp, _, _) = build(backgroundScope)
+        fp.configure(ModeSpecs.byId("M1"), Lang.ZH_CN, Lang.AUTO, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        assertEquals(Lang.EN, fp.resolvedOtherLang.value)                                       // 未识别前先按英语
+        // 对方说日语：中英流式模型吐出乱码汉字，脚本把它判成「我」
+        fp.onAsr(AsrEvent.Final(seg("u1", "哈喽哈喽扣你机哇", Lang.ZH_CN), refining = true))
+        runCurrent()
+        assertEquals(Speaker.ME, fp.lines.value.single().speaker)
+        // 定稿 LID = ja → 改判对方、源语言 ja → 我的语言，会话对方语言学成日语
+        fp.onAsr(AsrEvent.Final(seg("u1", "こんにちは、よろしく", Lang.JA).copy(revision = 1)))
+        advanceTimeBy(300); runCurrent()
+        val l = fp.lines.value.single()
+        assertEquals(Speaker.OTHER, l.speaker); assertEquals("lid", l.dirBasis)
+        assertEquals(Lang.JA, l.srcLang); assertEquals(Lang.ZH_CN, l.tgtLang)
+        assertEquals("[zh-CN] こんにちは、よろしく", l.translation)
+        assertEquals(Lang.JA, fp.resolvedOtherLang.value)
+        // 之后我说中文 → 翻成日语
+        fp.onAsr(AsrEvent.Final(seg("u2", "你好，请问车站在哪里", Lang.ZH_CN)))
+        advanceTimeBy(300); runCurrent()
+        val mine = fp.lines.value.last()
+        assertEquals(Speaker.ME, mine.speaker); assertEquals(Lang.JA, mine.tgtLang); assertEquals("[ja] 你好，请问车站在哪里", mine.translation)
+    }
+
+    @Test fun lidInMyFamilyLeavesDecisionAlone() = runTest {
+        val (fp, _, _) = build(backgroundScope)
+        fp.configure(ModeSpecs.byId("M1"), Lang.ZH_CN, Lang.EN, voiceOut = true, ttsPref = TtsPreference.AUTO, sessionId = "s")
+        fp.onAsr(AsrEvent.Final(seg("u1", "今天天气怎么样啊", Lang.ZH_CN), refining = true)); runCurrent()
+        fp.onAsr(AsrEvent.Final(seg("u1", "今天天气怎么样？", Lang.ZH_CN).copy(revision = 1))); advanceTimeBy(300); runCurrent()
+        val l = fp.lines.value.single()
+        assertEquals(Speaker.ME, l.speaker); assertEquals(Lang.EN, l.tgtLang); assertEquals(Lang.EN, fp.resolvedOtherLang.value)
     }
 
     @Test fun leakedTtsTextIsDropped() = runTest {

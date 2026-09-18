@@ -26,6 +26,7 @@ sealed interface PlaybackEvent {
 /**
  * 播放队列（06 篇 §3.4）：串行合成 + 播放；空 → 非空时先 prime 唤醒耳机；
  * [flush] 丢掉未播的（对方打断 / 我在说话 / 设备切换），正在播的立刻停。
+ * 积压（规格 §5.4）：后面还排着 ≥ 2 句时本句语速 1.2×（≥ 4 句合并待做）。
  */
 class PlaybackQueue(private val sink: AudioSink, private val scope: CoroutineScope) {
     private data class Item(val req: TtsRequest, val engine: TtsEngine, val generation: Int)
@@ -62,7 +63,8 @@ class PlaybackQueue(private val sink: AudioSink, private val scope: CoroutineSco
             if (primedIdle) { sink.prime(); primedIdle = false }
             var first = true
             val t0 = TimeSource.Monotonic.markNow()
-            val stats = item.engine.synthesize(item.req) { chunk ->
+            val req = if (_pending.value >= 2 && item.req.rate == 1f) item.req.copy(rate = BACKLOG_RATE) else item.req
+            val stats = item.engine.synthesize(req) { chunk ->
                 if (item.generation != generation) return@synthesize false
                 if (first) { first = false; _playing.value = id; _events.tryEmit(PlaybackEvent.Started(id, t0.elapsedNow().inWholeMilliseconds)) }
                 sink.play(chunk)
@@ -89,4 +91,6 @@ class PlaybackQueue(private val sink: AudioSink, private val scope: CoroutineSco
     }
 
     fun close() { flush(); queue.close(); worker.cancel() }
+
+    companion object { const val BACKLOG_RATE = 1.2f }
 }
